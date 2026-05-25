@@ -1,0 +1,1 @@
+module.exports.commonHelper = require('./common.helper');

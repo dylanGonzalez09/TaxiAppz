@@ -1,0 +1,20 @@
+language: node_js
+node_js:
+  - '12'
+services:
+  - mongodb
+cache: yarn
+branches:
+  only:
+    - master
+env:
+  global:
+    - PORT=3001
+    - MONGODB_URL=mongodb+srv://admin:1234@cluster0.vosswk8.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0
+    - JWT_SECRET=thisisasamplesecret
+    - JWT_ACCESS_EXPIRATION_MINUTES=30
+    - JWT_REFRESH_EXPIRATION_DAYS=30
+script:
+  - yarn lint
+  - yarn test
+after_success: yarn coverage:coveralls

@@ -1,0 +1,2 @@
+C:/nPlus_flutter_projects/Taxi apps saas clones/Taxi App Pro/Taxiapp_driver_pro/android/app/.cxx/RelWithDebInfo/2945u4t2/x86/CMakeFiles/edit_cache.dir
+C:/nPlus_flutter_projects/Taxi apps saas clones/Taxi App Pro/Taxiapp_driver_pro/android/app/.cxx/RelWithDebInfo/2945u4t2/x86/CMakeFiles/rebuild_cache.dir

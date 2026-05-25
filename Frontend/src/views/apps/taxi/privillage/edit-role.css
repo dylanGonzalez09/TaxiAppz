@@ -1,0 +1,78 @@
+/* stylelint-disable liberty/use-logical-spec */
+/* EditRole.module.css */
+.container {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  padding: 6px;
+}
+
+.titleContainer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.form {
+  display: grid;
+  gap: 4px;
+  divide-y: divide-y-reverse;
+  divide-color: #e2e8f0;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-bottom: 4px;
+  @media (min-width: 768px) {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.groupTitle {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #4a5568;
+}
+
+.checkboxGroup {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 4px;
+  @media (min-width: 768px) {
+    display: flex;
+  }
+}
+
+.submitButton {
+  margin-top: 4px;
+  background-color: #4299e1;
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 0.25rem;
+}
+/* Example CSS */
+.my-custom-checkbox {
+  /* Customize checkbox styles */
+  width: 20px;
+  height: 20px;
+  border: 2px solid #333;
+  border-radius: 4px;
+  background-color: #fff;
+  cursor: pointer;
+}
+
+.my-custom-checkbox:checked {
+  background-color: #007bff; /* Example color change when checked */
+}
+
+.my-custom-checkbox .icon {
+  /* Style the check icon */
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  fill: #fff; /* Example color of the check icon */
+}

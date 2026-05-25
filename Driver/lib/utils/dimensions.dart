@@ -1,0 +1,34 @@
+class Dimensions {
+  static const padding_15 = 15.0;
+  static const padding_13 = 13.0;
+  static const padding_14 = 14.0;
+  static const padding_11 = 11.0;
+  static const padding_10 = 10.0;
+  static const padding_7 = 7.0;
+  static const padding_4 = 4.0;
+  static const padding_20 = 20.0;
+  static const padding_30 = 30.0;
+  static const padding_40 = 40.0;
+  static const padding_36 = 36.0;
+  static const padding_5 = 5.0;
+  static const padding_35 = 35.0;
+  static const padding_70 = 70.0;
+  static const padding_17 = 17.0;
+  static const padding_2 = 2.0;
+  static const padding_3 = 3.0;
+  static const padding_6 = 6.0;
+  static const padding_8 = 8.0;
+  static const padding_60 = 60.0;
+  static const padding_80 = 80.0;
+  static const padding_90 = 90.0;
+  static const padding_100 = 100.0;
+  static const padding_110 = 110.0;
+  static const padding_50 = 50.0;
+  static const padding_55 = 55.0;
+  static const padding_12 = 12.0;
+  static const padding_25 = 25.0;
+  static const padding_16 = 16.0;
+  static const padding_26 = 26.0;
+  static const padding_27 = 27.0;
+  static const padding_18 = 18.0;
+}

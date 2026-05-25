@@ -1,0 +1,61 @@
+import 'dart:convert';
+import 'package:url_launcher/url_launcher.dart';
+import '../../models/enums.dart';
+import '../../network/response_models/config_model.dart';
+import '../../network/response_models/reqin_progress_model.dart';
+import '../../utils/app_url.dart';
+import '../../utils/base_vm.dart';
+import '../../utils/preference_helper.dart';
+
+class SupportVm extends BaseVm {
+  ReqInProgressModel? requestInProModel;
+  String headOfficeNumber = "00000000";
+  String adminNumber = "000000";
+
+  void getReqInProgress() async {
+    showLoader();
+    final reModel = await apiHelper.get(AppUrls.reqInProgress);
+    hideLoader();
+    reModel.fold((e) => showErrorDialog(errorModel: e), (r) {
+      final data = parseData(r.data, ReqInProgressModel.fromJson);
+      if (data != null) {
+        requestInProModel = data;
+
+      }
+    });
+  }
+
+  String? getAdminPhoneNumber() {
+    setHeadOfficeNumber();
+    return adminNumber.isNotEmpty ? adminNumber : null;
+  }
+
+  String? getHeadOfficeNumber() {
+    setHeadOfficeNumber();
+    return headOfficeNumber.isNotEmpty ? headOfficeNumber : null;
+  }
+
+  void setHeadOfficeNumber() {
+    final data = preference.getString(PreferenceHelper.config);
+    if (data != null && data.isNotEmpty) {
+      final config = ConfigModel.fromJson(jsonDecode(data));
+      if (config.settings != null) {
+        for (var i in config.settings!) {
+          if (i.name == SettingsEnum.general.name) {
+            headOfficeNumber = i.settings?.headOfficeNumber ?? "";
+            adminNumber = i.settings?.adminNumber ?? "";
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  void makePhoneCall(String phoneNumber) async {
+    final Uri launchUri = Uri(
+      scheme: 'tel',
+      path: phoneNumber,
+    );
+    await launchUrl(launchUri);
+  }
+}

@@ -1,0 +1,162 @@
+{
+  "project_info": {
+    "project_number": "996273313700",
+    "project_id": "taxiappz-new",
+    "storage_bucket": "taxiappz-new.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:996273313700:android:9750db9c4ff58ddc349331",
+        "android_client_info": {
+          "package_name": "com.example.korssa_user"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9xkY1n-WGQpUBjaWeWYv0crwo57RhGuU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:996273313700:android:128147e30b7da84c349331",
+        "android_client_info": {
+          "package_name": "com.pyxi.driver"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9xkY1n-WGQpUBjaWeWYv0crwo57RhGuU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:996273313700:android:502ac907955fb3c0349331",
+        "android_client_info": {
+          "package_name": "com.taxi_appz.driver"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9xkY1n-WGQpUBjaWeWYv0crwo57RhGuU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:996273313700:android:ddef767264e8ab6c349331",
+        "android_client_info": {
+          "package_name": "com.taxi_appz.driver_debug"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9xkY1n-WGQpUBjaWeWYv0crwo57RhGuU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:996273313700:android:dc65781bade0dcc2349331",
+        "android_client_info": {
+          "package_name": "com.taxi_appz.vendor_debug"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9xkY1n-WGQpUBjaWeWYv0crwo57RhGuU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:996273313700:android:638b0d6b84674b64349331",
+        "android_client_info": {
+          "package_name": "com.taxi_appz_user"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9xkY1n-WGQpUBjaWeWYv0crwo57RhGuU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:996273313700:android:214903919aa35837349331",
+        "android_client_info": {
+          "package_name": "com.taxiappzpro.user"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9xkY1n-WGQpUBjaWeWYv0crwo57RhGuU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:996273313700:android:69fe423943d7aeca349331",
+        "android_client_info": {
+          "package_name": "com.taxiappzpro.user.debug"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9xkY1n-WGQpUBjaWeWYv0crwo57RhGuU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

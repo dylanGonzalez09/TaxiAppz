@@ -1,0 +1,2 @@
+C:/nPlus_flutter_projects/Saas_taxi/Taxiapp_driver/android/app/.cxx/RelWithDebInfo/32v1w164/x86_64/CMakeFiles/edit_cache.dir
+C:/nPlus_flutter_projects/Saas_taxi/Taxiapp_driver/android/app/.cxx/RelWithDebInfo/32v1w164/x86_64/CMakeFiles/rebuild_cache.dir
