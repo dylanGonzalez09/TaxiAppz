@@ -1,6 +1,7 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 'use client';
 import React, { useState, useMemo, useEffect } from 'react';
+
+import { useParams } from 'next/navigation'
 
 import type { TextFieldProps } from '@mui/material/TextField';
 import TablePagination from '@mui/material/TablePagination';
@@ -20,6 +21,8 @@ import { toast } from 'react-toastify';
 
 import { MenuItem, Typography, Card, IconButton, Button } from '@mui/material';
 
+import { getSession } from 'next-auth/react';
+
 import { useIsDemoUser } from '@/utils/demoUser'
 
 import CustomTextField from '@core/components/mui/TextField';
@@ -27,33 +30,51 @@ import TablePaginationComponent from '@components/TablePaginationComponent';
 import ExportOptions from '@/utils/ExportOptions';
 import ConfirmationDialog from '@/components/dialogs/delete-data';
 import tableStyles from '@core/styles/table.module.css';
+
 import ComposeMail from './ComposeMail';
+
+import { ENDPOINTS } from '@/app/api/apps/taxi/endpoint';
 
 
 
 type EmailType = {
+  id?: string;
   subject: string;
   content: string;
-  actions?: string;
+  actions?: string
+  notificationType?: string;
+
 };
 
-const userOptions = [
-  { id: 1, name: 'User One' },
-  { id: 2, name: 'User Two' },
-  { id: 3, name: 'User Three' },
-  { id: 4, name: 'User four' },
-  { id: 5, name: 'User' },
-  { id: 6, name: 'Three' },
-  { id: 7, name: 'One' },
-  { id: 8, name: 'Two' },
-  { id: 9, name: 'Three' },
-];
+// Normalize API response to table rows: support array or { results: [] } and map email fields
+function normalizeEmailData(staticGroup: any): EmailType[] {
 
-const driverOptions = [
-  { id: 1, name: 'Driver One' },
-  { id: 2, name: 'Driver Two' },
-  { id: 3, name: 'Driver Three' },
-];
+  if (!staticGroup) return [];
+
+  if (Array.isArray(staticGroup)) {
+    return staticGroup.map((row: any) => ({
+      id: row.id,
+      subject: row.subject ?? row.emailTitle ?? row.emailSubject ?? row.title ?? '',
+      content: row.content ?? row.emailContent ?? row.emailSubtitle ?? row.subTitle ?? row.message ?? '',
+    }));
+  }
+
+  const results = staticGroup.results ?? staticGroup.data ?? [];
+
+  if (!Array.isArray(results)) return [];
+
+  return results.map((row: any) => ({
+    id: row.id,
+    subject: row.subject ?? row.emailTitle ?? row.emailSubject ?? row.title ?? '',
+    content: row.content ?? row.emailContent ?? row.emailSubtitle ?? row.subTitle ?? row.message ?? '',
+  }));
+}
+
+const stripHtml = (html: string): string => {
+  if (!html || typeof html !== 'string') return '';
+
+  return html.replace(/<[^>]*>/g, '').trim();
+};
 
 const fuzzyFilter: FilterFn<EmailType> = (row, columnId, filterValue) => {
 
@@ -91,15 +112,71 @@ const DebouncedInput = ({
 
 const columnHelper = createColumnHelper<EmailType>();
 
-const EmailTable = ({ staticGroup, dictionary }: { staticGroup: EmailType[]; dictionary: any }) => {
-  const { control } = useForm();
+const EmailTable = ({ staticGroup, dictionary }: { staticGroup: any; dictionary: any }) => {
+const { control, getValues } = useForm();
   const [rowSelection, setRowSelection] = useState({});
-  const [data, setData] = useState<EmailType[]>(staticGroup);
+  const [data, setData] = useState<EmailType[]>(() => normalizeEmailData(staticGroup));
   const [globalFilter, setGlobalFilter] = useState('');
   const [deleteEmailIndex, setDeleteEmailIndex] = useState<number | null>(null);
   const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
   const [openCompose, setOpenCompose] = useState(false);
-  const { checkDemoStatus } = useIsDemoUser();
+ const [userOptions, setUserOptions] = useState<any[]>([])
+  const [driverOptions, setDriverOptions] = useState<any[]>([])
+
+  // Sync table data when server passes new staticGroup (e.g. initial load or refresh)
+  useEffect(() => {
+    setData(normalizeEmailData(staticGroup));
+  }, [staticGroup]);
+
+  const { checkDemoStatus } = useIsDemoUser()
+
+   const { zoneId } = useParams()
+
+  const getClientId = async () => {
+    const session = await getSession()
+
+    return session?.user?.image?.clientId
+  }
+
+  useEffect(() => {
+
+    const fetchDropdown = async () => {
+
+      try {
+
+const clientId = await getClientId()
+
+if (!clientId) {
+  throw new Error('ClientId is undefined')
+}
+
+const currentZoneId =
+          typeof zoneId === 'string'
+            ? zoneId
+            : Array.isArray(zoneId)
+            ? zoneId[0]
+            : ''
+
+        const response = await fetch(
+ENDPOINTS.notification.dropDownList(clientId ?? '', currentZoneId)        )
+
+        const res = await response.json()
+
+        setUserOptions(res.data.Userdata || [])
+        setDriverOptions(res.data.Driverdata || [])
+
+      } catch (err) {
+
+        console.error(err)
+        toast.error('Failed to fetch users and drivers')
+
+      }
+
+    }
+
+    fetchDropdown()
+
+  }, [zoneId])
 
   const handleDeleteClick = (index: number) => {
     if (checkDemoStatus()) {
@@ -131,13 +208,26 @@ const EmailTable = ({ staticGroup, dictionary }: { staticGroup: EmailType[]; dic
       header: dictionary['navigation'].serialNo,
       cell: ({ row }) => <Typography>{row.index + 1}</Typography>,
     },
+    {
+      id: 'notificationType',
+      header: dictionary['navigation'].type ?? 'Type',
+      cell: ({ row }) => (
+        <Typography className='font-medium'>
+          {row.original.notificationType === 'push'
+            ? (dictionary['navigation'].push ?? 'Push')
+            : (dictionary['navigation'].email ?? 'Email')}
+        </Typography>
+      ),
+    },
     columnHelper.accessor('subject', {
       header: dictionary['navigation'].subject,
       cell: ({ row }) => <Typography className='font-medium'>{row.original.subject}</Typography>,
     }),
     columnHelper.accessor('content', {
       header: dictionary['navigation'].content,
-      cell: ({ row }) => <Typography className='font-medium'>{row.original.content}</Typography>,
+      cell: ({ row }) => (
+        <Typography className='font-medium'>{stripHtml(row.original.content ?? '')}</Typography>
+      ),
     }),
     columnHelper.accessor('actions', {
       header: dictionary['navigation'].actions,
@@ -150,7 +240,7 @@ const EmailTable = ({ staticGroup, dictionary }: { staticGroup: EmailType[]; dic
       ),
       enableSorting: false,
     }),
-  ], [ dictionary]);
+  ], [ handleDeleteClick,dictionary]);
 
   const table = useReactTable({
     data,
@@ -247,10 +337,13 @@ const EmailTable = ({ staticGroup, dictionary }: { staticGroup: EmailType[]; dic
         openCompose={openCompose}
         setOpenCompose={setOpenCompose}
         control={control}
+        getValues={getValues}
         userOptions={userOptions}
         driverOptions={driverOptions}
         dictionary={dictionary}
-
+        onSendSuccess={(subject, content) => {
+          setData(prev => [...prev, { subject, content }]);
+        }}
       />
       <TablePagination
         component={() => <TablePaginationComponent table={table} dictionary={dictionary} />}

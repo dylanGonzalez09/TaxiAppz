@@ -45,23 +45,21 @@ type Props = {
 };
 
 const TripTimeDetails = ({ events, dictionary }: Props) => {
-  const filteredEvents = events.filter(event => !!event.time);
-  const lastEvent = filteredEvents[filteredEvents.length - 1];
-  const isCompleted = lastEvent?.label === 'Trip Completed Time';
-  const isCancelled = lastEvent?.label === 'Trip Cancel Time';
+  const isCompleted = events[events.length - 1]?.label === 'Trip Completed Time';
+  const isCancelled = events[events.length - 1]?.label === 'Trip Cancel Time';
 
   return (
     <Card>
    <CardHeader title={dictionary['navigation'].Triptimedetails} />
-    {filteredEvents.length > 0 && (
+      
       <CardContent>
         <Timeline>
-          {filteredEvents.map((event, index) => {
-            const isLastItem = index === filteredEvents.length - 1;
+          {events.map((event, index) => {
+            const isLastItem = index === events.length - 1;
 
             const connectorColor = isLastItem 
               ? 'transparent' 
-              : (isCancelled && index === filteredEvents.length - 2) 
+              : (isCancelled && index === events.length - 2) 
                 ? 'error.main' 
                 : 'primary.main';
 
@@ -71,8 +69,7 @@ const TripTimeDetails = ({ events, dictionary }: Props) => {
                   {isLastItem ? (
                     isCompleted ? (
                       <CheckCircleIcon 
-                        
-                      // color="success" 
+                        color="success" 
                         fontSize="small"
                         sx={{ 
                           fontSize: '1.25rem',
@@ -81,12 +78,9 @@ const TripTimeDetails = ({ events, dictionary }: Props) => {
                         }} 
                       />
                     ) : isCancelled ? (
-                     
                       <CancelIcon 
-                       
-                      // color="error" 
-                       
-                      fontSize="small"
+                        color="error" 
+                        fontSize="small"
                         sx={{ 
                           fontSize: '1.25rem',
                           margin: '4px 0',
@@ -102,7 +96,7 @@ const TripTimeDetails = ({ events, dictionary }: Props) => {
                   {!isLastItem && (
                     <TimelineConnector sx={{ 
                       backgroundColor: connectorColor,
-                      ...(isCancelled && index === filteredEvents.length - 2 ? { 
+                      ...(isCancelled && index === events.length - 2 ? { 
                         borderInlineStart: '1px dashed',
                         borderColor: 'error.main'
                       } : {})
@@ -111,15 +105,7 @@ const TripTimeDetails = ({ events, dictionary }: Props) => {
                 </TimelineSeparator>
                 <TimelineContent>
                   <div className='flex flex-wrap items-center justify-between gap-x-2 mbe-2.5'>
-                    <Typography sx={{
-                          color: isLastItem
-                            ? isCompleted
-                              ? 'success.main'
-                              : isCancelled
-                                ? 'error.main'
-                                : 'text.primary'
-                            : 'text.primary'
-                        }} className='font-medium'>
+                    <Typography color='text.primary' className='font-medium'>
                       {event.label}
                     </Typography>
                   </div>
@@ -130,7 +116,6 @@ const TripTimeDetails = ({ events, dictionary }: Props) => {
           })}
         </Timeline>
       </CardContent>
-    )}
     </Card>
   )
 }

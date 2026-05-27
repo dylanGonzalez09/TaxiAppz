@@ -2,7 +2,25 @@
 const nextConfig = {
   basePath: process.env.BASEPATH,
   reactStrictMode: false,
-  
+  poweredByHeader: false,
+
+  // Reduce client bundle by tree-shaking MUI and other large libs
+  experimental: {
+    optimizePackageImports: [
+      '@mui/material',
+      '@mui/icons-material',
+      '@mui/lab',
+      'lodash',
+      'date-fns',
+      'recharts',
+    ],
+  },
+
+  // Improve production build
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production' ? { exclude: ['error', 'warn'] } : false,
+  },
+
   // async headers() {
   //   return [
   //     {
@@ -30,8 +48,8 @@ const nextConfig = {
         locale: false,
       },
       {
-        source: '/:lang(en|fr|ar|po)',
-        destination: '/:lang/dashboards/client',
+        source: '/:lang(en|fr|ar|po)/:zoneId(6852652749c1e9fc295cc035)',
+        destination: '/:lang/:zoneId/dashboards/client',
         permanent: true,
         locale: false
       }

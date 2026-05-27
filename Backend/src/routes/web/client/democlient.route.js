@@ -2,7 +2,7 @@ const express = require('express');
 const auth = require('../../../middlewares/auth');
 const validate = require('../../../middlewares/validate');
 const clientValidation = require('../../../validations/web/client/democlient.validation');
-const clientController = require('./../../../controllers/web/client/democlient.controller');
+const clientController = require('../../../controllers/web/client/democlient.controller');
 
 const router = express.Router();
 
@@ -10,13 +10,21 @@ router.route('/create').post(auth('Client'), validate(clientValidation.createCli
 router.route('/getClientsWithPagination').get(auth('Client'), clientController.queryClients);
 router.route('/getClient/:clientId').get(auth('Client'), validate(clientValidation.getClient), clientController.getClient);
 router.route('/listAll').get(auth('Client'), clientController.getClientDetails);
-router.route('/updateClient/:clientId').patch(auth('Client'), validate(clientValidation.updateClient), clientController.updateClient);
-router.route('/deleteClient/:clientId').delete(auth('Client'), validate(clientValidation.deleteClient), clientController.deleteClient);
-router.patch('/updateClientStatus/:clientId', auth('Client'), validate(clientValidation.updateActiveStatus), clientController.updateActiveStatus);
+router
+  .route('/updateClient/:clientId')
+  .patch(auth('Client'), validate(clientValidation.updateClient), clientController.updateClient);
+router
+  .route('/deleteClient/:clientId')
+  .delete(auth('Client'), validate(clientValidation.deleteClient), clientController.deleteClient);
+router.patch(
+  '/updateClientStatus/:clientId',
+  auth('Client'),
+  validate(clientValidation.updateActiveStatus),
+  clientController.updateActiveStatus,
+);
 router.route('/getDropDown/list').get(clientController.getDropDownList);
 
 module.exports = router;
-
 
 /**
  * @swagger

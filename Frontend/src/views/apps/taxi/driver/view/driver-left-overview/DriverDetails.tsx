@@ -8,6 +8,7 @@ import Divider from '@mui/material/Divider';
 import { useIsDemoUser } from '@/utils/demoUser';
 
 import CustomAvatar from '@core/components/mui/Avatar';
+import { BASE_IMAGE_URL } from '@/app/api/apps/taxi/endpoint';
 
 // Define the type for user data
 interface UserData {
@@ -23,6 +24,8 @@ interface UserData {
   avatar: string | null;
   profilePic: string | null;
 }
+
+
 
 // Define props for UserDetails
 interface UserDetailsProps {
@@ -51,9 +54,14 @@ const UserDetails: React.FC<UserDetailsProps> = ({ userData, dictionary }) => {
         <div className="flex flex-col gap-6">
           <div className="flex items-center justify-center flex-col gap-4">
             <div className="flex flex-col items-center gap-4">
-              <CustomAvatar
-                alt="user-profile"
-                src={userData?.profilePic || '/images/avatars/1.png'}
+
+               <CustomAvatar
+
+                // alt="user-profile"
+
+                src={userData?.avatar
+                  ? `${BASE_IMAGE_URL}/uploads/user/${userData.avatar}`
+                  : '/images/avatars/1.png'}
                 variant="rounded"
                 size={120}
               />

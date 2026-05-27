@@ -12,16 +12,23 @@ const { userUpload } = require('../../../middlewares/upload');
 
 // Routes with authentication and validation
 
-router.post('/login', validate(authValidation.login),authController.userOtpSent);
+router.post('/login', validate(authValidation.login), authController.userOtpSent);
 router.post('/verify', validate(authValidation.verify), authController.userVerify);
-router.post('/create',validate(userValidation.mobileCreateUser), userUpload.single('profilePic'), userController.createUser);
+router.post(
+  '/create',
+  validate(userValidation.mobileCreateUser),
+  userUpload.single('profilePic'),
+  userController.createUser,
+);
 router.route('/getProfile').get(auth('Users'), userController.getUser);
-router.route('/updateUsers').put(auth('Users'), validate(userValidation.updateUser), userUpload.single('profilePic'), userController.updateUser);
+router
+  .route('/updateUsers')
+  .put(auth('Users'), validate(userValidation.updateUser), userUpload.single('profilePic'), userController.updateUser);
 router.get('/places', userController.getAutocompletePlaces);
 router.get('/request/history', userController.getRequestsHistory);
+router.route('/checkZone').post(auth('Users'), validate(userValidation.checkZone), userController.checkUserZone);
 
 module.exports = router;
-
 
 /**
  * @swagger
@@ -213,7 +220,7 @@ module.exports = router;
  *                 message:
  *                   type: string
  *                   example: "An unexpected error occurred."
-* /driver/getCategory/list:
+ * /driver/getCategory/list:
  *   get:
  *     summary: Get categories
  *     description: Retrieve a list of all categories without pagination.
@@ -252,7 +259,7 @@ module.exports = router;
  *                 message:
  *                   type: string
  *                   example: Categories retrieved successfully
- * 
+ *
  * /driver/getVehicle/list:
  *   get:
  *     summary: Get vehicles
@@ -307,7 +314,7 @@ module.exports = router;
  *                 message:
  *                   type: string
  *                   example: Vehicles retrieved successfully
- * 
+ *
  * /driver/getVehicleModel/list:
  *   get:
  *     summary: Get vehicle models
@@ -353,7 +360,7 @@ module.exports = router;
  *                 message:
  *                   type: string
  *                   example: Vehicle models retrieved successfully
- * 
+ *
  * /driver/getCountry/list:
  *   get:
  *     summary: Get countries
@@ -429,4 +436,90 @@ module.exports = router;
  *                 message:
  *                   type: string
  *                   example: Countries retrieved successfully
+ *
+ * user/checkZone:
+ *   post:
+ *     summary: Check if a user is within a serviceable zone
+ *     description: Validates the provided pickup location (latitude and longitude) and returns the zone details if within a valid service area.
+ *     tags: [Zone]
+ *     security:
+ *       - bearerAuth: []  # If you're using JWT or similar auth
+ *     parameters:
+ *       - in: header
+ *         name: clientid
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The client ID from the requesting application
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               pick_lat:
+ *                 type: number
+ *                 description: Latitude of the pickup location
+ *                 example: 11.0168
+ *               pick_lng:
+ *                 type: number
+ *                 description: Longitude of the pickup location
+ *                 example: 76.9558
+ *     responses:
+ *       "200":
+ *         description: Zone found successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   description: The zone object found for the provided coordinates
+ *                 message:
+ *                   type: string
+ *                   example: Zone Found
+ *       "403":
+ *         description: Location not serviceable
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Service not available at this location
+ *       "400":
+ *         description: Invalid request data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Validation error
+ *       "500":
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: An unexpected error occurred
  */

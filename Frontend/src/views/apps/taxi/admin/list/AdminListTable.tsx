@@ -4,7 +4,7 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 'use client';
 
-import type { ChangeEvent} from 'react';
+import type { ChangeEvent } from 'react';
 import { useCallback, useMemo, useState } from 'react';
 
 import Card from '@mui/material/Card';
@@ -35,7 +35,7 @@ import Switch from '@mui/material/Switch'; // Import the Switch component
 
 import { StatusCodes as httpStatus } from 'http-status-codes';
 
-import { Dialog, DialogActions, DialogContent,IconButton, Link  } from '@mui/material';
+import { Dialog, DialogActions, DialogContent, IconButton, Link } from '@mui/material';
 
 import { useIsDemoUser } from '@/utils/demoUser'
 
@@ -69,7 +69,7 @@ export type AdminType = {
   phoneNumber?: string;
   emergencyNumber?: string;
   password?: string;
-  roleIds?:any;
+  roleIds?: any;
   confirmPassword?: string;
   role?: any;
   gender?: string;
@@ -86,12 +86,12 @@ const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
 
   addMeta({ itemRank });
 
-return itemRank.passed;
+  return itemRank.passed;
 };
 
 const columnHelper = createColumnHelper<AdminType>();
 
-const AdminTable = ({ tableData, dictionary }: { tableData?: any; dictionary: any}) => {
+const AdminTable = ({ tableData, dictionary, zoneId }: { tableData?: any; dictionary: any, zoneId: any }) => {
   const [addAdminOpen, setAddAdminOpen] = useState(false);
   const [editAdmin, setEditAdmin] = useState<AdminType | null>(null);
   const [editPassword, setEditPassword] = useState<AdminType | null>(null);
@@ -122,7 +122,7 @@ const AdminTable = ({ tableData, dictionary }: { tableData?: any; dictionary: an
     if (checkDemoStatus()) {
       toast.error(dictionary['navigation'].deleteError);
 
-return;
+      return;
     }
 
     setdeleteAdminId(adminId.toString());
@@ -130,16 +130,17 @@ return;
   };
 
   const handlePasswordChangeClick = (admin: AdminType) => {
-    if(checkDemoStatus())
-    {
+    if (checkDemoStatus()) {
       toast.error(dictionary['navigation'].passwordChangeError);
 
-return;
+      return;
+
     }
 
     setEditPassword(admin);
     setPasswordChangeId(admin.id.toString());
     setEditPasswordOpen(true);
+
   }
 
   const handleEditClick = (admin: AdminType) => {
@@ -149,7 +150,28 @@ return;
       return;
     }
 
-    setEditAdmin(admin);
+    const toId = (value: any) => {
+      if (!value) return '';
+      if (typeof value === 'string') return value;
+
+      return value._id || value.id || '';
+    };
+
+    const normalizedRoleIds = Array.isArray(admin.roleIds)
+      ? admin.roleIds
+        .map((role: any) => (typeof role === 'string' ? role : role?.id || role?._id))
+        .filter(Boolean)
+      : [];
+
+    const normalizedAdmin: AdminType = {
+      ...admin,
+      roleIds: normalizedRoleIds,
+      country: toId(admin.country),
+      language: toId(admin.language),
+      zoneId: toId(admin.zoneId || admin.primaryZone)
+    };
+
+    setEditAdmin(normalizedAdmin);
     setAddAdminOpen(true);
   };
 
@@ -171,22 +193,22 @@ return;
   };
 
 
- const handlePageChangeForAddRecord = () => {
-      // Create a dummy event object
-      const dummyEvent = {
-        target: {
-          value: pageIndex,
-        },
-        currentTarget: {
-          value: pageIndex,
-        },
-        nativeEvent: {} as Event,
-        bubbles: false,
-      } as unknown as ChangeEvent<unknown>;
+  const handlePageChangeForAddRecord = () => {
+    // Create a dummy event object
+    const dummyEvent = {
+      target: {
+        value: pageIndex,
+      },
+      currentTarget: {
+        value: pageIndex,
+      },
+      nativeEvent: {} as Event,
+      bubbles: false,
+    } as unknown as ChangeEvent<unknown>;
 
-      // Trigger onPageChange with the new page
-      handlePageChange(dummyEvent, pageIndex - 1);
-    };
+    // Trigger onPageChange with the new page
+    handlePageChange(dummyEvent, pageIndex - 1);
+  };
 
 
 
@@ -199,19 +221,20 @@ return;
           setErrorMessage(response.msg);
           setErrorDialogOpen(true);
         } else {
-        if(data.length != 1){
-          setData((prevData: any[]) => prevData.filter(admin => admin.id.toString() !== deleteAdminId));
-          handlePagecurrentForAddRecord()
-        }else{
-          handlePageChangeForAddRecord();
+          if (data.length != 1) {
+            setData((prevData: any[]) => prevData.filter(admin => admin.id.toString() !== deleteAdminId));
+            handlePagecurrentForAddRecord()
+          } else {
+            handlePageChangeForAddRecord();
+          }
+
+          toast.success(dictionary['navigation'].deleteSuccess);
+
         }
 
-        toast.success(dictionary['navigation'].deleteSuccess);
-      }
-
-      setErrorData(response.status)
-      setDeleteConfirmationOpen(false);
-      setdeleteAdminId(null);
+        setErrorData(response.status)
+        setDeleteConfirmationOpen(false);
+        setdeleteAdminId(null);
 
       } catch (error) {
         toast.error("An error occurred while deleting the admin");
@@ -223,11 +246,11 @@ return;
   };
 
   const handleStatusToggle = async (admin: AdminType) => {
-     if (checkDemoStatus()) {
+    if (checkDemoStatus()) {
       toast.error(dictionary['navigation'].editError);
 
-    return;
-      }
+      return;
+    }
 
     setstatusAdmin(admin);
     setStatusConfirmationOpen(true);
@@ -236,26 +259,26 @@ return;
   const handleConfirmStatus = async (confirmed: boolean) => {
 
     if (confirmed && statusAdmin) {
-      const updatedAdmin = { ...statusAdmin, active: !statusAdmin.active };
-
       try {
         const body = {
           active: !statusAdmin.active,
         };
 
-        await updateUserStatus(statusAdmin.id.toString(), body);
-        setData((prevData: any[]) =>
-          prevData.map(admin =>
-            admin.id === statusAdmin.id ? updatedAdmin : admin
-          )
-        );
+        await updateUserStatus(statusAdmin.id.toString(), body, zoneId);
 
+        const { results, totalResults } = await getAdminByPagination(pageSearch, pageIndex, pageSize, zoneId);
+
+        setData(results);
+        setTotalResults(totalResults);
+
+        toast.success(dictionary['navigation'].statusUpdatedSuccessfully);
         setStatusConfirmationOpen(false);
         setstatusAdmin(null);
-       toast.success(dictionary['navigation'].statusUpdatedSuccessfully);
 
-      } catch (error) {
+
+      } catch (error: any) {
         console.error('Failed to update admin status:', error);
+        toast.error(error?.message || dictionary['navigation'].Anerroroccurredwhileupdatingtheadminstatus || 'Failed to update admin status');
         setStatusConfirmationOpen(false);
       }
     } else {
@@ -265,10 +288,11 @@ return;
   };
 
 
+
   const handlePageChange = async (event: unknown, newPage: number) => {
     try {
 
-      const { results, totalResults } = await getAdminByPagination(pageSearch, newPage, pageSize);
+      const { results, totalResults } = await getAdminByPagination(pageSearch, newPage, pageSize, zoneId);
 
       setData(results);
       setPageIndex(newPage);
@@ -282,7 +306,7 @@ return;
 
     const newPageSize = parseInt(event.target.value);
 
-    const { results, totalResults } = await getAdminByPagination(pageSearch, 1, newPageSize);
+    const { results, totalResults } = await getAdminByPagination(pageSearch, 1, newPageSize, zoneId);
 
     setPageSize(newPageSize);
     setData(results);
@@ -297,7 +321,8 @@ return;
         const result = await getAdminByPagination(
           searchTerm,
           1, // Reset to first page on new search
-          pageSize
+          pageSize,
+          zoneId
         );
 
         setPageSearch(searchTerm);
@@ -328,7 +353,7 @@ return;
       cell: ({ row }) => {
         const email = row.original.email;
         const isDemo = checkDemoStatus();
-          const maskedEmail = isDemo ? email?.replace(/^.{5}/, '*****') : email;
+        const maskedEmail = isDemo ? email?.replace(/^.{5}/, '*****') : email;
 
         return <Typography>{maskedEmail}</Typography>;
       }
@@ -339,7 +364,7 @@ return;
         const roles = row.original?.roleIds.map((role: { role: string }) => role.role) || [];
 
 
-return (
+        return (
           <Typography>
             {roles.map((role: string, index: number) => (
               <div key={index}>{role}</div>
@@ -354,9 +379,22 @@ return (
         <div className="flex items-center gap-3">
           <Switch
             checked={row.original.active}
-            onChange={() => handleStatusToggle(row.original)}
-            color={row.original.active ? 'success' : 'error'}
-            sx={{ /* same styles */ }}
+            onChange={() => handleStatusToggle(row.original)} // Toggle status on switch change
+            color={row.original.active ? 'success' : 'error'} // Use 'success' for active, 'error' for inactive
+            sx={{
+              '& .MuiSwitch-switchBase': {
+                color: row.original.active ? 'green' : 'red', // Color for unchecked state
+              },
+              '& .MuiSwitch-switchBase.Mui-checked': {
+                color: row.original.active ? 'green' : 'red', // Color for checked state
+              },
+              '& .MuiSwitch-thumb': {
+                backgroundColor: 'white', // Inner knob color
+              },
+              '& .MuiSwitch-track': {
+                backgroundColor: row.original.active ? 'green' : 'red', // Track color
+              },
+            }}
           />
         </div>
       )
@@ -378,7 +416,7 @@ return (
               {
                 text: dictionary['navigation'].changePassword,
                 icon: 'tabler-lock',
-                menuItemProps:{
+                menuItemProps: {
                   onClick: () => handlePasswordChangeClick(row.original)
                 }
               },
@@ -450,15 +488,15 @@ return (
               fileName="Admin_Export"
               dictionary={dictionary}
             />
-              <Button
-                variant="contained"
-                onClick={() => {
-                  setEditAdmin(null); // Clear editAdmin to indicate adding mode
-                  setAddAdminOpen(true);
-                }}
-                startIcon={<i className="tabler-plus" />}
-              >
-            {dictionary['navigation'].addNew}
+            <Button
+              variant="contained"
+              onClick={() => {
+                setEditAdmin(null); // Clear editAdmin to indicate adding mode
+                setAddAdminOpen(true);
+              }}
+              startIcon={<i className="tabler-plus" />}
+            >
+              {dictionary['navigation'].addNew}
             </Button>
           </div>
         </div>
@@ -538,6 +576,7 @@ return (
         onPageChange={handlePageChange}
         rowsPerPage={pageSize}
         dictionary={dictionary}
+        zoneId={zoneId}
       />
 
       <EditPasswordDrawer
@@ -576,7 +615,7 @@ return (
         <DialogActions className="justify-center pbs-0 sm:pbe-16 sm:pli-16">
           {/* OK button */}
           <Button variant="contained" color="error" onClick={() => setErrorDialogOpen(false)}>
-           {dictionary['navigation'].ok}
+            {dictionary['navigation'].ok}
           </Button>
         </DialogActions>
       </Dialog>

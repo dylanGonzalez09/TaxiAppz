@@ -6,9 +6,11 @@ const walletController = require('../../../controllers/api/auth/wallet.controlle
 
 const router = express.Router();
 
-router.route('/create').post(auth('Wallet'),validate(walletValidation.createWallet), walletController.createWallet);
-router.route('/detail').get(auth('Wallet'),walletController.getWalletDetails);
-router.route('/transaction/:walletId').get(auth('Wallet'),validate(walletValidation.getWallets), walletController.getWallets);
+router.route('/create').post(auth('Wallet'), validate(walletValidation.createWallet), walletController.createWallet);
+router.route('/detail').get(auth('Wallet'), walletController.getWalletDetails);
+router
+  .route('/transaction/:walletId')
+  .get(auth('Wallet'), validate(walletValidation.getWallets), walletController.getWallets);
 
 module.exports = router;
 

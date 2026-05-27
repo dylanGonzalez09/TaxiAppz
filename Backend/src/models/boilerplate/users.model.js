@@ -29,7 +29,7 @@ const usersSchema = mongoose.Schema(
     phone_number: {
       type: String,
       required: true,
-      unique: false
+      trim: true,
     },
     gender: {
       type: String,
@@ -145,7 +145,7 @@ const usersSchema = mongoose.Schema(
     language: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'language',
-      required: false
+      required: false,
     },
     address: {
       type: String,
@@ -172,7 +172,7 @@ const usersSchema = mongoose.Schema(
       trim: true,
       default: null,
     },
- 
+
     isDemo: {
       type: Boolean,
       default: false,
@@ -211,25 +211,25 @@ const usersSchema = mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Client',
     },
-    companyId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref:'Company',
-      default: null,
-    },
-    zoneId:{
+    zoneId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Zone',
-      default: null
-    }
+      default: null,
+    },
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // add plugin that converts mongoose to json
 usersSchema.plugin(toJSON);
 usersSchema.plugin(paginate);
+
+// Indexes for auth and list (findOne by phone, filter by roleIds/clientId). email index from schema (unique: true)
+usersSchema.index({ phone_number: 1 }, { background: true });
+usersSchema.index({ roleIds: 1 }, { background: true });
+usersSchema.index({ clientId: 1 }, { background: true });
 
 /**
  * Check if email is taken
@@ -253,8 +253,6 @@ usersSchema.statics.isPhoneNoTaken = async function (phoneNumber, excludeUserId)
   return !!user;
 };
 
-
-
 // /**
 //  * Check if phone number is taken and matches specified role(s)
 //  * @param {string} phoneNumber - The user's phone number
@@ -275,7 +273,6 @@ usersSchema.statics.isPhoneNoTaken = async function (phoneNumber, excludeUserId)
 //   const user = await this.findOne(query);
 //   return !!user;
 // };
-
 
 // /**
 //  * Check if email is taken
@@ -315,12 +312,11 @@ usersSchema.methods.isPasswordMatch = async function (password) {
   return bcrypt.compare(password, user.password);
 };
 
-usersSchema.pre('save', async function (next) {
+usersSchema.pre('save', async function () {
   const user = this;
   if (user.isModified('password')) {
-    user.password = await bcrypt.hash(user.password, 8);
+    user.password = await bcrypt.hash(user.Password, 8);
   }
-  next();
 });
 
 /**

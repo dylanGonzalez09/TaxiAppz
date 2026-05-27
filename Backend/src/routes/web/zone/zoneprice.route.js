@@ -8,11 +8,21 @@ const zonePriceController = require('../../../controllers/web/zone/zoneprice.con
 
 const router = express.Router();
 
-router.route('/create').post(auth('ZonePrice'), validate(zonePriceValidation.createZonePrice), zonePriceController.createZonePrice);
-router.route('/getZonePrices').get(auth('ZonePrice'), validate(zonePriceValidation.getZonePrices), zonePriceController.getZonePrices);
-router.route('/getZonePrice/:zonePriceId').get(auth('ZonePrice'), validate(zonePriceValidation.getZonePrice), zonePriceController.getZonePrice);
-router.route('/updateZonePrice/:zonePriceId').patch(auth('ZonePrice'), validate(zonePriceValidation.updateZonePrice), zonePriceController.updateZonePrice);
-router.route('/deleteZonePrice/:zonePriceId').delete(auth('ZonePrice'), validate(zonePriceValidation.deleteZonePrice), zonePriceController.deleteZonePrice);
+router
+  .route('/create')
+  .post(auth('ZonePrice'), validate(zonePriceValidation.createZonePrice), zonePriceController.createZonePrice);
+router
+  .route('/getZonePrices')
+  .get(auth('ZonePrice'), validate(zonePriceValidation.getZonePrices), zonePriceController.getZonePrices);
+router
+  .route('/getZonePrice/:zonePriceId')
+  .get(auth('ZonePrice'), validate(zonePriceValidation.getZonePrice), zonePriceController.getZonePrice);
+router
+  .route('/updateZonePrice/:zonePriceId')
+  .patch(auth('ZonePrice'), validate(zonePriceValidation.updateZonePrice), zonePriceController.updateZonePrice);
+router
+  .route('/deleteZonePrice/:zonePriceId')
+  .delete(auth('ZonePrice'), validate(zonePriceValidation.deleteZonePrice), zonePriceController.deleteZonePrice);
 
 module.exports = router;
 
@@ -291,5 +301,3 @@ module.exports = router;
  *         "404":
  *           description: Zone price not found
  */
-
-

@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 const { toJSON, paginate } = require('../plugins');
-const Counter = require('./counter.model');
 
 const requestSchema = mongoose.Schema(
   {
@@ -35,6 +34,10 @@ const requestSchema = mongoose.Schema(
       ref: 'ZoneSurgePrice',
       default: null,
     },
+    driverVehicleId: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null,
+    },
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
@@ -48,7 +51,7 @@ const requestSchema = mongoose.Schema(
     vehicleId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Vehicle',
-      default: null
+      default: null,
     },
     tripStartTime: {
       type: Date,
@@ -69,6 +72,10 @@ const requestSchema = mongoose.Schema(
     cancelledAt: {
       type: Date,
       default: null,
+    },
+    isLater: {
+      type: Boolean,
+      default: false,
     },
     tripTime: {
       type: Number,
@@ -95,6 +102,10 @@ const requestSchema = mongoose.Schema(
       default: false,
     },
     customReason: {
+      type: String,
+      default: null,
+    },
+    reason: {
       type: String,
       default: null,
     },
@@ -156,6 +167,10 @@ const requestSchema = mongoose.Schema(
       default: null,
     },
     adminDemoKey: {
+      type: String,
+      default: null,
+    },
+    estimatedAmount: {
       type: String,
       default: null,
     },
@@ -238,11 +253,11 @@ const requestSchema = mongoose.Schema(
     },
     packageKm: {
       type: Number,
-      required: false
+      required: false,
     },
     packageHr: {
       type: Number,
-      required: false
+      required: false,
     },
     bookingFor: {
       type: String,
@@ -258,44 +273,39 @@ const requestSchema = mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Client',
     },
-    companyId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Company',
-      default: null,
-    },
-    startKm:{
+    startKm: {
       type: Number,
-      required: false
+      required: false,
     },
-    startKmImage:{
+    startKmImage: {
       type: String,
-      required: false
+      required: false,
     },
-    endKm:{
+    endKm: {
       type: Number,
-      required: false
+      required: false,
     },
-    endKmImage:{
+    endKmImage: {
       type: String,
-      required: false
+      required: false,
     },
-    zoneId:{
+    zoneId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Zone',
-      default: null
+      default: null,
     },
-    etaAmount: {
+    driverCommission: {
       type: Number,
-      default: 0.0,
+      required: false,
     },
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // Pre-save hook to generate requestNumber
-requestSchema.pre('save', async function (next) {
+requestSchema.pre('save', async function () {
   if (this.isNew && !this.requestNumber) {
     let retries = 3;
     while (retries > 0) {
@@ -326,59 +336,24 @@ requestSchema.pre('save', async function (next) {
       this.requestNumber = `TAXI_${Date.now().toString().slice(-5)}`;
     }
   }
-  next();
 });
-
-// Performance indexes
-requestSchema.index({ requestNumber: 1 }, { unique: true });
-requestSchema.index({ userId: 1, createdAt: -1 });
-requestSchema.index({ driverId: 1, isCompleted: 1 });
-requestSchema.index({ tripType: 1, isCompleted: 1 });
-
-/**
- * Generate unique request number atomically
- * Format: TAXI_YYYYMMDD_HHMMSS_XXXXX
- */
-// requestSchema.statics.generateRequestNumber = async function() {
-//   const now = new Date();
-//   const dateStr = now.toISOString().slice(2, 10).replace(/-/g, ''); // 250725
-//   const counterId = `taxi_${dateStr}`;
-  
-//   try {
-//     const counter = await Counter.findOneAndUpdate(
-//       { _id: counterId },
-//       { 
-//         $inc: { sequence: 1 },
-//         $set: { lastReset: now }
-//       },
-//       { 
-//         new: true, 
-//         upsert: true,
-//         setDefaultsOnInsert: true 
-//       }
-//     );
-    
-//     // Convert to base36 and pad: TX250725A1, TX250725A2, etc.
-//     const sequenceBase36 = counter.sequence.toString(36).toUpperCase();
-//     const requestNumber = `TX${dateStr}${sequenceBase36}`;
-    
-//     console.log(`✅ Generated requestNumber: ${requestNumber}`);
-//     return requestNumber;
-    
-//   } catch (error) {
-//     console.error('❌ Error generating requestNumber:', error);
-//     // Fallback with timestamp
-//     const timestamp = Math.floor(now.getTime() / 1000).toString(36).toUpperCase();
-//     return `TX${timestamp}`;
-//   }
-// };
 
 requestSchema.plugin(toJSON);
 requestSchema.plugin(paginate);
 
+// Indexes for list/sort, filters and aggregations (reports, history, counts). requestNumber index from schema (unique: true)
+requestSchema.index({ createdAt: -1 }, { background: true });
+requestSchema.index({ clientId: 1, createdAt: -1 }, { background: true });
+requestSchema.index({ driverId: 1, createdAt: -1 }, { background: true });
+requestSchema.index({ userId: 1, createdAt: -1 }, { background: true });
+requestSchema.index({ userId: 1, isCompleted: 1 }, { background: true });
+requestSchema.index({ driverId: 1, isCompleted: 1 }, { background: true });
+requestSchema.index({ promoId: 1, userId: 1, isCompleted: 1 }, { background: true });
+requestSchema.index({ zoneTypeId: 1 }, { background: true });
+
 /**
  * @typedef Request
  */
-const Request = mongoose.model('Request', requestSchema);
+const Request = mongoose.model('request', requestSchema);
 
 module.exports = Request;

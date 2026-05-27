@@ -5,7 +5,7 @@ const createUser = {
   body: Joi.object().keys({
     firstname: Joi.string().required(),
     lastname: Joi.string().required(),
-    email: Joi.string().email().optional().allow("", null),
+    email: Joi.string().email().required(),
     phone_number: Joi.string().required(),
     gender: Joi.string(),
     roleIds: Joi.array().items(Joi.string().hex().length(24)).required(),
@@ -65,7 +65,7 @@ const getUserByRole = {
 const getUserByEmail = {
   body: Joi.object().keys({
     email: Joi.string(),
-    token: Joi.string().optional()
+    token: Joi.string().optional(),
   }),
 };
 

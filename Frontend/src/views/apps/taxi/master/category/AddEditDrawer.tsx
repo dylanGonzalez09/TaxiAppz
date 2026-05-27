@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable import/no-unresolved */
 import type { ChangeEvent} from 'react';
@@ -43,6 +42,7 @@ interface AddCategoryDrawerProps {
   page: number;
   onPageChange: (event: React.ChangeEvent<unknown>, newPage: number) => void
   rowsPerPage: number;
+  zoneId?: any;
 }
 
 interface FormValues {
@@ -61,7 +61,8 @@ const AddCategoryDrawer: React.FC<AddCategoryDrawerProps> = ({
   count,
   page,
   onPageChange,
-  rowsPerPage
+  rowsPerPage,
+  zoneId
 }) => {
   const [categoryImagePreview, setCategoryImagePreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false); // Loading state
@@ -75,9 +76,8 @@ const AddCategoryDrawer: React.FC<AddCategoryDrawerProps> = ({
     const session = await getSession();
 
     const clientId = session?.user?.image?.clientId; // Access clientId
-    const companyId = session?.user?.image?.companyId; // Access companyId
 
-    return { clientId, companyId };
+    return { clientId };
   };
 
   useEffect(() => {
@@ -94,8 +94,7 @@ const AddCategoryDrawer: React.FC<AddCategoryDrawerProps> = ({
 
         }
 
-        const dropDownData = await fetch(ENDPOINTS.zone.dropDownList(clientId));
-
+        const dropDownData = await fetch(ENDPOINTS.zone.dropDownList(clientId,zoneId));
         const data = await dropDownData.json();
 
         setZones(data.data.zone);
@@ -110,7 +109,7 @@ const AddCategoryDrawer: React.FC<AddCategoryDrawerProps> = ({
     }, 4000);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [dictionary,zoneId]);
 
   const {
     handleSubmit,
@@ -329,7 +328,7 @@ const AddCategoryDrawer: React.FC<AddCategoryDrawerProps> = ({
               />
             </Grid>
           </Grid>
-          <div className='flex justify-end mt-4'>
+          <div className='flex justify-end mt-4 gap-5'>
             <Button variant='contained' type='submit' disabled={isSubmitDisabled} sx={{ position: 'relative' }}>
               {loading ? dictionary['navigation'].Submitting : dictionary['navigation'].Submit}
               {loading && (
@@ -340,7 +339,7 @@ const AddCategoryDrawer: React.FC<AddCategoryDrawerProps> = ({
             <Button
               onClick={handleReset}
               variant='outlined'
-              color='secondary'
+              color='error'
               style={{ marginLeft: '10px' }}
             >
               {dictionary['navigation'].cancel}

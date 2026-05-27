@@ -1,0 +1,7 @@
+{
+  "navigation": {
+    "Confirmpasswordwasnotmatched": "パスワードが正しくないことを確認してください",
+    "passwordChangedSuccessfully": "passwordChangedSuccessfully",
+    "ReferralPhoneNumber": "PhoneNumber"
+  }
+}

@@ -22,6 +22,7 @@ messaging.onBackgroundMessage((payload) => {
   const notificationOptions = {
     body: payload.notification.body,
     icon: '/Logo-Korssa.svg',
+
     // Vertical stacking configuration
     tag: notificationId, // Unique tag for each notification
     requireInteraction: false, // Don't stay persistent
@@ -47,6 +48,7 @@ self.addEventListener('notificationclick', (event) => {
           return client.focus();
         }
       }
+
       if (clients.openWindow) {
         return clients.openWindow('/');
       }

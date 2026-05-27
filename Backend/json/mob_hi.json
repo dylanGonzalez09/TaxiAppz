@@ -1,0 +1,17 @@
+{
+  "navigation": {
+    "txt_destination_time": "गंतव्य समय",
+    "txt_Please_select_vehicle_variant": "कृपया वाहन का एक प्रकार चुनें",
+    "txt_Select_category_types": "श्रेणी प्रकार चुनें (वैकल्पिक)",
+    "txt_Vehicle_Variant": "वाहन प्रकार",
+    "txt_Vehicle_Brand": "वाहन ब्रांड",
+    "txt_reason": "कारण",
+    "txt_Cancelled_By": "Cancelled By",
+    "txt_local": "स्थानीय",
+    "txt_closed": "बंद किया हुआ",
+    "txt_Incorrect_otp": "ग़लत ओटीपी",
+    "txt_welcome": "स्वागत",
+    "txt_get_otp": "ओटीपी प्राप्त करें",
+    "txt_name": "नाम"
+  }
+}

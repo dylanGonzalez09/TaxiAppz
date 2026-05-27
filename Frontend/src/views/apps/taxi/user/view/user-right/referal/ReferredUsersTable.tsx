@@ -44,7 +44,7 @@ import type { ThemeColor } from '@core/types'
 // Component Imports
 import CustomTextField from '@core/components/mui/TextField'
 import TablePaginationComponent from '@components/TablePaginationComponent'
-import { useIsDemoUser } from '@/utils/demoUser' 
+import { useIsDemoUser } from '@/utils/demoUser'
 
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
@@ -130,36 +130,37 @@ const ReferalTable = (props: ReferalTabProps) => {
     },
     columnHelper.accessor('referredUserName', {
       header: dictionary['navigation'].name,
-      cell: ({ row }) => <Typography color='text.primary'>{row.original.referredUserName}</Typography>
+      cell: ({ row }) =>
+      <Typography color='text.primary'>{row.original.referredUserName}</Typography>
     }),
     columnHelper.accessor('email', {
       header: dictionary['navigation'].Email,
       cell: ({ row }) => {
         const email = row.original.email;
         const isDemo = checkDemoStatus(); // Your demo user check
-    
+
         const maskedEmail = isDemo && email?.length > 5
           ? '*****' + email.slice(5)
           : email;
-    
+
         return <Typography color='text.primary'>{maskedEmail}</Typography>;
       }
     }),
-    
+
     columnHelper.accessor('phoneNumber', {
       header: dictionary['navigation'].PhoneNumber,
       cell: ({ row }) => {
         const phone = row.original.phoneNumber;
         const isDemo = checkDemoStatus();
-    
+
         const maskedPhone = isDemo && phone?.length > 5
           ? phone.slice(0, phone.length - 5) + '*****'
           : phone;
-    
+
         return <Typography color='text.primary'>{maskedPhone}</Typography>;
       }
     }),
-    
+
     columnHelper.accessor('amount', {
       header: dictionary['navigation'].amount,
       cell: ({ row }) => <Typography color='text.primary'>{row.original.amount}</Typography>
@@ -173,7 +174,7 @@ const ReferalTable = (props: ReferalTabProps) => {
     columns,
     filterFns: { fuzzy: fuzzyFilter },
     state: { rowSelection, globalFilter },
-    initialState: { pagination: { pageSize: 25 } },
+    initialState: { pagination: { pageSize: 5 } },
     enableRowSelection: true,
     globalFilterFn: fuzzyFilter,
     onRowSelectionChange: setRowSelection,
@@ -210,7 +211,7 @@ const ReferalTable = (props: ReferalTabProps) => {
 
         />
       </div>
-      <div className='overflow-x-auto'>
+      <div className='overflow-x-auto' id="table-container">
         <table className={tableStyles.table}>
           <thead>
             {table.getHeaderGroups().map(headerGroup => (

@@ -2,33 +2,37 @@ const mongoose = require('mongoose');
 const { toJSON, paginate } = require('../plugins');
 
 const InvoiceSchema = mongoose.Schema(
-    {
-        question: {
-            type: String,
-            required: false,
-        },
-        role: {
-            type: String,
-            required: true
-        },
-        language: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'language',
-            default: null,
-        },
-        status: {
-            type: Boolean,
-            required: true,
-            default: true,
-        },
-        clientId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'Client',
-        },
+  {
+    question: {
+      type: String,
+      required: false,
     },
-    {
-        timestamps: true,
-    }
+    role: {
+      type: String,
+      required: true,
+    },
+    language: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'language',
+      default: null,
+    },
+    status: {
+      type: Boolean,
+      required: true,
+      default: true,
+    },
+    clientId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Client',
+    },
+    zoneId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Zone',
+    },
+  },
+  {
+    timestamps: true,
+  },
 );
 
 // add plugin that converts mongoose to json

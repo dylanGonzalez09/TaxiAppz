@@ -6,8 +6,8 @@ const createProjectVersion = {
     versionNumber: Joi.string().required(),
     versionCode: Joi.string().required(),
     description: Joi.string().required(),
-    applicationType: Joi.string().required()
-    }),
+    applicationType: Joi.string().required(),
+  }),
 };
 
 const getProjectVersions = {
@@ -68,5 +68,5 @@ module.exports = {
   updateProjectVersion,
   deleteProjectVersion,
   getProjectVersionCode,
-  updateVersionStatus
+  updateVersionStatus,
 };

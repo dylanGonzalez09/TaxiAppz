@@ -1,5 +1,5 @@
 const Joi = require('joi');
-const { objectId } = require('../../../validations/custom.validation');
+const { objectId } = require('../../custom.validation');
 
 const createZoneSurgePrice = {
   body: Joi.object().keys({
@@ -32,15 +32,17 @@ const updateZoneSurgePrice = {
   params: Joi.object().keys({
     zoneSurgePriceId: Joi.string().custom(objectId).required(),
   }),
-  body: Joi.object().keys({
-    zonePriceId: Joi.string().custom(objectId).allow(null),
-    surgePrice: Joi.number().precision(2),
-    startTime: Joi.string().allow(null),
-    endTime: Joi.string().allow(null),
-    availableDays: Joi.string().allow(null),
-    status: Joi.boolean(),
-    createdBy: Joi.string().custom(objectId).allow(null),
-  }).min(1),
+  body: Joi.object()
+    .keys({
+      zonePriceId: Joi.string().custom(objectId).allow(null),
+      surgePrice: Joi.number().precision(2),
+      startTime: Joi.string().allow(null),
+      endTime: Joi.string().allow(null),
+      availableDays: Joi.string().allow(null),
+      status: Joi.boolean(),
+      createdBy: Joi.string().custom(objectId).allow(null),
+    })
+    .min(1),
 };
 
 const deleteZoneSurgePrice = {

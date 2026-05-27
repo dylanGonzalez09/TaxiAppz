@@ -19,6 +19,7 @@ router.post('/create', validate(userValidation.mobileCreateUser), userUpload.sin
 router.route('/getProfile').get(auth('Users'), webUserController.getUser);
 router.route('/updateUsers').put(auth('Users'), validate(userValidation.updateUser), userUpload.single('profilePic'), webUserController.updateUser);
 router.get('/places', webUserController.getAutocompletePlaces);
+router.get('/reverse-geocode', webUserController.getReverseGeocode);
 router.get('/request/history', webUserController.getRequestsHistory);
 router.get('/cancellation-reasons', auth('Users'), webUserController.getCancellationReasons);
 

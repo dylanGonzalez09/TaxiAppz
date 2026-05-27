@@ -15,8 +15,6 @@ router.route('/updateSos/:sosId').patch(auth('Sos'), validate(sosValidation.upda
 router.route('/deleteSos/:sosId').delete(auth('Sos'), validate(sosValidation.deleteSOS), sosController.deleteSos);
 router.patch('/updateSosStatus/:sosId', auth('Sos'), sosController.updateSosStatus);
 
-
-
 module.exports = router;
 
 /**

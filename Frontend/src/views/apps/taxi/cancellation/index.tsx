@@ -2,77 +2,58 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 'use client'
 
-
-import type { SyntheticEvent } from 'react';
+import type { SyntheticEvent } from 'react'
 import { useEffect, useState } from 'react'
 
 import Tab from '@mui/material/Tab'
 import Grid from '@mui/material/Grid'
 
-import { getSession } from 'next-auth/react';
-
 import TabContext from '@mui/lab/TabContext'
 import TabPanel from '@mui/lab/TabPanel'
+import { getSession } from 'next-auth/react'
 
 import CustomTabList from '@core/components/mui/TabList'
 
-import { ENDPOINTS } from '@/app/api/apps/taxi/endpoint';
-
+import { getDropDownList } from '@apis/user'
 
 import { getCancellationByLanguage } from '@/app/api/apps/taxi/cancellationReason'
- import CancellationTable from './CancellationTable'
+import CancellationTable from './CancellationTable'
 
 type CancellationTab = {
   id: string
   name: string
 }
 
-
 interface Props {
   initialLangId: string
   initialCancellationData: any
   dictionary: any
+  zoneId:string
 }
 
-
-const DynamicCancellationTabs = ({ initialLangId, initialCancellationData, dictionary }: Props) => {
+const DynamicCancellationTabs = ({ zoneId, initialLangId, initialCancellationData, dictionary }: Props) => {
   const [tabs, setTabs] = useState<CancellationTab[]>([])
   const [activeTab, setActiveTab] = useState(initialLangId)
-  const [tabContentMap, setTabContentMap] = useState<{ [key: string]: any }>({[initialLangId]: initialCancellationData})
+
+  const [tabContentMap, setTabContentMap] = useState<{ [key: string]: any }>({
+    [initialLangId]: initialCancellationData
+  })
+
   const [loadingTabs, setLoadingTabs] = useState(true)
-
-  /* eslint-disable @typescript-eslint/no-unused-vars */
-
   const [loadingContent, setLoadingContent] = useState(false)
-
-
-
-  const getClientId = async () => {
-      const session = await getSession();
-      const clientId = session?.user?.image?.clientId;
-      const companyId = session?.user?.image?.companyId;
-
-      return { clientId, companyId };
-    };
-
-
-
+  const [clientId, setClientId] = useState('')
 
   // Fetch available language tabs on mount
   useEffect(() => {
     const loadTabs = async () => {
       try {
-        const { clientId } = await getClientId();
+        const session = await getSession()
+        const id: any = session?.user?.image?.clientId
 
+        setClientId(id)
+        const res = await getDropDownList(id, zoneId)
 
-        if (!clientId) throw new Error('Client ID missing');
-        const res = await fetch(ENDPOINTS.user.dropDownList(clientId))
-        
-        const result = await res.json()
-        
-        setTabs(result.data.language)
-
-
+        setTabs(res.language)
       } catch (err) {
         console.error('Failed to load languages:', err)
       } finally {
@@ -81,24 +62,22 @@ const DynamicCancellationTabs = ({ initialLangId, initialCancellationData, dicti
     }
 
     loadTabs()
-  }, []);
+  }, [zoneId])
 
-  const fetchTabContent = async (langId: string, search = '',page = 1, limit = 10,) => {
-    if (tabContentMap[langId]) return
-
+  // This function now ALWAYS fetches fresh data from the server
+  const fetchTabContent = async (langId: string, search = '', page = 1, limit = 10) => {
     setLoadingContent(true)
 
     try {
-      
-      const data = await getCancellationByLanguage(langId,search, page, limit);
+      // Fetch fresh data from API
+      const data = await getCancellationByLanguage(langId, search, page, limit, zoneId)
       
       if (data) {
-       setTabContentMap(prev => ({
-        ...prev,
-        [langId]: data
-      }))
-
-
+        // Overwrite the state with fresh data
+        setTabContentMap(prev => ({
+          ...prev,
+          [langId]: data
+        }))
       }
     } catch (err) {
       console.error(`Failed to fetch Cancellation for ${langId}`, err)
@@ -107,20 +86,10 @@ const DynamicCancellationTabs = ({ initialLangId, initialCancellationData, dicti
     }
   }
 
-  useEffect(() => {
-    fetchTabContent(activeTab)
-  }, [activeTab])
-
-  useEffect(() => {
-  }, [tabContentMap]);
-
-  const handleTabChange = async (event: any, newValue: string) => {
-    
+  // Handle Tab Switch
+  const handleTabChange = async (event: SyntheticEvent, newValue: string) => {
     setActiveTab(newValue)
-    
-    // if (!tabContentMap[newValue]) {
-    //   await fetchTabContent(newValue)
-    // }
+    await fetchTabContent(newValue, '', 1, 10) 
   }
 
   if (loadingTabs) return <p></p>
@@ -129,20 +98,22 @@ const DynamicCancellationTabs = ({ initialLangId, initialCancellationData, dicti
     <TabContext value={activeTab}>
       <Grid container spacing={3}>
         <Grid item xs={12}>
-          <CustomTabList onChange={handleTabChange} variant="scrollable" pill="true">
+          <CustomTabList onChange={handleTabChange} variant='scrollable' pill='true'>
             {tabs.map(tab => (
               <Tab key={tab.id} label={tab.name} value={tab.id} />
             ))}
           </CustomTabList>
         </Grid>
         <Grid item xs={12}>
-          <TabPanel value={activeTab} className="p-0">
+          <TabPanel value={activeTab} className='p-0'>
             {tabContentMap[activeTab] ? (
               <CancellationTable
                 dictionary={dictionary}
                 CancellationData={tabContentMap[activeTab]}
                 langId={activeTab}
                 fetchTabContent={fetchTabContent}
+                zoneId={zoneId}
+                clientId={clientId}
               />
             ) : null}
           </TabPanel>
@@ -151,6 +122,5 @@ const DynamicCancellationTabs = ({ initialLangId, initialCancellationData, dicti
     </TabContext>
   )
 }
-
 
 export default DynamicCancellationTabs

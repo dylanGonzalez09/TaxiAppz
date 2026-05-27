@@ -1,90 +1,23 @@
 const ApiError = require('../../../utils/ApiError');
-const httpStatus = require('http-status');
-const ObjectId = require('mongoose').Types.ObjectId
-const { 
-  User, 
-  Driver, 
-  Request, 
-  RequestPlace, 
-  Rental, 
-  RequestMeta, 
-  Users, 
-  Vehicle, 
-  Country, 
-  ZonePrice, 
-  PromoCode, 
-  requestListView 
-} = require('../../../models');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
+const { User, Driver, Request, RequestPlaces,Zone ,PromoCode} = require('../../../models');
+const { getAllZoneIdsFromPrimary } = require('../../../utils/zoneUtils');
+const { isValidDate } = require('../../../utils/commonFunction')
 
 const { tokenService } = require('../../../services');
-const { 
-  webGetPickupZone, 
-  webGetDropZone, 
-  calculateDistance, 
-  calculateZonePrices, 
-  createDataResponse,
-  webCalculateZonePrices,
-  generateRequestNumber,
-  uniqueRandomNumbers,
-  fetchDriver,
-  sendPushNotification,
-  getPickupZone
-} = require('../../../utils/commonFunction')
+const { getPickupZone, getDropZone,getClientId, calculateDistance, calculateZonePrices, createDataResponse,getZoneId } = require('../../../utils/commonFunction')
 const moment = require('moment');
 const mongoose = require('mongoose');
+const ObjectId = mongoose.Types.ObjectId;
 const axios = require('axios');
-const { pipeline } = require('form-data');
-const mqttService = require('../../../services/mqtt/mqtt.service');
-const { mqttConfig } = require('../../../config/string');
+
 
 /**
   from the mobile side they need to send Client Id and Code (Version code)
-  1. Check the Version Available or not if not redirect to update screen 
-  2. check the avaliable languages for client send the avaliable languages 
+  1. Check the Version Available or not if not redirect to update screen
+  2. check the avaliable languages for client send the avaliable languages
  */
-const getClientId = async (req) => {
 
-  clientId = '';
-
-  if (!req.headers.clientid) {
-
-    throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
-
-  } else {
-
-    clientId = req.headers.clientid;
-
-  }
-
-  return clientId;
-}
-
-const sendError = (message, data, code) => ({
-    success: false,
-    message,
-    data,
-    code,
-});
-const getUserId = async (req) => {
-
-  let userId = '';
-
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    res.status(httpStatus.UNAUTHORIZED).send({ message: 'Authorization header is missing or invalid' });
-    return;
-  }
-  // Remove the 'Bearer ' prefix and get the token
-  const token = authHeader.substring(7);
-
-  const user = await tokenService.verifyTokenAndGetUser(token);
-
-  userId = user.id
-
-
-  return userId;
-}
 
 
 const getUserPhoneNumber = async (req) => {
@@ -622,13 +555,40 @@ const getRequest = async (clientId) => {
 
 const getRequestpagination = async (req, filter, options) => {
 
-  const { rideType, tripStatus } = req.query;
+  const { rideType, tripStatus, paymentOpt ,startDate,endDate} = req.query;
   const limit = parseInt(options.limit, 10) || 10;
   const page = parseInt(options.page, 10) || 1;
   const clientId = await getClientId(req);
+  const zoneId = await getZoneId(req);
+  const zoneIds = await getAllZoneIdsFromPrimary(zoneId);
+
+
+  filter.zoneId = { $in: zoneIds };
+
+if (isValidDate(startDate) || isValidDate(endDate)) {
+  filter.createdAt = {};
+
+  if (isValidDate(startDate)) {
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+
+    filter.createdAt.$gte = start;
+  }
+
+  if (isValidDate(endDate)) {
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+
+    filter.createdAt.$lte = end;
+  }
+}
 
   if (rideType) {
     filter.rideType = rideType;
+  }
+
+  if (paymentOpt && paymentOpt != 'All') {
+    filter.paymentOpt = paymentOpt;
   }
 
   if (tripStatus == "") {
@@ -802,9 +762,6 @@ const getRequestpagination = async (req, filter, options) => {
           preserveNullAndEmptyArrays: true
         }
       },
-
-
-
       {
         $project: {
           placesDetails: 1,
@@ -941,17 +898,8 @@ const getRequestpagination = async (req, filter, options) => {
           'vehicleModelDetails.status': { $ifNull: ['$vehicleModelDetails.status', null] },
           'vehicleModelDetails.clientId': { $ifNull: ['$vehicleModelDetails.clientId', null] },
           canceledBy: 1,
-
-
-
-
         }
-
-
-
       },
-
-
       {
         $sort: { createdAt: -1 }, // Sorting in descending order (latest first)
       },
@@ -963,9 +911,6 @@ const getRequestpagination = async (req, filter, options) => {
       },
     ])
     const totalPages = Math.ceil(totalResults / limit);
-
-
-
 
     return {
       results: results,
@@ -1179,6 +1124,20 @@ const getRequestById = async (id) => {
       },
     },
     {
+      $lookup: {
+        from: 'driverlocations',
+        localField: 'driverId',
+        foreignField: 'driverId',
+        as: 'driverLiveLocation',
+      },
+    },
+    {
+      $unwind: {
+        path: '$driverLiveLocation',
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+    {
       $project: {
         addressDetails: 1,
         requestNumber: { $ifNull: ['$requestNumber', null] },
@@ -1237,6 +1196,8 @@ const getRequestById = async (id) => {
         dropLat: { $ifNull: ['$placesDetails.dropLat', null] },
         dropLng: { $ifNull: ['$placesDetails.dropLng', null] },
         dropAddress: { $ifNull: ['$placesDetails.dropAddress', null] },
+        driverCurrentLat: { $ifNull: [{ $arrayElemAt: ['$driverLiveLocation.location.coordinates', 1] }, null] },
+        driverCurrentLng: { $ifNull: [{ $arrayElemAt: ['$driverLiveLocation.location.coordinates', 0] }, null] },
         'driverDetails._id': { $ifNull: ['$driverDetails._id', null] },
         'driverDetails.userId': { $ifNull: ['$driverDetails.userId', null] },
         'driverDetails.carNumber': { $ifNull: ['$driverDetails.carNumber', null] },
@@ -1269,10 +1230,16 @@ const getRequestById = async (id) => {
         'billingDetails._id': { $ifNull: ['$billingDetails._id', null] },
         'billingDetails.basePrice': { $ifNull: ['$billingDetails.basePrice', null] },
         'billingDetails.baseDistance': { $ifNull: ['$billingDetails.baseDistance', null] },
-        'billingDetails.totalDistance': { $ifNull: ['$billingDetails.totalDistance', null] },
+        'billingDetails.totalDistance': { $ifNull: [{$round:['$billingDetails.totalDistance',2]}, null] },
         'billingDetails.totalTime': { $ifNull: ['$billingDetails.totalTime', null] },
         'billingDetails.pricePerDistance': { $ifNull: ['$billingDetails.pricePerDistance', null] },
-        'billingDetails.distancePrice': { $ifNull: ['$billingDetails.distancePrice', null] },
+        // 'billingDetails.distancePrice': { $ifNull: ['$billingDetails.distancePrice', null] },
+        'billingDetails.distancePrice': {
+          $ifNull: [
+            { $round: ['$billingDetails.distancePrice', 2] },
+            null
+          ]
+        },
         'billingDetails.pricePerTime': { $ifNull: ['$billingDetails.pricePerTime', null] },
         'billingDetails.timePrice': { $ifNull: ['$billingDetails.timePrice', null] },
         'billingDetails.waitingCharge': { $ifNull: ['$billingDetails.waitingCharge', null] },
@@ -1282,8 +1249,8 @@ const getRequestById = async (id) => {
         'billingDetails.promoDiscount': { $ifNull: ['$billingDetails.promoDiscount', null] },
         'billingDetails.adminCommission': { $ifNull: ['$billingDetails.adminCommission', null] },
         'billingDetails.adminCommissionWithTax': { $ifNull: ['$billingDetails.adminCommissionWithTax', null] },
-        'billingDetails.driverCommission': { $ifNull: ['$billingDetails.driverCommission', null] },
-        'billingDetails.totalAmount': { $ifNull: ['$billingDetails.totalAmount', null] },
+        'billingDetails.driverCommission': { $ifNull: [{$round:['$billingDetails.driverCommission',2]}, null] },
+        'billingDetails.totalAmount': { $ifNull: [{$round:['$billingDetails.totalAmount',2]}, null] },
         'billingDetails.subTotal': { $ifNull: ['$billingDetails.subTotal', null] },
         'billingDetails.outOfZonePrice': { $ifNull: ['$billingDetails.outOfZonePrice', null] },
         'billingDetails.bookingFees': { $ifNull: ['$billingDetails.bookingFees', null] },
@@ -1617,168 +1584,6 @@ const getRequesHistoryList = async (req) => {
   ]);
 };
 
-/**
- * Get web request history (no clientId required)
- * @param {string} phoneNumber - User's phone number
- * @returns {Promise<Array>} - Array of request history with user profile info
- */
-const getWebRequestHistory = async (phoneNumber) => {
-  if (!phoneNumber) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'Phone number is required');
-  }
-
-  return Request.aggregate([
-    {
-      $lookup: {
-        from: 'users',
-        localField: 'userId',
-        foreignField: '_id',
-        as: 'user',
-      },
-    },
-    { $unwind: '$user' },
-    {
-      $match: {
-        'user.phoneNumber': phoneNumber,
-      }
-    },
-    {
-      $lookup: {
-        from: 'requestbills',
-        localField: '_id',
-        foreignField: 'requestId',
-        as: 'billingDetails'
-      }
-    },
-    {
-      $lookup: {
-        from: 'requestplaces',
-        localField: '_id',
-        foreignField: 'requestId',
-        as: 'placesDetails'
-      }
-    },
-    {
-      $lookup: {
-        from: 'requestratings',
-        localField: '_id',
-        foreignField: 'requestId',
-        as: 'ratingDetails'
-      }
-    },
-    {
-      $lookup: {
-        from: 'drivers',
-        localField: 'driverId',
-        foreignField: '_id',
-        as: 'driverDetails',
-      },
-    },
-    {
-      $unwind: {
-        path: '$billingDetails',
-        preserveNullAndEmptyArrays: true
-      }
-    },
-    {
-      $unwind: {
-        path: '$ratingDetails',
-        preserveNullAndEmptyArrays: true
-      }
-    },
-    {
-      $unwind: {
-        path: '$user',
-        preserveNullAndEmptyArrays: true,
-      }
-    },
-    {
-      $unwind: {
-        path: '$driverDetails',
-        preserveNullAndEmptyArrays: true,
-      }
-    },
-    {
-      $lookup: {
-        from: 'users',
-        localField: 'driverDetails.userId',
-        foreignField: '_id',
-        as: 'driverPersonalDetails',
-      }
-    },
-    {
-      $lookup: {
-        from: 'vehicles',
-        localField: 'driverDetails.type',
-        foreignField: '_id',
-        as: 'vehicleDetails',
-      }
-    },
-    {
-      $unwind: {
-        path: '$driverPersonalDetails',
-        preserveNullAndEmptyArrays: true,
-      }
-    },
-    {
-      $unwind: {
-        path: '$vehicleDetails',
-        preserveNullAndEmptyArrays: true,
-      }
-    },
-    {
-      $project: {
-        placesDetails: 1,
-        requestNumber: { $ifNull: ['$requestNumber', null] },
-        requestOtp: { $ifNull: ['$requestOtp', null] },
-        isCompleted: { $ifNull: ['$isCompleted', null] },
-        isCancelled: { $ifNull: ['$isCancelled', null] },
-        paymentOpt: { $ifNull: ['$paymentOpt', null] },
-        rideType: { $ifNull: ['$rideType', null] },
-        tripType: { $ifNull: ['$tripType', null] },
-        completedAt: { $ifNull: ['$completedAt', null] },
-        cancelledAt: { $ifNull: ['$cancelledAt', null] },
-        createdAt: { $ifNull: ['$createdAt', null] },
-        // User profile information (complete profile)
-        'user._id': { $ifNull: ['$user._id', null] },
-        'user.firstName': { $ifNull: ['$user.firstName', null] },
-        'user.lastName': { $ifNull: ['$user.lastName', null] },
-        'user.email': { $ifNull: ['$user.email', null] },
-        'user.phoneNumber': { $ifNull: ['$user.phoneNumber', null] },
-        'user.emergencyNumber': { $ifNull: ['$user.emergencyNumber', null] },
-        'user.referralCode': { $ifNull: ['$user.referralCode', null] },
-        'user.gender': { $ifNull: ['$user.gender', null] },
-        'user.language': { $ifNull: ['$user.language', null] },
-        'user.country': { $ifNull: ['$user.country', null] },
-        'user.address': { $ifNull: ['$user.address', null] },
-        'user.active': { $ifNull: ['$user.active', null] },
-        'user.profilePic': { $ifNull: ['$user.profilePic', null] },
-        // Driver details
-        'driverDetails._id': { $ifNull: ['$driverDetails._id', null] },
-        'driverDetails.carNumber': { $ifNull: ['$driverDetails.carNumber', null] },
-        'driverDetails.firstName': { $ifNull: ['$driverPersonalDetails.firstName', null] },
-        'driverDetails.lastName': { $ifNull: ['$driverPersonalDetails.lastName', null] },
-        'driverDetails.phoneNumber': { $ifNull: ['$driverPersonalDetails.phoneNumber', null] },
-        'driverDetails.profilePic': { $ifNull: ['$driverPersonalDetails.profilePic', null] },
-        // Vehicle details
-        'vehicleDetails.vehicleName': { $ifNull: ['$vehicleDetails.vehicleName', null] },
-        'vehicleDetails.image': { $ifNull: ['$vehicleDetails.image', null] },
-        'vehicleDetails.capacity': { $ifNull: ['$vehicleDetails.capacity', null] },
-        // Billing details
-        'billingDetails.totalAmount': { $ifNull: ['$billingDetails.totalAmount', null] },
-        'billingDetails.basePrice': { $ifNull: ['$billingDetails.basePrice', null] },
-        'billingDetails.totalDistance': { $ifNull: ['$billingDetails.totalDistance', null] },
-        'billingDetails.totalTime': { $ifNull: ['$billingDetails.totalTime', null] },
-        // Rating details
-        'ratingDetails.rating': { $ifNull: ['$ratingDetails.rating', null] },
-        'ratingDetails.feedback': { $ifNull: ['$ratingDetails.feedback', null] },
-      }
-    },
-    {
-      $sort: { createdAt: -1 } // Sort by most recent first
-    }
-  ]);
-};
 
 const getRideTypes = async (userId, req) => {
   const session = await mongoose.startSession();
@@ -1794,7 +1599,29 @@ const getRideTypes = async (userId, req) => {
 
     const { pick_lat, pick_lng, drop_lat, drop_long, ride_type, stops, promo_code, ride_time, ride_date } = req.body;
 
-    const zone = await getPickupZone(req);
+    // const zone = await getPickupZone(req);
+    let zone = await getPickupZone(req);
+
+       // promo vehicle type filter in zone price details
+       let promo;
+
+        if (promo_code) {
+          promo = await PromoCode.findById(promo_code);
+        }
+
+        let zonePriceDetails = zone.zonePriceDetails;
+
+        if (promo?.vehicleType?.length) {
+          zonePriceDetails = zone.zonePriceDetails.filter(detail =>
+            detail.vehicleDetails &&
+            promo.vehicleType.some(id =>
+              id.toString() === detail.vehicleDetails._id.toString()
+            )
+          );
+        }
+
+        zone = {...zone,zonePriceDetails};
+
 
     if (!zone || zone.nonServiceZone === 'Yes') return { status: 404, data: sendError('Non-service zone', [], 404) };
 
@@ -1807,9 +1634,7 @@ const getRideTypes = async (userId, req) => {
     const zonePrice = await calculateZonePrices(req, zone, distance, ride_type, promo_code, user, ride_time, ride_date, drop_lat, drop_long);
 
 
-
     const dataResponse = createDataResponse(zone);
-
 
     dataResponse.zoneTypePrice = zonePrice;
 
@@ -1824,966 +1649,29 @@ const getRideTypes = async (userId, req) => {
   }
 };
 
-/**
- * Validate user is not already in an active trip
- */
-const validateUserInTrip = async (user) => {
+const getTripByReports = async (filterDate, zoneIds) => {
   try {
-    const userExistsTrip = await Request.findOne({
-      isCompleted: false,
-      isCancelled: false,
-      userId: user._id,
-      isLater: false,
-    });
-
-    if (userExistsTrip) {
-      throw new ApiError(httpStatus.BAD_REQUEST, 'User already in trip');
-    }
-  } catch (error) {
-    if (error instanceof ApiError) throw error;
-    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to validate user trip');
-  }
-};
-
-/**
- * Validate and cancel any existing requested trips for the user
- */
-const validateUserRequestedTrip = async (user) => {
-  try {
-    const requestMetaWithCurrentUser = await RequestMeta.findOne({
-      userId: user._id,
-    });
-
-    if (requestMetaWithCurrentUser) {
-      const requestId = requestMetaWithCurrentUser.requestId;
-
-      if (requestId) {
-        await Request.findByIdAndUpdate(requestId, {
-          isCancelled: true,
-          cancelMethod: 1,
-          cancelled_at: moment(),
-        });
-      }
-
-      await RequestMeta.deleteMany({
-        userId: user._id,
-      });
-    }
-  } catch (error) {
-    console.error('Error in validateUserRequestedTrip:', error);
-    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to validate user requested trip');
-  }
-};
-
-/**
- * Validate payment option
- */
-const validatePaymentOption = async (request) => {
-  try {
-    switch (request.payment_opt) {
-      case 'CARD':
-      case 'CASH':
-      case 'WALLET':
-        return true;
-      default:
-        throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid payment option selected');
-    }
-  } catch (error) {
-    if (error instanceof ApiError) throw error;
-    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Error validating payment option');
-  }
-};
-
-/**
- * Get request list data for response
- */
-const getRequestListData = async (requestId) => {
-  const getRequest = await requestListView.aggregate([
-    {
-      $match: {
-        _id: new ObjectId(requestId),
-      },
-    },
-  ]);
-
-  return getRequest;
-};
-
-/**
- * Web-specific request creation service (duplicate of createTrip, no clientId required)
- * @param {Object} req - Request object with body containing booking details
- * @returns {Promise<Object>} Created request with driver assignment (if RIDE_NOW)
- */
-const createWebRequest = async (req) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
-    // Get user (required for web)
-    let user = null;
-    if (req.user && req.user._id) {
-      user = await User.findById(req.user._id);
-      if (!user) {
-        throw new ApiError(httpStatus.UNAUTHORIZED, 'Unauthorized user');
-      }
-      if (!user.active) {
-        throw new ApiError(httpStatus.FORBIDDEN, 'User is blocked, please contact admin');
-      }
-    } else {
-      throw new ApiError(httpStatus.UNAUTHORIZED, 'User authentication required');
-    }
-
-    const trip_type = req.body.trip_type || 'LOCAL';
-
-    if (trip_type === 'LOCAL') {
-      const {
-        promo_code,
-        booking_for = 'MYSELF',
-        payment_opt,
-        pick_lat,
-        pick_lng,
-        drop_lat,
-        drop_long,
-        stops,
-        driver_notes,
-        vehicle_type,
-        ride_type,
-        ride_time,
-        ride_date,
-      } = req.body;
-
-      // Validate user's existing trips
-      await validateUserInTrip(user);
-      await validateUserRequestedTrip(user);
-
-      // Validate payment option
-      await validatePaymentOption({ payment_opt });
-
-      // Validate vehicle type (web doesn't use clientId)
-      const type = await Vehicle.findById(vehicle_type);
-      if (!type) {
-        throw new ApiError(httpStatus.FORBIDDEN, 'Wrong Vehicle Type');
-      }
-
-      // Get zone using web-specific function
-      const webReq = {
-        ...req,
-        body: {
-          ...req.body,
-          pick_lat,
-          pick_lng,
-        },
-        headers: {
-          ...req.headers,
-          clientid: null,
-        }
-      };
-
-      const zone = await webGetPickupZone(webReq);
-      if (!zone || zone.nonServiceZone === 'Yes') {
-        throw new ApiError(httpStatus.FORBIDDEN, 'Service not available at this location');
-      }
-
-      // Find zoneTypeId from zonePriceDetails
-      let zoneTypeId = null;
-      for (const zonePrice of zone.zonePriceDetails || []) {
-        const zonePriceVehId = zonePrice.vehicleDetails?._id || zonePrice.vehicleDetails?.id;
-        if (zonePriceVehId && zonePriceVehId.toString() === type._id.toString()) {
-          zoneTypeId = zonePrice._id || zonePrice.id;
-          break;
-        }
-      }
-
-      if (!zoneTypeId) {
-        throw new ApiError(httpStatus.FORBIDDEN, 'Service not available at this location');
-      }
-
-      const price = await ZonePrice.findById(zoneTypeId);
-      if (!price) {
-        throw new ApiError(httpStatus.FORBIDDEN, 'Service not available at this location');
-      }
-
-      // Check for surge pricing
-      let surgePriceId = null;
-      let surgePrice = false;
-      const today = moment().format('dddd');
-
-      for (const surge of zone.zoneSurgePriceDetails || []) {
-        const startTime = moment(surge.startTime, 'HH:mm');
-        const endTime = moment(surge.endTime, 'HH:mm');
-        const currentTime = moment();
-
-        if (currentTime.isBetween(startTime, endTime) && surge.availableDays) {
-          const availableDays = surge.availableDays;
-          if (availableDays.includes(today)) {
-            surgePrice = true;
-            surgePriceId = surge._id;
-            break;
-          }
-        }
-      }
-
-      // Validate payment option
-      if (payment_opt && zone.payment_types) {
-        const paymentOptions = Array.isArray(zone.payment_types) ? zone.payment_types : [];
-        if (!paymentOptions.includes(payment_opt)) {
-          throw new ApiError(httpStatus.FORBIDDEN, 'Payment Option is not available. Please select another option');
-        }
-      }
-
-      // Handle promo code
-      let promocode_id = null;
-      let promoAmount = 0;
-
-      if (promo_code) {
-        const isPromoId = /^[a-fA-F0-9]{24}$/.test(promo_code);
-        const promocode = isPromoId
-          ? await PromoCode.findById(promo_code)
-          : await PromoCode.findOne({ promoCode: promo_code });
-        if (!promocode) {
-          throw new ApiError(httpStatus.FORBIDDEN, 'Wrong Promo Code');
-        }
-
-        const [promo_count, promo_all_count] = await Promise.all([
-          Request.countDocuments({ promoId: promocode._id, userId: user._id, isCompleted: 1 }),
-          Request.countDocuments({ promoId: promocode._id, isCompleted: 1 }),
-        ]);
-
-        if (promo_count > promocode.promoReuseCount) {
-          throw new ApiError(httpStatus.FORBIDDEN, `Sorry! You already ${promocode.promoReuseCount} times used this promo code`);
-        }
-        if (promo_all_count > promocode.promo_use_count) {
-          throw new ApiError(httpStatus.FORBIDDEN, 'Sorry! promo code limit exceeded');
-        }
-
-        if (promocode.promoType === 'fixed') {
-          promocode_id = promocode._id;
-          promoAmount = promocode.amount;
-        } else if (promocode.promoType === 'percentage') {
-          promocode_id = promocode._id;
-          promoAmount = promocode.percentage;
-        }
-      }
-
-      // Generate ride details
-      const requestNumber = await generateRequestNumber();
-      const requestOtp = await uniqueRandomNumbers(4);
-
-      const countryDial = await Country.findById(new ObjectId(user.countryCode));
-      if (!countryDial) {
-        throw new ApiError(httpStatus.UNAUTHORIZED, 'Invalid country code');
-      }
-
-      // Determine if it's a later ride
-      const isLater = ride_type === 'RIDE_LATER';
-      let tripTime = null;
-      if (isLater && ride_date && ride_time) {
-        tripTime = moment(`${ride_date} ${ride_time}`).toDate();
-      }
-
-      const requestParams = {
-        requestNumber: requestNumber,
-        requestOtp,
-        userId: user._id,
-        zoneTypeId: zoneTypeId,
-        paymentOpt: payment_opt,
-        unit: zone.unit,
-        promoId: promocode_id,
-        requestedCurrencyCode: countryDial.dial_code,
-        requestedCurrencySymbol: countryDial.currency_symbol,
-        driverInfo: driver_notes,
-        tripType: ride_type,
-        vehicleId: vehicle_type,
-        bookingFor: booking_for,
-        tripStartTime: moment(),
-        tripSecondaryVehicle: zoneTypeId,
-        rideType: ride_type,
-        tripType: trip_type,
-        isLater: isLater,
-        tripTime: tripTime,
-        zoneId: zone._id || zone.zoneId,
-      };
-
-      const requestDetail = await Request.create(requestParams);
-
-      // Handle booking for others
-      let other_user = null;
-      if (booking_for === 'OTHERS') {
-        other_user = await User.create({
-          firstName: req.body.others_name,
-          phoneNumber: req.body.others_number,
-        });
-        requestDetail.others_user_id = other_user._id;
-        await requestDetail.save();
-      }
-
-      // Add stops logic
-      if (stops) {
-        const stopLocations = typeof stops === 'string' ? JSON.parse(stops) : stops;
-        for (let i = 0; i < stopLocations.length; i++) {
-          const currentStop = stopLocations[i];
-          const prevStop = stopLocations[i - 1] || { latitude: pick_lat, longitude: pick_lng, address: req.body.pickup_address };
-
-          await RequestPlace.create({
-            pickLat: prevStop.latitude,
-            pickLng: prevStop.longitude,
-            dropLat: currentStop.latitude,
-            dropLng: currentStop.longitude,
-            pickAddress: prevStop.address,
-            dropAddress: currentStop.address,
-            requestId: requestDetail._id,
-            stops: 1,
-            vehicleType: vehicle_type,
-          });
-        }
-      } else {
-        await RequestPlace.create({
-          pickLat: pick_lat,
-          pickLng: pick_lng,
-          dropLat: drop_lat,
-          dropLng: drop_long,
-          pickAddress: req.body.pickup_address,
-          dropAddress: req.body.drop_address,
-          requestId: requestDetail._id,
-          vehicleType: vehicle_type,
-        });
-      }
-
-      if (!isLater) {
-        const drivers = await fetchDriver(pick_lat, pick_lng, vehicle_type, trip_type, zone._id || zone.zoneId, '', '');
-
-        if (!drivers || !drivers.length) {
-          // Delete request place if exists
-          await RequestPlace.deleteMany({ requestId: requestDetail._id });
-          // Delete the request completely
-          await Request.findByIdAndDelete(requestDetail._id);
-          await session.commitTransaction();
-          throw new ApiError(httpStatus.NOT_FOUND, 'No Driver Found');
-        }
-  
-
-        let selectedDrivers = [];
-        for (let driver of drivers) {
-          const driverData = await Users.findById(driver.userId);
-
-          const isDriverFree = (await RequestMeta.countDocuments({ driverId: driver.driverId, active: true })) === 0;
-          if (isDriverFree) {
-            selectedDrivers.push({
-              user_id: driver.userId,
-              driver_id: driver.driverId,
-              active: selectedDrivers.length === 0 ? 1 : 0,
-              request_id: requestDetail._id,
-              assign_method: 1,
-              created_at: new Date(),
-              updated_at: new Date(),
-            });
-          }
-        }
-
-        if (!selectedDrivers.length) {
-          // Delete request place if exists
-          await RequestPlace.deleteMany({ requestId: requestDetail._id });
-          // Delete the request completely
-          await Request.findByIdAndDelete(requestDetail._id);
-          await session.commitTransaction();
-          throw new ApiError(httpStatus.NOT_FOUND, 'No Driver Found');
-        }
-
-        // Notify the first driver
-        const firstDriver = selectedDrivers[0];
-        const metaDriver = await Driver.findById(firstDriver.driver_id);
-
-        if (metaDriver && metaDriver.userId) {
-          await sendPushNotification(metaDriver.userId.toString(), {
-            title: 'New Trip Requested',
-            message: 'New Trip Requested, you can accept or Reject the request',
-          });
-        }
-
-        // Save driver meta and request locations
-        await RequestMeta.insertMany(
-          selectedDrivers.map(({ user_id, request_id, driver_id, active, assign_method }) => ({
-            userId: user_id,
-            requestId: request_id,
-            driverId: driver_id,
-            active,
-            assignMethod: assign_method,
-          }))
-        );
-
-        let responseData = await getRequestListData(requestDetail._id);
-
-        const driverTopic = mqttConfig.DRIVER_REQUEST + '' + firstDriver.driver_id;
-
-        await mqttService.publishMessage(
-          driverTopic,
-          JSON.stringify({
-            title: 'New Trip Requested',
-            message: 'New Trip Requested, you can accept or Reject the request',
-            tripDetails: responseData[0],
-          })
-        );
-
-        await session.commitTransaction();
-        return responseData[0];
-      } else {
-        await session.commitTransaction();
-        return requestDetail;
-      }
-    } else if (trip_type === 'RENTAL') {
-      const {
-        promo_code,
-        booking_for = 'MYSELF',
-        payment_opt,
-        pick_lat,
-        pick_lng,
-        vehicle_type,
-        ride_type,
-        ride_time,
-        ride_date,
-        packageId,
-      } = req.body;
-
-      // Validate user's existing trips
-      await validateUserInTrip(user);
-      await validateUserRequestedTrip(user);
-
-      // Validate payment option
-      await validatePaymentOption({ payment_opt });
-
-      // Validate vehicle type (web doesn't use clientId)
-      const type = await Vehicle.findById(vehicle_type);
-      if (!type) {
-        throw new ApiError(httpStatus.FORBIDDEN, 'Wrong Vehicle Type');
-      }
-
-      // Get zone using web-specific function
-      const webReq = {
-        ...req,
-        body: {
-          ...req.body,
-          pick_lat,
-          pick_lng,
-        },
-        headers: {
-          ...req.headers,
-          clientid: null,
-        }
-      };
-
-      const zone = await webGetPickupZone(webReq);
-      if (!zone || zone.nonServiceZone === 'Yes') {
-        throw new ApiError(httpStatus.FORBIDDEN, 'Service not available at this location');
-      }
-
-      const rental = await Rental.findById(packageId);
-      if (!rental) {
-        throw new ApiError(httpStatus.FORBIDDEN, 'Invalid rental package');
-      }
-
-      // Validate payment option
-      if (payment_opt && zone.payment_types) {
-        const paymentOptions = Array.isArray(zone.payment_types) ? zone.payment_types : [];
-        if (!paymentOptions.includes(payment_opt)) {
-          throw new ApiError(httpStatus.FORBIDDEN, 'Payment Option is not available. Please select another option');
-        }
-      }
-
-      // Handle promo code
-      let promocode_id = null;
-      if (promo_code) {
-        const isPromoId = /^[a-fA-F0-9]{24}$/.test(promo_code);
-        const promocode = isPromoId
-          ? await PromoCode.findById(promo_code)
-          : await PromoCode.findOne({ promoCode: promo_code });
-        if (!promocode) {
-          throw new ApiError(httpStatus.FORBIDDEN, 'Wrong Promo Code');
-        }
-
-        const promo_count = await Request.countDocuments({
-          promoId: promocode._id,
-          userId: user._id,
-          isCompleted: 1,
-        });
-
-        if (promo_count > promocode.promoReuseCount) {
-          throw new ApiError(httpStatus.FORBIDDEN, `Sorry! You already ${promocode.promoReuseCount} times used this promo code`);
-        }
-
-        const promo_all_count = await Request.countDocuments({
-          promoId: promocode._id,
-          isCompleted: 1,
-        });
-
-        if (promo_all_count > promocode.promo_use_count) {
-          throw new ApiError(httpStatus.FORBIDDEN, 'Sorry! promo code limit exceeded');
-        }
-
-        promocode_id = promocode._id;
-      }
-
-      // Generate ride details
-      const requestNumber = await generateRequestNumber();
-      const requestOtp = await uniqueRandomNumbers(4);
-
-      const countryDial = await Country.findById(new ObjectId(user.countryCode));
-      if (!countryDial) {
-        throw new ApiError(httpStatus.UNAUTHORIZED, 'Invalid country code');
-      }
-
-      // Determine if it's a later ride
-      const isLater = ride_type === 'RIDE_LATER';
-      let tripTime = null;
-      if (isLater && ride_date && ride_time) {
-        tripTime = moment(`${ride_date} ${ride_time}`).toDate();
-      }
-
-      const requestParams = {
-        requestNumber: requestNumber,
-        requestOtp,
-        userId: user._id,
-        paymentOpt: payment_opt,
-        unit: zone.unit,
-        promoId: promocode_id,
-        requestedCurrencyCode: countryDial.dial_code,
-        requestedCurrencySymbol: countryDial.currency_symbol,
-        bookingFor: booking_for,
-        tripStartTime: moment(),
-        rideType: ride_type,
-        tripType: trip_type,
-        isLater: isLater,
-        tripTime: tripTime,
-        packageId: packageId,
-        packageKm: rental.km,
-        packageHr: rental.hour,
-        zoneId: zone._id || zone.zoneId,
-      };
-
-      const requestDetail = await Request.create(requestParams);
-
-      // Handle booking for others
-      let other_user = null;
-      if (booking_for === 'OTHERS') {
-        other_user = await User.create({
-          firstName: req.body.others_name,
-          phoneNumber: req.body.others_number,
-        });
-        requestDetail.others_user_id = other_user._id;
-        await requestDetail.save();
-      }
-
-      await RequestPlace.create({
-        pickLat: pick_lat,
-        pickLng: pick_lng,
-        dropLat: '',
-        dropLng: '',
-        pickAddress: req.body.pickup_address,
-        dropAddress: '',
-        requestId: requestDetail._id,
-        vehicleType: vehicle_type,
-      });
-
-      if (!isLater) {
-        const drivers = await fetchDriver(pick_lat, pick_lng, vehicle_type, trip_type, zone._id || zone.zoneId, '', '');
-
-        if (!drivers || !drivers.length) {
-          // Delete request place if exists
-          await RequestPlace.deleteMany({ requestId: requestDetail._id });
-          // Delete the request completely
-          await Request.findByIdAndDelete(requestDetail._id);
-          await session.commitTransaction();
-          throw new ApiError(httpStatus.NOT_FOUND, 'No Driver Found');
-        }
-
-        let selectedDrivers = [];
-        for (let driver of drivers) {
-          const driverData = await Users.findById(driver.userId);
-
-          const isDriverFree = (await RequestMeta.countDocuments({ driverId: driver.driverId, active: true })) === 0;
-          if (isDriverFree) {
-            selectedDrivers.push({
-              user_id: driver.userId,
-              driver_id: driver.driverId,
-              active: selectedDrivers.length === 0 ? 1 : 0,
-              request_id: requestDetail._id,
-              assign_method: 1,
-              created_at: new Date(),
-              updated_at: new Date(),
-            });
-          }
-        }
-
-        if (!selectedDrivers.length) {
-          // Delete request place if exists
-          await RequestPlace.deleteMany({ requestId: requestDetail._id });
-          // Delete the request completely
-          await Request.findByIdAndDelete(requestDetail._id);
-          await session.commitTransaction();
-          throw new ApiError(httpStatus.NOT_FOUND, 'No Driver Found');
-        }
-
-        // Notify the first driver
-        const firstDriver = selectedDrivers[0];
-        const metaDriver = await Driver.findById(firstDriver.driver_id);
-
-        if (metaDriver && metaDriver.userId) {
-          await sendPushNotification(metaDriver.userId.toString(), {
-            title: 'New Trip Requested',
-            message: 'New Trip Requested, you can accept or Reject the request',
-          });
-        }
-
-        // Save driver meta and request locations
-        await RequestMeta.insertMany(
-          selectedDrivers.map(({ user_id, request_id, driver_id, active, assign_method }) => ({
-            userId: user_id,
-            requestId: request_id,
-            driverId: driver_id,
-            active,
-            assignMethod: assign_method,
-          }))
-        );
-
-        let responseData = await getRequestListData(requestDetail._id);
-
-        const driverTopic = mqttConfig.DRIVER_REQUEST + '' + firstDriver.driver_id;
-
-        await mqttService.publishMessage(
-          driverTopic,
-          JSON.stringify({
-            title: 'New Trip Requested',
-            message: 'New Trip Requested, you can accept or Reject the request',
-            tripDetails: responseData[0],
-          })
-        );
-
-        await session.commitTransaction();
-        return responseData[0];
-      } else {
-        await session.commitTransaction();
-        return requestDetail;
-      }
-    } else {
-      throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid trip type');
-    }
-  } catch (error) {
-    // Only abort if transaction is still active (not already committed or aborted)
-    // If error is "No Driver Found", transaction was already committed after saving cancelled request
-    if (session.inTransaction() && error.message !== 'No Driver Found') {
-      await session.abortTransaction();
-    }
-    throw error;
-  } finally {
-    session.endSession();
-  }
-};
-
-/**
- * Get request status by ID (for polling)
- * @param {string} requestId - Request ID
- * @returns {Promise<Object>} Request with status and places
- */
-const getWebRequestStatus = async (requestId) => {
-  const request = await Request.findById(requestId)
-    .populate('userId', 'firstName lastName phoneNumber')
-    .populate({
-      path: 'driverId',
-      select: 'carNumber type userId',
-      populate: [
-        {
-          path: 'userId',
-          select: 'firstName lastName phoneNumber profilePic'
-        },
-        {
-          path: 'type',
-          select: 'vehicleName image capacity'
-        }
-      ]
-    })
-    .populate({
-      path: 'vehicleId',
-      select: 'vehicleName image capacity',
-      model: 'Vehicle'
-    })
-    .lean();
-
-  if (!request) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'Request not found');
-  }
-
-  // Transform driver data structure to match frontend expectations
-  if (request.driverId && typeof request.driverId === 'object') {
-    const driver = request.driverId;
-    // If driver has userId populated, use that for name and phone
-    if (driver.userId) {
-      request.driverId = {
-        _id: driver._id,
-        firstName: driver.userId.firstName || '',
-        lastName: driver.userId.lastName || '',
-        phoneNumber: driver.userId.phoneNumber || '',
-        vehicleNumber: driver.carNumber || '',
-        profileImage: driver.userId.profilePic || null
-      };
-    } else {
-      // Fallback if userId not populated
-      request.driverId = {
-        _id: driver._id,
-        firstName: '',
-        lastName: '',
-        phoneNumber: '',
-        vehicleNumber: driver.carNumber || '',
-        profileImage: null
-      };
-    }
-    
-    // If vehicleId is not set but driver.type is available, use that
-    if (!request.vehicleId || (request.vehicleId && !request.vehicleId.vehicleName && driver.type)) {
-      if (driver.type && driver.type.vehicleName) {
-        request.vehicleId = driver.type;
-      }
-    }
-  }
-
-  // Transform vehicle data to match frontend expectations (type_name and type_image)
-  if (request.vehicleId && typeof request.vehicleId === 'object') {
-    // If vehicleId only has _id (not populated), try to fetch it manually
-    if (request.vehicleId._id && !request.vehicleId.vehicleName && !request.vehicleId.type_name) {
-      const vehicle = await Vehicle.findById(request.vehicleId._id).select('vehicleName image capacity').lean();
-      if (vehicle) {
-        request.vehicleId = {
-          _id: vehicle._id,
-          type_name: vehicle.vehicleName,
-          type_image: vehicle.image,
-          capacity: vehicle.capacity
-        };
-      }
-    } else if (request.vehicleId.vehicleName) {
-      // Transform vehicleName to type_name for frontend compatibility
-      request.vehicleId = {
-        _id: request.vehicleId._id,
-        type_name: request.vehicleId.vehicleName,
-        type_image: request.vehicleId.image,
-        capacity: request.vehicleId.capacity
-      };
-    }
-  }
-
-  // Get request places (pickup/dropoff locations)
-  const requestPlace = await RequestPlace.findOne({ requestId: new ObjectId(requestId) }).lean();
-  
-  if (requestPlace) {
-    request.pickupAddress = requestPlace.pickAddress;
-    request.dropoffAddress = requestPlace.dropAddress;
-    request.pickupLocation = {
-      lat: requestPlace.pickLat,
-      lng: requestPlace.pickLng,
+    const matchConditions = {
+    zoneId: { $in: zoneIds.map(id => new ObjectId(id)) },
     };
-    request.dropoffLocation = {
-      lat: requestPlace.dropLat,
-      lng: requestPlace.dropLng,
-    };
-  }
-
-  return request;
-};
-
-/**
- * Cancel web request (duplicate from mobile, adapted for web - no clientId)
- * @param {Object} req - Express request object
- * @returns {Promise<Object>} Cancelled request details
- */
-const cancelWebRequest = async (req) => {
-  let userId = null;
-  if (req.user && req.user._id) {
-    userId = req.user._id.toString();
-  } else {
-    throw new ApiError(httpStatus.UNAUTHORIZED, 'User authentication required');
-  }
-
-  const { requestId, reasonId } = req.body;
-  
-  try {
-    const tripRequest = await Request.findById(requestId);
-    if (!tripRequest) {
-      throw new ApiError(httpStatus.NOT_FOUND, 'Trip request not found');
-    }
-
-    // Check if user owns this request
-    if (tripRequest.userId.toString() !== userId) {
-      throw new ApiError(httpStatus.FORBIDDEN, 'You do not have permission to cancel this request');
-    }
-
-    const trip = await RequestMeta.find({ requestId: requestId, active: true });
-    
-    if (!trip || trip.length === 0) {
-      throw new ApiError(httpStatus.NOT_FOUND, 'Trip not found.');
-    }
-
-    // Common cancellation logic
-    tripRequest.cancelledAt = new Date();
-    tripRequest.isCancelled = true;
-    tripRequest.canceledBy = userId;
-    tripRequest.cancelMethod = 'User';
-    if (reasonId) {
-      tripRequest.reasonId = reasonId;
-    }
-    await tripRequest.save();
-
-    // Determine driver (either from tripRequest or trip[0])
-    const driverId = tripRequest.driverId || (trip[0]?.driverId || null);
-    let driver = driverId ? await Driver.findById(driverId) : null;
-
-    // Notify driver if exists
-    if (driver) {
-      await sendPushNotification(driver.userId.toString(), {
-        title: "TRIP_CANCELLED",
-        message: "Trip Cancelled By user"
-      });
-    } else {
-      const filter = { requestId: requestId };
-      await RequestBid.deleteMany(filter);
-    }
-
-    // Clean up and return response
-    const filter = { requestId: requestId };
-    await RequestMeta.deleteMany(filter);
-
-    return {
-      'requestDetail': tripRequest,
-      'message': 'Your Ride Is Canceled'
-    };
-  } catch (err) {
-    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, err.message || 'Failed to cancel request');
-  }
-};
-
-/**
- * Web-specific ETA service (no clientId required)
- * @param {Object} req - Request object with body containing ride details
- * @returns {Promise<Object>} ETA data with zone and vehicle prices
- */
-const getWebRideTypes = async (req) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
-    const { 
-      pick_lat, 
-      pick_lng, 
-      drop_lat, 
-      drop_long, 
-      drop_address,
-      pickup_address,
-      ride_type, 
-      ride_time, 
-      ride_date,
-      trip_type,
-      stops, 
-      promo_code 
-    } = req.body;
-
-    // Get user if authenticated (optional for web)
-    let user = null;
-
-    if (req.user && req.user._id) {
-      user = await User.findById(req.user._id);
-
-      if (user && !user.active) {
-        throw new ApiError(httpStatus.FORBIDDEN, 'User is blocked, please contact admin');
-      }
-    }
-
-    // For web, we need to get zones without clientId requirement
-    // Create a modified req object that doesn't require clientId
-    // We'll use a default approach: get all zones or use a default zone
-    const webReq = {
-      ...req,
-      body: {
-        ...req.body,
-        pick_lat,
-        pick_lng,
-      },
-      headers: {
-        ...req.headers,
-        // Remove clientId requirement for web
-        clientid: null,
-      }
-    };
-
-    // Try to get zone - if getPickupZone fails due to no clientId, 
-    // we'll need to modify it or use an alternative approach
-    // For now, let's try calling it and handle the error
-    let zone;
-    try {
-      zone = await webGetPickupZone(webReq);
-    } catch (error) {
-      // If getPickupZone requires clientId, we need to get zones differently
-      // For web, we might need to get all zones or use a default zone
-      // This is a temporary solution - you may need to modify getPickupZone 
-      // to handle web requests without clientId
-      throw new ApiError(httpStatus.BAD_REQUEST, 'Zone lookup requires configuration. Please contact support.');
-    }
-
-    if (!zone || zone.nonServiceZone === 'Yes') {
-      throw new ApiError(httpStatus.NOT_FOUND, 'Non-service zone');
-    }
-
-    let distance = await calculateDistance(pick_lat, pick_lng, drop_lat, drop_long, stops);
-
-    if (zone.unit != "KM") {
-      distance = distance * 0.6213711922;
-    }
-
-    // Calculate zone prices (web version - no clientId)
-    const zonePrice = await webCalculateZonePrices(webReq, zone, distance, ride_type, promo_code, user, ride_time, ride_date, drop_lat, drop_long);
-
-    const dataResponse = createDataResponse(zone);
-    dataResponse.zoneTypePrice = zonePrice;
-
-    await session.commitTransaction();
-
-    return dataResponse;
-  } catch (error) {
-    await session.abortTransaction();
-    throw error;
-  } finally {
-    session.endSession();
-  }
-};
-
-const getTripByReports = async (filterDate) => {
-  try {
-    const matchStage = [];
 
     if (filterDate) {
-      // Parse MM/DD/YYYY format to ISO date range
-      const [month, day, year] = filterDate.split('/');
-      const isoDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-
-      matchStage.push({
-        $match: {
-          createdAt: {
-            $gte: new Date(`${isoDate}T00:00:00.000Z`),
-            $lt: new Date(`${isoDate}T23:59:59.999Z`),
-          },
-        },
-      });
+      const parsedDate = new Date(filterDate);
+      if (!isNaN(parsedDate)) {
+        const startOfDay = new Date(parsedDate.setUTCHours(0, 0, 0, 0));
+        const endOfDay = new Date(parsedDate.setUTCHours(23, 59, 59, 999));
+        matchConditions.createdAt = { $gte: startOfDay, $lt: endOfDay };
+      } else {
+        throw new Error('Invalid date format. Please use MM/DD/YYYY or YYYY-MM-DD.');
+      }
     }
 
     const result = await Request.aggregate([
-      ...matchStage,
-      {
-        $project: {
-          date: { $dateToString: { format: "%m/%d/%Y", date: "$createdAt" } },
-          ifDispatch: 1,
-          isCompleted: 1,
-          isCancelled: 1,
-        },
-      },
+      { $match: matchConditions },
       {
         $group: {
           _id: {
-            date: "$date",
+            date: { $dateToString: { format: "%m/%d/%Y", date: "$createdAt" } },
             ifDispatch: "$ifDispatch",
             isCompleted: "$isCompleted",
             isCancelled: "$isCancelled",
@@ -2880,18 +1768,32 @@ const getByTripCount = async (clientId) => {
     throw new Error(`Failed to fetch trip status counts: ${error.message}`);
   }
 };
-const getLastTrips = async () => {
+const getLastTrips = async (req, zoneIds) => {
+
+
+  const matchStage = {
+    zoneId: { $in: zoneIds.map(id => new ObjectId(id)) },
+  };
+
+
+
   try {
     const result = await Request.aggregate([
       {
-        $sort: { createdAt: -1 } // Sort by createdAt in descending order
+        $match: matchStage
+      },
+      {
+        $sort: { createdAt: -1 }
+      },
+      {
+        $limit: 5
       },
       {
         $lookup: {
           from: 'requestplaces',
           localField: '_id',
           foreignField: 'requestId',
-          as: 'pickupPlace', // The name of the resulting array containing the joined data
+          as: 'pickupPlace',
         }
       },
       {
@@ -2909,19 +1811,9 @@ const getLastTrips = async () => {
         $unwind: { path: '$dropPlace', preserveNullAndEmptyArrays: true } // Unwind dropPlace array
       },
       {
-        $match: {
-          $or: [
-            { 'pickupPlace.pickAddress': { $ne: null } },
-            { 'dropPlace.dropAddress': { $ne: null } }
-          ]
-        }
-      },   
-      {
-        $limit: 5 // Limit to the last 5 requests
-      },     
-      {
         $project: {
           requestNumber: 1,
+          tripStartTime:1,
           pickupAddress: { $ifNull: ['$pickupPlace.pickAddress', 'N/A'] },
           dropAddress: { $ifNull: ['$dropPlace.dropAddress', 'N/A'] },
           status: {
@@ -2962,7 +1854,7 @@ const getLastTrips = async () => {
               else: {
                 $cond: {
                   if: { $eq: ['$isCompleted', true] },
-                  then: 100,
+                  then: 25,
                   else: {
                     $cond: {
                       if: { $eq: ['$isTripStart', true] },
@@ -2985,6 +1877,7 @@ const getLastTrips = async () => {
     ]);
 
     return result; // Return the last 5 requests with their statuses and progress
+
   } catch (error) {
     console.error(error);
     throw new Error('Error fetching requests with places');
@@ -3345,7 +2238,7 @@ const getDriverRequestTrips = async (userId) => {
   }
 };
 
-const getTripsByDriver = async (clientId) => {
+const getTripsByDriver = async (clientId,zoneIds,zoneId) => {
   if (!clientId || !mongoose.Types.ObjectId.isValid(clientId)) {
     throw new ApiError(httpStatus.NOT_FOUND, 'clientId not found');
   }
@@ -3362,13 +2255,24 @@ const getTripsByDriver = async (clientId) => {
 
   try {
     const baseAggregation = [
-      // { $match: { clientId: new ObjectId(clientId) } },
+   {
+      $match: {
+        zoneId: { $in: zoneIds.map(id => new ObjectId(id)) }
+      }
+    },
       {
         $lookup: {
           from: "drivers",
           localField: "driverId",
           foreignField: "_id",
           as: "driverDetails",
+          pipeline: [
+            {
+              $match:{
+                serviceLocation: new ObjectId(zoneId)
+              }
+            },
+          ]
         },
       },
       {
@@ -3389,7 +2293,7 @@ const getTripsByDriver = async (clientId) => {
         $unwind:
         {
           path: "$driverPersonalDetails",
-          // preserveNullAndEmptyArrays: true 
+          // preserveNullAndEmptyArrays: true
         }
       },
       {
@@ -3490,9 +2394,13 @@ const getTripsByDriver = async (clientId) => {
   }
 };
 
-const getTripsByUser = async (clientId) => {
+const getTripsByUser = async (clientId,zoneId) => {
   if (!clientId || !mongoose.Types.ObjectId.isValid(clientId)) {
     throw new ApiError(httpStatus.NOT_FOUND, 'clientId not found');
+  }
+
+  if (!zoneId || !mongoose.Types.ObjectId.isValid(zoneId)) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'zoneId not found');
   }
 
   const now = new Date();
@@ -3505,21 +2413,31 @@ const getTripsByUser = async (clientId) => {
 
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
+    const zoneIds = await getAllZoneIdsFromPrimary(zoneId);
   try {
     const baseAggregation = [
-      // { $match: { clientId: new ObjectId(clientId) } },
+      {   $match: {
+    zoneId: { $in: zoneIds.map(id => new ObjectId(id)) }
+  } },
       {
         $lookup: {
           from: "users",
           localField: "userId",
           foreignField: "_id",
           as: "userDetails",
+          pipeline:[
+            {
+              $match:{
+                zoneId: { $in: [new ObjectId(zoneId)]}
+              }
+            }
+          ]
         },
       },
       {
         $unwind: {
           path: "$userDetails",
-          // preserveNullAndEmptyArrays: true 
+          // preserveNullAndEmptyArrays: true
         }
       },
 
@@ -3620,10 +2538,15 @@ const getTripsByUser = async (clientId) => {
   }
 };
 
-const getDriverSummary = async () => {
+const getDriverSummary = async (zoneIds) => {
   try {
     const result = await Request.aggregate([
-      // Lookup the customer/user
+      {
+        $match: {
+         zoneId: { $in: zoneIds.map(id => new ObjectId(id)) },
+          // clientId: new mongoose.Types.ObjectId(clientId),
+        },
+      },
       {
         $lookup: {
           from: 'users',
@@ -3632,13 +2555,7 @@ const getDriverSummary = async () => {
           as: 'userData',
         },
       },
-      {
-        $unwind: {
-          path: '$userData',
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      // Lookup the driver from the drivers collection
+      { $unwind: { path: '$userData', preserveNullAndEmptyArrays: true } },
       {
         $lookup: {
           from: 'drivers',
@@ -3647,13 +2564,7 @@ const getDriverSummary = async () => {
           as: 'driverData',
         },
       },
-      {
-        $unwind: {
-          path: '$driverData',
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      // Lookup the driver user data from users collection
+      { $unwind: { path: '$driverData', preserveNullAndEmptyArrays: true } },
       {
         $lookup: {
           from: 'users',
@@ -3662,13 +2573,7 @@ const getDriverSummary = async () => {
           as: 'driverUserData',
         },
       },
-      {
-        $unwind: {
-          path: '$driverUserData',
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      // Lookup request places
+      { $unwind: { path: '$driverUserData', preserveNullAndEmptyArrays: true } },
       {
         $lookup: {
           from: 'requestplaces',
@@ -3677,13 +2582,7 @@ const getDriverSummary = async () => {
           as: 'requestPlaceData',
         },
       },
-      {
-        $unwind: {
-          path: '$requestPlaceData',
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      // Lookup request bills to get the billing data
+      { $unwind: { path: '$requestPlaceData', preserveNullAndEmptyArrays: true } },
       {
         $lookup: {
           from: 'requestbills',
@@ -3692,13 +2591,7 @@ const getDriverSummary = async () => {
           as: 'requestBillData',
         },
       },
-      {
-        $unwind: {
-          path: '$requestBillData',
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      // Project the required fields
+      { $unwind: { path: '$requestBillData', preserveNullAndEmptyArrays: true } },
       {
         $project: {
           requestNumber: 1,
@@ -3708,7 +2601,7 @@ const getDriverSummary = async () => {
               'N/A',
             ],
           },
-          serviceType: { $ifNull: ['$serviceType', 'Standard'] }, // Assuming 'serviceType' is a field on 'Request'
+          serviceType: { $ifNull: ['$serviceType', 'Standard'] },
           customerName: { $concat: ['$userData.firstName', ' ', '$userData.lastName'] },
           contactNumber: '$userData.phoneNumber',
           userId: '$userData._id',
@@ -3724,46 +2617,35 @@ const getDriverSummary = async () => {
           distanceCharges: { $ifNull: ['$requestBillData.distancePrice', 0] },
           totalCharges: { $ifNull: ['$requestBillData.totalAmount', 0] },
           driverAmount: { $ifNull: ['$requestBillData.driverCommission', 0] },
-          companyServiceCharge: { $ifNull: ['$requestBillData.adminCommission', 0] },
         },
       },
     ]);
 
-    return result; // Return the filtered data
+    return result;
   } catch (error) {
-    console.error(error);
+    console.error('Error in getDriverSummary:', error);
     throw new Error('Error fetching request data');
   }
 };
-const getTripWiseReports = async (filterDate) => {
+
+const getTripWiseReports = async (filterDate, zoneIds) => {
   try {
-    const matchStage = [];
+    const matchConditions = {
+    zoneId: { $in: zoneIds.map(id => new ObjectId(id)) },
+      $or: [{ isCompleted: true }, { isCancelled: true }],
+    };
 
     if (filterDate) {
-      // Parse MM/DD/YYYY format to ISO
       const [month, day, year] = filterDate.split('/');
       const isoDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-
-      matchStage.push({
-        $match: {
-          createdAt: {
-            $gte: new Date(`${isoDate}T00:00:00.000Z`),
-            $lt: new Date(`${isoDate}T23:59:59.999Z`),
-          },
-        },
-      });
+      matchConditions.createdAt = {
+        $gte: new Date(`${isoDate}T00:00:00.000Z`),
+        $lt: new Date(`${isoDate}T23:59:59.999Z`),
+      };
     }
 
     const trips = await Request.aggregate([
-      ...matchStage,
-      {
-        $match: {
-          $or: [
-            { isCompleted: true },
-            { isCancelled: true },
-          ],
-        },
-      },
+      { $match: matchConditions },
       {
         $group: {
           _id: {
@@ -3777,7 +2659,10 @@ const getTripWiseReports = async (filterDate) => {
       },
       {
         $group: {
-          _id: { date: "$_id.date", tripType: "$_id.tripType" },
+          _id: {
+            date: "$_id.date",
+            // tripType: "$_id.tripType"
+          },
           localCompleted: {
             $sum: {
               $cond: [
@@ -3820,7 +2705,7 @@ const getTripWiseReports = async (filterDate) => {
         $project: {
           _id: 0,
           date: "$_id.date",
-          tripType: "$_id.tripType",
+          // tripType: "$_id.tripType",
           localCompleted: { $toString: "$localCompleted" },
           localCancelled: { $toString: "$localCancelled" },
           rentalCompleted: { $toString: "$rentalCompleted" },
@@ -3838,14 +2723,17 @@ const getTripWiseReports = async (filterDate) => {
 };
 
 
-const getCompletedLocalTrip = async () => {
+const getCompletedLocalTrip = async (zoneIds) => {
   try {
     const result = await Request.aggregate([
       // Match only LOCAL trips that are completed
       {
         $match: {
           tripType: 'LOCAL',        // Ensure the trip type is LOCAL
-          isCompleted: true,        // Ensure the trip is completed
+          isCompleted: true,
+          zoneId: { $in: zoneIds.map(id => new ObjectId(id)) },
+            // clientId: new mongoose.Types.ObjectId(clientId),
+
         },
       },
       // Lookup the customer/user
@@ -3949,7 +2837,6 @@ const getCompletedLocalTrip = async () => {
           distanceCharges: { $ifNull: ['$requestBillData.distancePrice', 0] },
           totalCharges: { $ifNull: ['$requestBillData.totalAmount', 0] },
           driverAmount: { $ifNull: ['$requestBillData.driverCommission', 0] },
-          companyServiceCharge: { $ifNull: ['$requestBillData.adminCommission', 0] },
         },
       },
     ]);
@@ -3960,14 +2847,15 @@ const getCompletedLocalTrip = async () => {
     throw new Error('Error fetching request data');
   }
 };
-const getCompletedRentalTrip = async () => {
+const getCompletedRentalTrip = async (zoneIds) => {
   try {
     const result = await Request.aggregate([
       // Match only LOCAL trips that are completed
       {
         $match: {
           tripType: 'RENTAL',        // Ensure the trip type is LOCAL
-          isCompleted: true,        // Ensure the trip is completed
+          isCompleted: true,
+          zoneId: { $in: zoneIds.map(id => new ObjectId(id)) },  // Ensure the trip is completed
         },
       },
       // Lookup the customer/user
@@ -4072,7 +2960,6 @@ const getCompletedRentalTrip = async () => {
           distanceCharges: { $ifNull: ['$requestBillData.distancePrice', 0] },
           totalCharges: { $ifNull: ['$requestBillData.totalAmount', 0] },
           driverAmount: { $ifNull: ['$requestBillData.driverCommission', 0] },
-          companyServiceCharge: { $ifNull: ['$requestBillData.adminCommission', 0] },
         },
       },
     ]);
@@ -4084,11 +2971,21 @@ const getCompletedRentalTrip = async () => {
   }
 };
 
-const getRentalList = async () => {
+const getRentalList = async (req) => {
+  if(!req.headers.zoneid)
+  {
+    throw new ApiError(httpStatus.NOT_FOUND, 'ZoneId not found');
+  }
+
+  const zoneId = req.headers.zoneid;
+
+    const zoneIds = await getAllZoneIdsFromPrimary(zoneId);
+
   const request = await Request.aggregate([
     {
       $match: {
-        tripType: 'RENTAL'
+        tripType: 'RENTAL',
+        zoneId: { $in: zoneIds.map(id => new ObjectId(id)) },
       }
     },
     {
@@ -4220,207 +3117,209 @@ const getRentalList = async () => {
   return request;
 };
 
-const getTodayEarnings = async (clientId) => {
-  const earnings = await Request.aggregate([
-    {
-      $match: {
-        // clientId: new ObjectId(clientId), 
-        isCompleted: true
-      }
-    },
-    {
-      $addFields: {
-        currentDate: {
-          $dateToString: { format: '%Y-%m-%d', date: new Date() }
-        }
-      }
-    },
-    {
-      $lookup: {
-        from: "requestbills",
-        localField: "_id",
-        foreignField: "requestId",
-        as: "billData",
-      },
-    },
-    {
-      $unwind: {
-        path: "$billData",
-        preserveNullAndEmptyArrays: true
-      }
-    },
-    {
-      $match: {
-        $expr: {
-          $eq: [
-            { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
-            { $dateToString: { format: '%Y-%m-%d', date: new Date() } }
-          ]
-        }
-      }
-    },
-    {
-      $group: {
-        _id: null,
-        totalRevenue: {
-          $sum: { $ifNull: [{ $round: ["$billData.totalAmount", 2] }, 0] }
-        },
-        currency: { $last: "$requestedCurrencySymbol" } 
-      }
-    },
-    {
-      $project: {
-        _id: 0,
-        totalRevenue: 1,
-        currency: 1,
-        // currency: { $ifNull: ["$currency", "₹"] }
-      }
-    }
-  ]);
+const getTodayEarnings = async (req,clientId,zoneIds,zoneId) => {
 
-  return {
-    totalRevenue: earnings[0]?.totalRevenue || 0,
-    currency: earnings[0]?.currency || "$",
-  };
+  let zoneCurrency = await getZoneCurrency(zoneId);
+      if (typeof zoneCurrency !== 'string') zoneCurrency = String(zoneCurrency);
+
+   const earnings = await Request.aggregate([
+     {
+       $match: {
+         isCompleted: true,
+         zoneId: {
+           $in: zoneIds.map(id => new mongoose.Types.ObjectId(id.toString()))
+         }
+       }
+     },
+     {
+       $lookup: {
+         from: "requestbills",
+         localField: "_id",
+         foreignField: "requestId",
+         as: "bill"
+       }
+     },
+
+     { $unwind: "$bill" },
+
+     {
+       $match: {
+         "bill.createdAt": {
+           $gte: new Date(new Date().setUTCHours(0,0,0,0)),
+           $lte: new Date(new Date().setUTCHours(23,59,59,999))
+         }
+       }
+     },
+
+     {
+       $group: {
+         _id: null,
+         totalRevenue: { $sum: "$bill.totalAmount" },
+         currency: { $first: "$bill.requestedCurrencySymbol" }
+       }
+     },
+
+     {
+       $project: {
+         _id: 0,
+         totalRevenue: { $round: ["$totalRevenue", 2] },
+         currency: 1
+       }
+     }
+   ]);
+     return {
+       totalRevenue: earnings[0]?.totalRevenue || 0,
+       currency: earnings[0]?.currency || zoneCurrency,
+     };
 };
 
-const getTodayReport = async (clientId) => {
-  try {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
 
-    const reports = await Request.aggregate([
-      // {
-      //   $match: {
-      //     clientId: new ObjectId(clientId),
-      //     // createdAt: { $gte: today },
-      //   },
-      // },
-      {
-        $addFields: {
-          currentDate: {
-            $dateToString: { format: '%Y-%m-%d', date: new Date() }
+const getTodayReport = async (req,clientId,zoneId) => {
+  try {
+
+    let zoneCurrency = await getZoneCurrency(zoneId);
+    if (typeof zoneCurrency !== 'string') zoneCurrency = String(zoneCurrency);
+
+
+    const zoneIds = await getAllZoneIdsFromPrimary(zoneId);
+       const baseMatch = {
+      zoneId: { $in: zoneIds.map(id => new ObjectId(id)) },
+    };
+
+    // if (clientId) baseMatch.clientId = new ObjectId(clientId);
+
+     const startOfDay = new Date();
+      startOfDay.setUTCHours(0, 0, 0, 0);
+
+      const endOfDay = new Date();
+      endOfDay.setUTCHours(23, 59, 59, 999);
+
+        const reports = await Request.aggregate([
+        {
+          $match: {
+            ...baseMatch,
+            createdAt: {
+              $gte: startOfDay,
+              $lte: endOfDay
+            }
+          }
+        },
+        {
+          $lookup: {
+            from: "requestbills",
+            localField: "_id",
+            foreignField: "requestId",
+            as: "billData",
           },
+        },
+        {
+          $unwind: {
+            path: "$billData",
+            preserveNullAndEmptyArrays: true
+          }
+        },
+        {
+          $group: {
+            _id: null,
+
+            completed: {
+              $sum: {
+                $cond: [
+                  { $eq: ["$isCompleted", true] },
+                  1,
+                  0
+                ]
+              }
+            },
+
+            cancelled: {
+              $sum: {
+                $cond: [
+                  { $eq: ["$isCancelled", true] },
+                  1,
+                  0
+                ]
+              }
+            },
+            ongoing: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $eq: ["$isTripStart", true] },
+                      { $eq: ["$isCompleted", false] },
+                      { $eq: ["$isCancelled", false] }
+                    ]
+                  },
+                  1,
+                  0
+                ]
+              }
+            },
+
+            cashPayments: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $eq: ["$isCompleted", true] },
+                      { $eq: ["$paymentOpt", "CASH"] }
+                    ]
+                  },
+                  { $ifNull: ["$billData.totalAmount", 0] },
+                  0
+                ]
+              }
+            },
+
+            pendingAmount: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $eq: ["$isTripStart", false] },
+                      { $eq: ["$isCompleted", false] },
+                      { $eq: ["$isCancelled", false] }
+                    ]
+                  },
+                  1,
+                  0
+                ]
+              }
+            },
+
+            cardPayments: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $eq: ["$isCompleted", true] },
+                      { $eq: ["$paymentOpt", "CARD"] }
+                    ]
+                  },
+                  { $ifNull: ["$billData.totalAmount", 0] },
+                  0
+                ]
+              }
+            },
+
+            walletPayments: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $eq: ["$isCompleted", true] },
+                      { $eq: ["$paymentOpt", "WALLET"] }
+                    ]
+                  },
+                  { $ifNull: ["$billData.totalAmount", 0] },
+                  0
+                ]
+              }
+            }
+          }
         }
-      },
-      {
-        $lookup: {
-          from: "requestbills",
-          localField: "_id",
-          foreignField: "requestId",
-          as: "billData",
-        },
-      },
-      { $unwind: { path: "$billData", preserveNullAndEmptyArrays: true } },
-      {
-        $group: {
-          _id: null,
-          requestedCurrencySymbol: { $last: "$requestedCurrencySymbol" },
-          completed: {
-            $sum: {
-              $cond: [{
-                $and: [
-                  { $eq: ['$isCompleted', true] },
-                  { $eq: ['$isCancelled', false] },
-                  { $eq: [{ $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, '$currentDate'] }
-                ],
-              },
-                1, 0]
-            }
-          },
-          cancelled: {
-            $sum: {
-              $cond: [{
-                $and: [
-                  { $eq: ['$isCompleted', false] },
-                  { $eq: ['$isCancelled', true] },
-                  { $eq: [{ $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, '$currentDate'] }
-                ],
-              },
-                1, 0]
-            }
-          },
-          ongoing: {
-            $sum: {
-              $cond: [{
-                $and: [
-                  { $eq: ['$isTripStart', true] },
-                  { $eq: ['$isCompleted', false] },
-                  { $eq: ['$isCancelled', false] },
-                  { $eq: [{ $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, '$currentDate'] }
-                ],
-              },
-                1, 0]
-            },
-          },
-          pendingAmount: {
-            $sum: {
-              $cond: [{
-                $and: [
-                  { $eq: ['$isTripStart', false] },
-                  { $eq: ['$isCompleted', false] },
-                  { $eq: ['$isCancelled', false] },
-                  { $eq: [{ $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, '$currentDate'] }
-                ],
-              },
-                1, 0],
-            },
-          },
-          cashPayments: {
-            $sum: {
-              $cond: [{
-                $and: [
-                  { $eq: ['$isCompleted', true] },
-                  { $eq: ["$paymentOpt", "CASH"] },
-                  { $eq: [{ $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, '$currentDate'] }
-                ]
-              },
-              { $ifNull: [{ $round: ["$billData.totalAmount", 2] }, 0] },
-                0],
-            }
-          },
-          cardPayments: {
-            $sum: {
-              $cond: [{
-                $and: [
-                  { $eq: ['$isCompleted', true] },
-                  { $eq: ["$paymentOpt", "CARD"] },
-                  { $eq: [{ $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, '$currentDate'] }
-                ]
-              },
-              { $ifNull: [{ $round: ["$billData.totalAmount", 2] }, 0] },
-                0]
-            }
-          },
-          walletPayments: {
-            $sum: {
-              $cond: [{
-                $and: [
-                  { $eq: ['$isCompleted', true] },
-                  { $eq: ["$paymentOpt", "WALLET"] },
-                  { $eq: [{ $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, '$currentDate'] }
-                ]
-              },
-              { $ifNull: [{ $round: ["$billData.totalAmount", 2] }, 0] },
-                0]
-            },
-          },
-        },
-      },
-      {
-        $project: {
-          _id: 0,
-          completed: 1,
-          cancelled: 1,
-          ongoing: 1,
-          pendingAmount: 1,
-          cashPayments: { $ifNull: ["$cashPayments", 0] },
-          cardPayments: { $ifNull: ["$cardPayments", 0] },
-          walletPayments: { $ifNull: ["$walletPayments", 0] },
-          currency: { $ifNull: ["$requestedCurrencySymbol", "₹"] },
-        },
-      },
-    ]);
+      ]);
 
     return {
       completed: reports[0]?.completed || 0,
@@ -4430,20 +3329,24 @@ const getTodayReport = async (clientId) => {
       cashPayments: reports[0]?.cashPayments || 0,
       cardPayments: reports[0]?.cardPayments || 0,
       walletPayments: reports[0]?.walletPayments || 0,
-      currency: reports[0]?.currency || "$",
+      currency: reports[0]?.currency || zoneCurrency,
     };
   } catch (error) {
-    console.error('Error fetching today report:', error);
+    console.error('Error fetching today report:', error.message);
     throw new Error('Failed to fetch today report');
   }
 };
 
-const getWeeklyReport = async (clientId, filter) => {
+const getWeeklyReport = async (req, clientId, filter, zoneId) => {
   try {
 
+    let zoneCurrency = await getZoneCurrency(zoneId);
+    if (typeof zoneCurrency !== 'string') zoneCurrency = String(zoneCurrency);
+
     const getWeekRange = (offset = 0) => {
-      const start = moment().subtract(offset, 'week').startOf('week').format('YYYY-MM-DD');
-      const end = moment().subtract(offset, 'week').endOf('week').format('YYYY-MM-DD');
+
+      const start = moment().subtract(offset, 'week').startOf('week').toDate();
+      const end = moment().subtract(offset, 'week').endOf('week').toDate();
       return { start, end };
     };
 
@@ -4451,10 +3354,21 @@ const getWeeklyReport = async (clientId, filter) => {
       currentWeek: getWeekRange(0),
       previousWeek: getWeekRange(1),
       thirdWeekPrevious: getWeekRange(2),
-      fourthWeekPrevious: getWeekRange(3)
+      fourthWeekPrevious: getWeekRange(3),
     };
 
+
+  const zoneIds = await getAllZoneIdsFromPrimary(zoneId);
+    const baseMatch = {
+      zoneId: { $in: zoneIds.map(id => new ObjectId(id)) },
+      // isCompleted: true,
+      // isCancelled: false,
+    };
+    // if (clientId) baseMatch.clientId = new ObjectId(clientId);
+    if (filter) Object.assign(baseMatch, filter);
+
     const result = await Request.aggregate([
+      { $match: baseMatch },
       {
         $lookup: {
           from: "requestbills",
@@ -4474,31 +3388,64 @@ const getWeeklyReport = async (clientId, filter) => {
       }
     ]);
 
+
     function buildPipeline(startDate, endDate) {
+      const weekMatch = {
+         ...baseMatch,
+        createdAt: { $gte: startDate, $lte: endDate },
+      };
+
       return [
-        {
-          $match: {
-            // clientId: new ObjectId(clientId),
-            createdAt: { $gte: new Date(startDate), $lte: new Date(endDate) }
-          }
-        },
+        { $match: weekMatch },
         {
           $group: {
             _id: null,
-            requestedCurrencySymbol: {$last: "$requestedCurrencySymbol"},
-            cashPayments: { $sum: { $cond: [{ $and: [{ $eq: ["$isCompleted", true] }, { $eq: ["$paymentOpt", "CASH"] }] }, { $ifNull: [{ $round: ["$billData.totalAmount", 2] }, 0] }, 0] } },
-            cardPayments: { $sum: { $cond: [{ $and: [{ $eq: ["$isCompleted", true] }, { $eq: ["$paymentOpt", "CARD"] }] }, { $ifNull: [{ $round: ["$billData.totalAmount", 2] }, 0] }, 0] } },
-            walletPayments: { $sum: { $cond: [{ $and: [{ $eq: ["$isCompleted", true] }, { $eq: ["$paymentOpt", "WALLET"] }] }, { $ifNull: [{ $round: ["$billData.totalAmount", 2] }, 0] }, 0] } },
-            completed: { $sum: { $cond: [{ $and: [{ $eq: ["$isCompleted", true] }, { $eq: ["$isCancelled", false] }] }, 1, 0] } },
-            cancelled: { $sum: { $cond: [{ $and: [{ $eq: ["$isCompleted", false] }, { $eq: ["$isCancelled", true] }] }, 1, 0] } }
+            // requestCurrency: { $first: "$requestedCurrencySymbol" },
+            cashPayments: {
+              $sum: {
+                $cond: [
+                  { $and: [{ $eq: ["$isCompleted", true] }, { $eq: ["$paymentOpt", "CASH"] }] },
+                  { $ifNull: [{ $round: ["$billData.totalAmount", 2] }, 0] },
+                  0
+                ]
+              }
+            },
+            cardPayments: {
+              $sum: {
+                $cond: [
+                  { $and: [{ $eq: ["$isCompleted", true] }, { $eq: ["$paymentOpt", "CARD"] }] },
+                  { $ifNull: [{ $round: ["$billData.totalAmount", 2] }, 0] },
+                  0
+                ]
+              }
+            },
+            walletPayments: {
+              $sum: {
+                $cond: [
+                  { $and: [{ $eq: ["$isCompleted", true] }, { $eq: ["$paymentOpt", "WALLET"] }] },
+                  { $ifNull: [{ $round: ["$billData.totalAmount", 2] }, 0] },
+                  0
+                ]
+              }
+            },
+            completed: {
+              $sum: {
+                $cond: [{ $eq: ["$isCompleted", true] }, 1, 0]
+              }
+            },
+            cancelled: {
+              $sum: {
+                $cond: [{ $eq: ["$isCancelled", true] }, 1, 0]
+              }
+            }
           }
         },
         {
           $project: {
             _id: 0,
-            cashPayments: { $ifNull: ["$cashPayments", 0] },
-            cardPayments: { $ifNull: ["$cardPayments", 0] },
-            walletPayments: { $ifNull: ["$walletPayments", 0] },
+            cashPayments: 1,
+            cardPayments: 1,
+            walletPayments: 1,
             TotalPayments: {
               $add: [
                 { $ifNull: ["$cashPayments", 0] },
@@ -4506,57 +3453,76 @@ const getWeeklyReport = async (clientId, filter) => {
                 { $ifNull: ["$walletPayments", 0] }
               ]
             },
-            currency: { $ifNull: ["$requestedCurrencySymbol", "₹"] },
+            currency: { $ifNull: ["$requestCurrency", { $literal: zoneCurrency }] },
             completed: 1,
-            cancelled: 1,
-            requestedCurrencySymbol:1
+            cancelled: 1
           }
         }
       ];
     }
 
-    const week1 = result[0].currentWeek.length > 0 ? result[0].currentWeek[0] : { completed: 0, cancelled: 0, cashPayments: 0, cardPayments: 0, walletPayments: 0, walletPayments: 0, TotalPayments: 0, currency: '$' };
-    const week2 = result[0].previousWeek.length > 0 ? result[0].previousWeek[0] : { completed: 0, cancelled: 0, cashPayments: 0, cardPayments: 0, walletPayments: 0, walletPayments: 0, TotalPayments: 0, currency: '$' };
-    const week3 = result[0].thirdWeekPrevious.length > 0 ? result[0].thirdWeekPrevious[0] : { completed: 0, cancelled: 0, cashPayments: 0, cardPayments: 0, walletPayments: 0, walletPayments: 0, TotalPayments: 0, currency: '$' };
-    const week4 = result[0].fourthWeekPrevious.length > 0 ? result[0].fourthWeekPrevious[0] : { completed: 0, cancelled: 0, cashPayments: 0, cardPayments: 0, walletPayments: 0, walletPayments: 0, TotalPayments: 0, currency: '$' };
-    const response = {
-      'week1': week1,
-      'week2': week2,
-      'week3': week3,
-      'week4': week4,
+    // ⛑ Safe fallback defaults if any week has no data
+    const buildWeekData = (weekResult) => {
+      return weekResult.length > 0
+        ? weekResult[0]
+        : {
+            completed: 0,
+            cancelled: 0,
+            cashPayments: 0,
+            cardPayments: 0,
+            walletPayments: 0,
+            TotalPayments: 0,
+            currency: zoneCurrency
+          };
     };
 
-    return response;
+    const week1 = buildWeekData(result[0].currentWeek);
+    const week2 = buildWeekData(result[0].previousWeek);
+    const week3 = buildWeekData(result[0].thirdWeekPrevious);
+    const week4 = buildWeekData(result[0].fourthWeekPrevious);
 
-  }
-  catch (error) {
-    console.error('Error fetching today report:', error);
-    throw new Error('Failed to fetch today report');
+    return {
+      week1,
+      week2,
+      week3,
+      week4
+    };
+
+  } catch (error) {
+    console.error('Error fetching weekly report:', error);
+    throw new Error('Failed to fetch weekly report');
   }
 };
 
-const getMonthlyReport = async (clientId, filter) => {
+const getMonthlyReport = async (req, clientId, filter, zoneId) => {
   try {
-    let startOfYear = moment().startOf('year').format('YYYY-MM-DD');
-    let endOfMonth = moment().endOf('month').format('YYYY-MM-DD');
+
+
+    let startOfYear = moment().startOf('year').utc().toDate();
+    let endOfMonth = moment().endOf('month').utc().toDate();
+
+    let zoneCurrency = await getZoneCurrency(zoneId);
+    if (typeof zoneCurrency !== 'string') zoneCurrency = String(zoneCurrency);
+
+      const zoneIds = await getAllZoneIdsFromPrimary(zoneId);
+    const matchStage = {
+      createdAt: { $gte: startOfYear, $lte: endOfMonth },
+      zoneId: { $in: zoneIds.map(id => new ObjectId(id)) },
+    };
+
+    // if (clientId) matchStage.clientId = new ObjectId(clientId);
+    if (filter) Object.assign(matchStage, filter);
 
     // Perform aggregation
     const result = await Request.aggregate([
       {
+        $match: matchStage
+      },
+      {
         $addFields: {
           year: { $year: "$createdAt" },
           month: { $month: "$createdAt" },
-          formattedCreatedAt: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }
-        }
-      },
-      {
-        $match: {
-          // clientId: new ObjectId(clientId),
-          year: moment().year(),  // Filter by the current year
-          formattedCreatedAt: {
-            $gte: startOfYear,  // Match all dates from the start of the year
-            $lte: endOfMonth    // Match up to the end of the current month
-          }
+          // formattedCreatedAt: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }
         }
       },
       {
@@ -4571,7 +3537,7 @@ const getMonthlyReport = async (clientId, filter) => {
       {
         $group: {
           _id: { year: "$year", month: "$month" },  // Group by year and month
-          requestedCurrencySymbol: { $last: "$requestedCurrencySymbol" },
+          requestCurrency: { $first: "$requestedCurrencySymbol" },
           cashPayments: {
             $sum: {
               $cond: [{
@@ -4647,10 +3613,9 @@ const getMonthlyReport = async (clientId, filter) => {
               { $ifNull: ["$walletPayments", 0] }
             ]
           },
-          currency: { $ifNull: ["$requestedCurrencySymbol", "₹"] },
+          currency: { $ifNull: ['$requestCurrency', { $literal: zoneCurrency }] },
           completed: 1,
           cancelled: 1,
-          requestedCurrencySymbol:1
         }
       },
       {
@@ -4675,7 +3640,7 @@ const getMonthlyReport = async (clientId, filter) => {
         cardPayments: 0,
         walletPayments: 0,
         TotalPayments: 0,
-        currency: '$'
+        currency: zoneCurrency
       };
     });
 
@@ -4689,8 +3654,7 @@ const getMonthlyReport = async (clientId, filter) => {
           cardPayments: item.cardPayments,
           walletPayments: item.walletPayments,
           TotalPayments: item.TotalPayments,
-          currency: item.currency,
-          requestedCurrencySymbol: item.requestedCurrencySymbol
+          currency: item.currency
         };
       }
     });
@@ -4703,9 +3667,17 @@ const getMonthlyReport = async (clientId, filter) => {
   }
 };
 
-const getYearlyRevenue = async (req, res) => {
+// const getYearlyRevenue = async (req,clientId, zoneId) => {
+
+
+const getYearlyRevenue = async (req, clientId, zoneId) => {
+  let zoneCurrency = await getZoneCurrency(zoneId);
   const currentYear = new Date().getFullYear();
   const years = [currentYear, currentYear - 1];
+
+  const zoneIds = await getAllZoneIdsFromPrimary(zoneId);
+
+  const zoneObjectIds = zoneIds.map(id => new ObjectId(id));
 
   let yearlyData = {};
 
@@ -4713,14 +3685,18 @@ const getYearlyRevenue = async (req, res) => {
     const startOfYear = new Date(year, 0, 1);
     const endOfYear = new Date(year, 11, 31, 23, 59, 59);
 
+    const matchStage = {
+      zoneId: { $in: zoneObjectIds },
+      isCompleted: true,
+      isCancelled: false,
+      completedAt: { $gte: startOfYear, $lte: endOfYear }
+    };
+
+
     // Payments Aggregation
     const payments = (await Request.aggregate([
       {
-        $match: {
-          isCompleted: true,
-          isCancelled: false,
-          completedAt: { $gte: startOfYear, $lte: endOfYear },
-        },
+        $match: matchStage
       },
       {
         $lookup: {
@@ -4762,7 +3738,6 @@ const getYearlyRevenue = async (req, res) => {
               ],
             },
           },
-          // Include the currency symbol in the first document (assuming all have same currency)
           currencySymbol: { $first: "$bills.requestedCurrencySymbol" }
         },
       },
@@ -4778,10 +3753,10 @@ const getYearlyRevenue = async (req, res) => {
       }
     ])) || [];
 
-    // Completed Requests Aggregation
     const completedRequests = (await Request.aggregate([
       {
         $match: {
+          zoneId: { $in: zoneObjectIds },
           isCompleted: true,
           completedAt: { $gte: startOfYear, $lte: endOfYear },
         },
@@ -4792,12 +3767,13 @@ const getYearlyRevenue = async (req, res) => {
           count: { $sum: 1 },
         },
       },
+      { $sort: { "_id": 1 } }
     ])) || [];
 
-    // Cancelled Requests Aggregation
     const cancelledRequests = (await Request.aggregate([
       {
         $match: {
+          zoneId: { $in: zoneObjectIds },
           isCancelled: true,
           cancelledAt: { $gte: startOfYear, $lte: endOfYear },
         },
@@ -4805,15 +3781,17 @@ const getYearlyRevenue = async (req, res) => {
       {
         $group: {
           _id: { $month: "$cancelledAt" },
-          count: { $sum: -1 }, // Negative values for cancellations
+          count: { $sum: 1 },
         },
       },
+      { $sort: { "_id": 1 } }
     ])) || [];
 
-    // Last Month Data
+
     const lastMonthData = (await Request.aggregate([
       {
         $match: {
+          zoneId: { $in: zoneObjectIds },
           createdAt: {
             $gte: new Date(year, new Date().getMonth() - 1, 1),
             $lt: new Date(year, new Date().getMonth(), 1),
@@ -4826,12 +3804,14 @@ const getYearlyRevenue = async (req, res) => {
           count: { $sum: 1 },
         },
       },
+      { $sort: { _id: 1 } },
     ])) || [];
 
-    // This Month Data
+
     const thisMonthData = (await Request.aggregate([
       {
         $match: {
+          zoneId: { $in: zoneObjectIds },
           createdAt: {
             $gte: new Date(year, new Date().getMonth(), 1),
             $lt: new Date(year, new Date().getMonth() + 1, 1),
@@ -4844,9 +3824,9 @@ const getYearlyRevenue = async (req, res) => {
           count: { $sum: 1 },
         },
       },
+      { $sort: { _id: 1 } },
     ])) || [];
 
-    // Transform Data into Arrays (12 months)
     const completedArray = Array(12).fill(0);
     completedRequests.forEach((entry) => {
       if (entry._id && entry.count !== undefined) {
@@ -4864,18 +3844,1109 @@ const getYearlyRevenue = async (req, res) => {
     const lastMonthArray = lastMonthData.map((entry) => entry.count || 0);
     const thisMonthArray = thisMonthData.map((entry) => entry.count || 0);
 
-    // Store data with null constraints handled
     yearlyData[year] = {
-      payments: payments[0] || { total: 0, cash: 0, card: 0, wallet: 0 },
+      payments: payments[0] || { total: 0, cash: 0, card: 0, wallet: 0, currencySymbol: zoneCurrency },
       completed: completedArray,
       cancelled: cancelledArray,
       lastMonth: lastMonthArray,
-      thisMonth: thisMonthArray,
+      thisMonth: thisMonthArray
     };
   }
 
   return yearlyData;
 };
+
+const getZoneCurrency = async(zoneId) => {
+  const zone = await Zone.findById(new ObjectId(zoneId));
+  let zoneCurrency = zone?.currency || '₹';
+
+  return zoneCurrency;
+};
+
+
+
+const validateUserInTrip = async (user) => {
+  try {
+    const userExistsTrip = await Request.findOne({
+      isCompleted: false,
+      isCancelled: false,
+      userId: user._id,
+      isLater: false,
+    });
+
+    if (userExistsTrip) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'User already in trip');
+    }
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to validate user trip');
+  }
+};
+
+/**
+ * Validate and cancel any existing requested trips for the user
+ */
+const validateUserRequestedTrip = async (user) => {
+  try {
+    const requestMetaWithCurrentUser = await RequestMeta.findOne({
+      userId: user._id,
+    });
+
+    if (requestMetaWithCurrentUser) {
+      const requestId = requestMetaWithCurrentUser.requestId;
+
+      if (requestId) {
+        await Request.findByIdAndUpdate(requestId, {
+          isCancelled: true,
+          cancelMethod: 1,
+          cancelled_at: moment(),
+        });
+      }
+
+      await RequestMeta.deleteMany({
+        userId: user._id,
+      });
+    }
+  } catch (error) {
+    console.error('Error in validateUserRequestedTrip:', error);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to validate user requested trip');
+  }
+};
+
+
+const validatePaymentOption = async (request) => {
+  try {
+    switch (request.payment_opt) {
+      case 'CARD':
+      case 'CASH':
+      case 'WALLET':
+        return true;
+      default:
+        throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid payment option selected');
+    }
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Error validating payment option');
+  }
+};
+
+
+
+/**
+ * Web-specific request creation service (duplicate of createTrip, no clientId required)
+ * @param {Object} req - Request object with body containing booking details
+ * @returns {Promise<Object>} Created request with driver assignment (if RIDE_NOW)
+ */
+const createWebRequest = async (req) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    // Get user (required for web)
+    let user = null;
+    if (req.user && req.user._id) {
+      user = await User.findById(req.user._id);
+      if (!user) {
+        throw new ApiError(httpStatus.UNAUTHORIZED, 'Unauthorized user');
+      }
+      if (!user.active) {
+        throw new ApiError(httpStatus.FORBIDDEN, 'User is blocked, please contact admin');
+      }
+    } else {
+      throw new ApiError(httpStatus.UNAUTHORIZED, 'User authentication required');
+    }
+
+    const trip_type = req.body.trip_type || 'LOCAL';
+
+    if (trip_type === 'LOCAL') {
+      const {
+        promo_code,
+        booking_for = 'MYSELF',
+        payment_opt,
+        pick_lat,
+        pick_lng,
+        drop_lat,
+        drop_long,
+        stops,
+        driver_notes,
+        vehicle_type,
+        ride_type,
+        ride_time,
+        ride_date,
+      } = req.body;
+
+      // Validate user's existing trips
+      await validateUserInTrip(user);
+      await validateUserRequestedTrip(user);
+
+      // Validate payment option
+      await validatePaymentOption({ payment_opt });
+
+      // Validate vehicle type (web doesn't use clientId)
+      const type = await Vehicle.findById(vehicle_type);
+      if (!type) {
+        throw new ApiError(httpStatus.FORBIDDEN, 'Wrong Vehicle Type');
+      }
+
+      // Get zone using web-specific function
+      const webReq = {
+        ...req,
+        body: {
+          ...req.body,
+          pick_lat,
+          pick_lng,
+        },
+        headers: {
+          ...req.headers,
+          clientid: null,
+        }
+      };
+
+      const zone = await webGetPickupZone(webReq);
+      if (!zone || zone.nonServiceZone === 'Yes') {
+        throw new ApiError(httpStatus.FORBIDDEN, 'Service not available at this location');
+      }
+
+      // Find zoneTypeId from zonePriceDetails
+      let zoneTypeId = null;
+      for (const zonePrice of zone.zonePriceDetails || []) {
+        const zonePriceVehId = zonePrice.vehicleDetails?._id || zonePrice.vehicleDetails?.id;
+        if (zonePriceVehId && zonePriceVehId.toString() === type._id.toString()) {
+          zoneTypeId = zonePrice._id || zonePrice.id;
+          break;
+        }
+      }
+
+      if (!zoneTypeId) {
+        throw new ApiError(httpStatus.FORBIDDEN, 'Service not available at this location');
+      }
+
+      const price = await ZonePrice.findById(zoneTypeId);
+      if (!price) {
+        throw new ApiError(httpStatus.FORBIDDEN, 'Service not available at this location');
+      }
+
+      // Check for surge pricing
+      let surgePriceId = null;
+      let surgePrice = false;
+      const today = moment().format('dddd');
+
+      for (const surge of zone.zoneSurgePriceDetails || []) {
+        const startTime = moment(surge.startTime, 'HH:mm');
+        const endTime = moment(surge.endTime, 'HH:mm');
+        const currentTime = moment();
+
+        if (currentTime.isBetween(startTime, endTime) && surge.availableDays) {
+          const availableDays = surge.availableDays;
+          if (availableDays.includes(today)) {
+            surgePrice = true;
+            surgePriceId = surge._id;
+            break;
+          }
+        }
+      }
+
+      // Validate payment option
+      if (payment_opt && zone.payment_types) {
+        const paymentOptions = Array.isArray(zone.payment_types) ? zone.payment_types : [];
+        if (!paymentOptions.includes(payment_opt)) {
+          throw new ApiError(httpStatus.FORBIDDEN, 'Payment Option is not available. Please select another option');
+        }
+      }
+
+      // Handle promo code
+      let promocode_id = null;
+      let promoAmount = 0;
+
+      if (promo_code) {
+        const isPromoId = /^[a-fA-F0-9]{24}$/.test(promo_code);
+        const promocode = isPromoId
+          ? await PromoCode.findById(promo_code)
+          : await PromoCode.findOne({ promoCode: promo_code });
+        if (!promocode) {
+          throw new ApiError(httpStatus.FORBIDDEN, 'Wrong Promo Code');
+        }
+
+        const [promo_count, promo_all_count] = await Promise.all([
+          Request.countDocuments({ promoId: promocode._id, userId: user._id, isCompleted: 1 }),
+          Request.countDocuments({ promoId: promocode._id, isCompleted: 1 }),
+        ]);
+
+        if (promo_count > promocode.promoReuseCount) {
+          throw new ApiError(httpStatus.FORBIDDEN, `Sorry! You already ${promocode.promoReuseCount} times used this promo code`);
+        }
+        if (promo_all_count > promocode.promo_use_count) {
+          throw new ApiError(httpStatus.FORBIDDEN, 'Sorry! promo code limit exceeded');
+        }
+
+        if (promocode.promoType === 'fixed') {
+          promocode_id = promocode._id;
+          promoAmount = promocode.amount;
+        } else if (promocode.promoType === 'percentage') {
+          promocode_id = promocode._id;
+          promoAmount = promocode.percentage;
+        }
+      }
+
+      // Generate ride details
+      const requestNumber = await generateRequestNumber();
+      const requestOtp = await uniqueRandomNumbers(4);
+
+      const countryDial = await Country.findById(new ObjectId(user.countryCode));
+      if (!countryDial) {
+        throw new ApiError(httpStatus.UNAUTHORIZED, 'Invalid country code');
+      }
+
+      // Determine if it's a later ride
+      const isLater = ride_type === 'RIDE_LATER';
+      let tripTime = null;
+      if (isLater && ride_date && ride_time) {
+        tripTime = moment(`${ride_date} ${ride_time}`).toDate();
+      }
+
+      const requestParams = {
+        requestNumber: requestNumber,
+        requestOtp,
+        userId: user._id,
+        zoneTypeId: zoneTypeId,
+        paymentOpt: payment_opt,
+        unit: zone.unit,
+        promoId: promocode_id,
+        requestedCurrencyCode: countryDial.dial_code,
+        requestedCurrencySymbol: countryDial.currency_symbol,
+        driverInfo: driver_notes,
+        tripType: ride_type,
+        vehicleId: vehicle_type,
+        bookingFor: booking_for,
+        tripStartTime: moment(),
+        tripSecondaryVehicle: zoneTypeId,
+        rideType: ride_type,
+        tripType: trip_type,
+        isLater: isLater,
+        tripTime: tripTime,
+        zoneId: zone._id || zone.zoneId,
+        adminDemoKey: user.demoKey || null,
+      };
+
+      const requestDetail = await Request.create(requestParams);
+
+      // Handle booking for others
+      let other_user = null;
+      if (booking_for === 'OTHERS') {
+        other_user = await User.create({
+          firstName: req.body.others_name,
+          phoneNumber: req.body.others_number,
+        });
+        requestDetail.others_user_id = other_user._id;
+        await requestDetail.save();
+      }
+
+      // Add stops logic
+      if (stops) {
+        const stopLocations = typeof stops === 'string' ? JSON.parse(stops) : stops;
+        for (let i = 0; i < stopLocations.length; i++) {
+          const currentStop = stopLocations[i];
+          const prevStop = stopLocations[i - 1] || { latitude: pick_lat, longitude: pick_lng, address: req.body.pickup_address };
+
+          await RequestPlace.create({
+            pickLat: prevStop.latitude,
+            pickLng: prevStop.longitude,
+            dropLat: currentStop.latitude,
+            dropLng: currentStop.longitude,
+            pickAddress: prevStop.address,
+            dropAddress: currentStop.address,
+            requestId: requestDetail._id,
+            stops: 1,
+            vehicleType: vehicle_type,
+          });
+        }
+      } else {
+        await RequestPlace.create({
+          pickLat: pick_lat,
+          pickLng: pick_lng,
+          dropLat: drop_lat,
+          dropLng: drop_long,
+          pickAddress: req.body.pickup_address,
+          dropAddress: req.body.drop_address,
+          requestId: requestDetail._id,
+          vehicleType: vehicle_type,
+        });
+      }
+
+      if (!isLater) {
+        const demoKey = user.demoKey || null;
+        const zoneId = zone._id || zone.zoneId;
+        const drivers = demoKey
+          ? await fetchDispatchDriver(demoKey, pick_lat, pick_lng, vehicle_type, trip_type, zoneId, drop_lat || '', drop_long || '')
+          : await fetchDriver(pick_lat, pick_lng, vehicle_type, trip_type, zoneId, drop_lat || '', drop_long || '');
+
+        if (!drivers || !drivers.length) {
+          // Delete request place if exists
+          await RequestPlace.deleteMany({ requestId: requestDetail._id });
+          // Delete the request completely
+          await Request.findByIdAndDelete(requestDetail._id);
+          await session.commitTransaction();
+          throw new ApiError(httpStatus.NOT_FOUND, 'No Driver Found');
+        }
+
+
+        let selectedDrivers = [];
+        for (let driver of drivers) {
+          const driverData = await Users.findById(driver.userId);
+
+          const isDriverFree = (await RequestMeta.countDocuments({ driverId: driver.driverId, active: true })) === 0;
+          if (isDriverFree) {
+            selectedDrivers.push({
+              user_id: driver.userId,
+              driver_id: driver.driverId,
+              active: selectedDrivers.length === 0 ? 1 : 0,
+              request_id: requestDetail._id,
+              assign_method: 1,
+              created_at: new Date(),
+              updated_at: new Date(),
+            });
+          }
+        }
+
+        if (!selectedDrivers.length) {
+          // Delete request place if exists
+          await RequestPlace.deleteMany({ requestId: requestDetail._id });
+          // Delete the request completely
+          await Request.findByIdAndDelete(requestDetail._id);
+          await session.commitTransaction();
+          throw new ApiError(httpStatus.NOT_FOUND, 'No Driver Found');
+        }
+
+        // Notify the first driver
+        const firstDriver = selectedDrivers[0];
+        const metaDriver = await Driver.findById(firstDriver.driver_id);
+
+        if (metaDriver && metaDriver.userId) {
+          await sendPushNotification(metaDriver.userId.toString(), {
+            title: 'New Trip Requested',
+            message: 'New Trip Requested, you can accept or Reject the request',
+          });
+        }
+
+        // Save driver meta and request locations
+        await RequestMeta.insertMany(
+          selectedDrivers.map(({ user_id, request_id, driver_id, active, assign_method }) => ({
+            userId: user_id,
+            requestId: request_id,
+            driverId: driver_id,
+            active,
+            assignMethod: assign_method,
+          }))
+        );
+
+        let responseData = await getRequestListData(requestDetail._id);
+
+        const driverTopic = mqttConfig.DRIVER_REQUEST + '' + firstDriver.driver_id;
+
+        await mqttService.publishMessage(
+          driverTopic,
+          JSON.stringify({
+            title: 'New Trip Requested',
+            message: 'New Trip Requested, you can accept or Reject the request',
+            tripDetails: responseData[0],
+          })
+        );
+
+        await session.commitTransaction();
+        return responseData[0];
+      } else {
+        await session.commitTransaction();
+        return requestDetail;
+      }
+    } else if (trip_type === 'RENTAL') {
+      const {
+        promo_code,
+        booking_for = 'MYSELF',
+        payment_opt,
+        pick_lat,
+        pick_lng,
+        vehicle_type,
+        ride_type,
+        ride_time,
+        ride_date,
+        packageId,
+      } = req.body;
+
+      // Validate user's existing trips
+      await validateUserInTrip(user);
+      await validateUserRequestedTrip(user);
+
+      // Validate payment option
+      await validatePaymentOption({ payment_opt });
+
+      // Validate vehicle type (web doesn't use clientId)
+      const type = await Vehicle.findById(vehicle_type);
+      if (!type) {
+        throw new ApiError(httpStatus.FORBIDDEN, 'Wrong Vehicle Type');
+      }
+
+      // Get zone using web-specific function
+      const webReq = {
+        ...req,
+        body: {
+          ...req.body,
+          pick_lat,
+          pick_lng,
+        },
+        headers: {
+          ...req.headers,
+          clientid: null,
+        }
+      };
+
+      const zone = await webGetPickupZone(webReq);
+      if (!zone || zone.nonServiceZone === 'Yes') {
+        throw new ApiError(httpStatus.FORBIDDEN, 'Service not available at this location');
+      }
+
+      const rental = await Rental.findById(packageId);
+      if (!rental) {
+        throw new ApiError(httpStatus.FORBIDDEN, 'Invalid rental package');
+      }
+
+      // Validate payment option
+      if (payment_opt && zone.payment_types) {
+        const paymentOptions = Array.isArray(zone.payment_types) ? zone.payment_types : [];
+        if (!paymentOptions.includes(payment_opt)) {
+          throw new ApiError(httpStatus.FORBIDDEN, 'Payment Option is not available. Please select another option');
+        }
+      }
+
+      // Handle promo code
+      let promocode_id = null;
+      if (promo_code) {
+        const isPromoId = /^[a-fA-F0-9]{24}$/.test(promo_code);
+        const promocode = isPromoId
+          ? await PromoCode.findById(promo_code)
+          : await PromoCode.findOne({ promoCode: promo_code });
+        if (!promocode) {
+          throw new ApiError(httpStatus.FORBIDDEN, 'Wrong Promo Code');
+        }
+
+        const promo_count = await Request.countDocuments({
+          promoId: promocode._id,
+          userId: user._id,
+          isCompleted: 1,
+        });
+
+        if (promo_count > promocode.promoReuseCount) {
+          throw new ApiError(httpStatus.FORBIDDEN, `Sorry! You already ${promocode.promoReuseCount} times used this promo code`);
+        }
+
+        const promo_all_count = await Request.countDocuments({
+          promoId: promocode._id,
+          isCompleted: 1,
+        });
+
+        if (promo_all_count > promocode.promo_use_count) {
+          throw new ApiError(httpStatus.FORBIDDEN, 'Sorry! promo code limit exceeded');
+        }
+
+        promocode_id = promocode._id;
+      }
+
+      // Generate ride details
+      const requestNumber = await generateRequestNumber();
+      const requestOtp = await uniqueRandomNumbers(4);
+
+      const countryDial = await Country.findById(new ObjectId(user.countryCode));
+      if (!countryDial) {
+        throw new ApiError(httpStatus.UNAUTHORIZED, 'Invalid country code');
+      }
+
+      // Determine if it's a later ride
+      const isLater = ride_type === 'RIDE_LATER';
+      let tripTime = null;
+      if (isLater && ride_date && ride_time) {
+        tripTime = moment(`${ride_date} ${ride_time}`).toDate();
+      }
+
+      const requestParams = {
+        requestNumber: requestNumber,
+        requestOtp,
+        userId: user._id,
+        paymentOpt: payment_opt,
+        unit: zone.unit,
+        promoId: promocode_id,
+        requestedCurrencyCode: countryDial.dial_code,
+        requestedCurrencySymbol: countryDial.currency_symbol,
+        bookingFor: booking_for,
+        tripStartTime: moment(),
+        rideType: ride_type,
+        tripType: trip_type,
+        isLater: isLater,
+        tripTime: tripTime,
+        packageId: packageId,
+        packageKm: rental.km,
+        packageHr: rental.hour,
+        zoneId: zone._id || zone.zoneId,
+        adminDemoKey: user.demoKey || null,
+      };
+
+      const requestDetail = await Request.create(requestParams);
+
+      // Handle booking for others
+      let other_user = null;
+      if (booking_for === 'OTHERS') {
+        other_user = await User.create({
+          firstName: req.body.others_name,
+          phoneNumber: req.body.others_number,
+        });
+        requestDetail.others_user_id = other_user._id;
+        await requestDetail.save();
+      }
+
+      await RequestPlace.create({
+        pickLat: pick_lat,
+        pickLng: pick_lng,
+        dropLat: '',
+        dropLng: '',
+        pickAddress: req.body.pickup_address,
+        dropAddress: '',
+        requestId: requestDetail._id,
+        vehicleType: vehicle_type,
+      });
+
+      if (!isLater) {
+        const demoKey = user.demoKey || null;
+        const zoneId = zone._id || zone.zoneId;
+        const drivers = demoKey
+          ? await fetchDispatchDriver(demoKey, pick_lat, pick_lng, vehicle_type, trip_type, zoneId, '', '')
+          : await fetchDriver(pick_lat, pick_lng, vehicle_type, trip_type, zoneId, '', '');
+
+        if (!drivers || !drivers.length) {
+          // Delete request place if exists
+          await RequestPlace.deleteMany({ requestId: requestDetail._id });
+          // Delete the request completely
+          await Request.findByIdAndDelete(requestDetail._id);
+          await session.commitTransaction();
+          throw new ApiError(httpStatus.NOT_FOUND, 'No Driver Found');
+        }
+
+        let selectedDrivers = [];
+        for (let driver of drivers) {
+          const driverData = await Users.findById(driver.userId);
+
+          const isDriverFree = (await RequestMeta.countDocuments({ driverId: driver.driverId, active: true })) === 0;
+          if (isDriverFree) {
+            selectedDrivers.push({
+              user_id: driver.userId,
+              driver_id: driver.driverId,
+              active: selectedDrivers.length === 0 ? 1 : 0,
+              request_id: requestDetail._id,
+              assign_method: 1,
+              created_at: new Date(),
+              updated_at: new Date(),
+            });
+          }
+        }
+
+        if (!selectedDrivers.length) {
+          // Delete request place if exists
+          await RequestPlace.deleteMany({ requestId: requestDetail._id });
+          // Delete the request completely
+          await Request.findByIdAndDelete(requestDetail._id);
+          await session.commitTransaction();
+          throw new ApiError(httpStatus.NOT_FOUND, 'No Driver Found');
+        }
+
+        // Notify the first driver
+        const firstDriver = selectedDrivers[0];
+        const metaDriver = await Driver.findById(firstDriver.driver_id);
+
+        if (metaDriver && metaDriver.userId) {
+          await sendPushNotification(metaDriver.userId.toString(), {
+            title: 'New Trip Requested',
+            message: 'New Trip Requested, you can accept or Reject the request',
+          });
+        }
+
+        // Save driver meta and request locations
+        await RequestMeta.insertMany(
+          selectedDrivers.map(({ user_id, request_id, driver_id, active, assign_method }) => ({
+            userId: user_id,
+            requestId: request_id,
+            driverId: driver_id,
+            active,
+            assignMethod: assign_method,
+          }))
+        );
+
+        let responseData = await getRequestListData(requestDetail._id);
+
+        const driverTopic = mqttConfig.DRIVER_REQUEST + '' + firstDriver.driver_id;
+
+        await mqttService.publishMessage(
+          driverTopic,
+          JSON.stringify({
+            title: 'New Trip Requested',
+            message: 'New Trip Requested, you can accept or Reject the request',
+            tripDetails: responseData[0],
+          })
+        );
+
+        await session.commitTransaction();
+        return responseData[0];
+      } else {
+        await session.commitTransaction();
+        return requestDetail;
+      }
+    } else {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid trip type');
+    }
+  } catch (error) {
+    // Only abort if transaction is still active (not already committed or aborted)
+    // If error is "No Driver Found", transaction was already committed after saving cancelled request
+    if (session.inTransaction() && error.message !== 'No Driver Found') {
+      await session.abortTransaction();
+    }
+    throw error;
+  } finally {
+    session.endSession();
+  }
+};
+
+/**
+ * Get request status by ID (for polling)
+ * @param {string} requestId - Request ID
+ * @returns {Promise<Object>} Request with status and places
+ */
+const getWebRequestStatus = async (requestId) => {
+  const request = await Request.findById(requestId)
+    .populate('userId', 'firstName lastName phoneNumber')
+    .populate({
+      path: 'driverId',
+      select: 'carNumber type userId',
+      populate: [
+        {
+          path: 'userId',
+          select: 'firstName lastName phoneNumber profilePic'
+        },
+        {
+          path: 'type',
+          select: 'vehicleName image capacity'
+        }
+      ]
+    })
+    .populate({
+      path: 'vehicleId',
+      select: 'vehicleName image capacity',
+      model: 'Vehicle'
+    })
+    .lean();
+
+  if (!request) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Request not found');
+  }
+
+  // Transform driver data structure to match frontend expectations
+  if (request.driverId && typeof request.driverId === 'object') {
+    const driver = request.driverId;
+    // If driver has userId populated, use that for name and phone
+    if (driver.userId) {
+      request.driverId = {
+        _id: driver._id,
+        firstName: driver.userId.firstName || '',
+        lastName: driver.userId.lastName || '',
+        phoneNumber: driver.userId.phoneNumber || '',
+        vehicleNumber: driver.carNumber || '',
+        profileImage: driver.userId.profilePic || null
+      };
+    } else {
+      // Fallback if userId not populated
+      request.driverId = {
+        _id: driver._id,
+        firstName: '',
+        lastName: '',
+        phoneNumber: '',
+        vehicleNumber: driver.carNumber || '',
+        profileImage: null
+      };
+    }
+
+    // If vehicleId is not set but driver.type is available, use that
+    if (!request.vehicleId || (request.vehicleId && !request.vehicleId.vehicleName && driver.type)) {
+      if (driver.type && driver.type.vehicleName) {
+        request.vehicleId = driver.type;
+      }
+    }
+  }
+
+  // Transform vehicle data to match frontend expectations (type_name and type_image)
+  if (request.vehicleId && typeof request.vehicleId === 'object') {
+    // If vehicleId only has _id (not populated), try to fetch it manually
+    if (request.vehicleId._id && !request.vehicleId.vehicleName && !request.vehicleId.type_name) {
+      const vehicle = await Vehicle.findById(request.vehicleId._id).select('vehicleName image capacity').lean();
+      if (vehicle) {
+        request.vehicleId = {
+          _id: vehicle._id,
+          type_name: vehicle.vehicleName,
+          type_image: vehicle.image,
+          capacity: vehicle.capacity
+        };
+      }
+    } else if (request.vehicleId.vehicleName) {
+      // Transform vehicleName to type_name for frontend compatibility
+      request.vehicleId = {
+        _id: request.vehicleId._id,
+        type_name: request.vehicleId.vehicleName,
+        type_image: request.vehicleId.image,
+        capacity: request.vehicleId.capacity
+      };
+    }
+  }
+
+  // Get request places (pickup/dropoff locations)
+  const requestPlace = await RequestPlace.findOne({ requestId: new ObjectId(requestId) }).lean();
+
+  if (requestPlace) {
+    request.pickupAddress = requestPlace.pickAddress;
+    request.dropoffAddress = requestPlace.dropAddress;
+    request.pickupLocation = {
+      lat: requestPlace.pickLat,
+      lng: requestPlace.pickLng,
+    };
+    request.dropoffLocation = {
+      lat: requestPlace.dropLat,
+      lng: requestPlace.dropLng,
+    };
+  }
+
+  return request;
+};
+
+/**
+ * Cancel web request (duplicate from mobile, adapted for web - no clientId)
+ * @param {Object} req - Express request object
+ * @returns {Promise<Object>} Cancelled request details
+ */
+const cancelWebRequest = async (req) => {
+  let userId = null;
+  if (req.user && req.user._id) {
+    userId = req.user._id.toString();
+  } else {
+    throw new ApiError(httpStatus.UNAUTHORIZED, 'User authentication required');
+  }
+
+  const { requestId, reasonId } = req.body;
+
+  try {
+    const tripRequest = await Request.findById(requestId);
+    if (!tripRequest) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Trip request not found');
+    }
+
+    // Check if user owns this request
+    if (tripRequest.userId.toString() !== userId) {
+      throw new ApiError(httpStatus.FORBIDDEN, 'You do not have permission to cancel this request');
+    }
+
+    const trip = await RequestMeta.find({ requestId: requestId, active: true });
+
+    if (!trip || trip.length === 0) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Trip not found.');
+    }
+
+    // Common cancellation logic
+    tripRequest.cancelledAt = new Date();
+    tripRequest.isCancelled = true;
+    tripRequest.canceledBy = userId;
+    tripRequest.cancelMethod = 'User';
+    if (reasonId) {
+      tripRequest.reasonId = reasonId;
+    }
+    await tripRequest.save();
+
+    // Determine driver (either from tripRequest or trip[0])
+    const driverId = tripRequest.driverId || (trip[0]?.driverId || null);
+    let driver = driverId ? await Driver.findById(driverId) : null;
+
+    // Notify driver if exists
+    if (driver) {
+      await sendPushNotification(driver.userId.toString(), {
+        title: "TRIP_CANCELLED",
+        message: "Trip Cancelled By user"
+      });
+    } else {
+      const filter = { requestId: requestId };
+      await RequestBid.deleteMany(filter);
+    }
+
+    // Clean up and return response
+    const filter = { requestId: requestId };
+    await RequestMeta.deleteMany(filter);
+
+    return {
+      'requestDetail': tripRequest,
+      'message': 'Your Ride Is Canceled'
+    };
+  } catch (err) {
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, err.message || 'Failed to cancel request');
+  }
+};
+
+/**
+ * Web-specific ETA service (no clientId required)
+ * @param {Object} req - Request object with body containing ride details
+ * @returns {Promise<Object>} ETA data with zone and vehicle prices
+ */
+const getWebRideTypes = async (req) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const {
+      pick_lat,
+      pick_lng,
+      drop_lat,
+      drop_long,
+      drop_address,
+      pickup_address,
+      ride_type,
+      ride_time,
+      ride_date,
+      trip_type,
+      stops,
+      promo_code
+    } = req.body;
+
+    // Get user if authenticated (optional for web)
+    let user = null;
+
+    if (req.user && req.user._id) {
+      user = await User.findById(req.user._id);
+
+      if (user && !user.active) {
+        throw new ApiError(httpStatus.FORBIDDEN, 'User is blocked, please contact admin');
+      }
+    }
+
+    // For web, we need to get zones without clientId requirement
+    // Create a modified req object that doesn't require clientId
+    // We'll use a default approach: get all zones or use a default zone
+    const webReq = {
+      ...req,
+      body: {
+        ...req.body,
+        pick_lat,
+        pick_lng,
+      },
+      headers: {
+        ...req.headers,
+        // Remove clientId requirement for web
+        clientid: null,
+      }
+    };
+
+    // Try to get zone - if getPickupZone fails due to no clientId,
+    // we'll need to modify it or use an alternative approach
+    // For now, let's try calling it and handle the error
+    let zone;
+    try {
+      zone = await webGetPickupZone(webReq);
+      if (!zone) {
+        throw new ApiError(httpStatus.NOT_FOUND, 'Non-service zone');
+      }
+
+    } catch (error) {
+      // If getPickupZone requires clientId, we need to get zones differently
+      // For web, we might need to get all zones or use a default zone
+      // This is a temporary solution - you may need to modify getPickupZone
+      // to handle web requests without clientId
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Zone lookup requires configuration. Please contact support.');
+    }
+
+    if (!zone || zone.nonServiceZone === 'Yes') {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Non-service zone');
+    }
+
+    let distance = await calculateDistance(pick_lat, pick_lng, drop_lat, drop_long, stops);
+
+    if (zone.unit != "KM") {
+      distance = distance * 0.6213711922;
+    }
+
+    // Calculate zone prices (web version - no clientId)
+    const zonePrice = await webCalculateZonePrices(webReq, zone, distance, ride_type, promo_code, user, ride_time, ride_date, drop_lat, drop_long);
+
+    const dataResponse = createDataResponse(zone);
+    dataResponse.zoneTypePrice = zonePrice;
+
+    await session.commitTransaction();
+
+    return dataResponse;
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    session.endSession();
+  }
+};
+
+const getWebRequestHistory = async (phoneNumber) => {
+  if (!phoneNumber) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Phone number is required');
+  }
+
+  return Request.aggregate([
+    {
+      $lookup: {
+        from: 'users',
+        localField: 'userId',
+        foreignField: '_id',
+        as: 'user',
+      },
+    },
+    { $unwind: '$user' },
+    {
+      $match: {
+        'user.phoneNumber': phoneNumber,
+      }
+    },
+    {
+      $lookup: {
+        from: 'requestbills',
+        localField: '_id',
+        foreignField: 'requestId',
+        as: 'billingDetails'
+      }
+    },
+    {
+      $lookup: {
+        from: 'requestplaces',
+        localField: '_id',
+        foreignField: 'requestId',
+        as: 'placesDetails'
+      }
+    },
+    {
+      $lookup: {
+        from: 'requestratings',
+        localField: '_id',
+        foreignField: 'requestId',
+        as: 'ratingDetails'
+      }
+    },
+    {
+      $lookup: {
+        from: 'drivers',
+        localField: 'driverId',
+        foreignField: '_id',
+        as: 'driverDetails',
+      },
+    },
+    {
+      $unwind: {
+        path: '$billingDetails',
+        preserveNullAndEmptyArrays: true
+      }
+    },
+    {
+      $unwind: {
+        path: '$ratingDetails',
+        preserveNullAndEmptyArrays: true
+      }
+    },
+    {
+      $unwind: {
+        path: '$user',
+        preserveNullAndEmptyArrays: true,
+      }
+    },
+    {
+      $unwind: {
+        path: '$driverDetails',
+        preserveNullAndEmptyArrays: true,
+      }
+    },
+    {
+      $lookup: {
+        from: 'users',
+        localField: 'driverDetails.userId',
+        foreignField: '_id',
+        as: 'driverPersonalDetails',
+      }
+    },
+    {
+      $lookup: {
+        from: 'vehicles',
+        localField: 'driverDetails.type',
+        foreignField: '_id',
+        as: 'vehicleDetails',
+      }
+    },
+    {
+      $unwind: {
+        path: '$driverPersonalDetails',
+        preserveNullAndEmptyArrays: true,
+      }
+    },
+    {
+      $unwind: {
+        path: '$vehicleDetails',
+        preserveNullAndEmptyArrays: true,
+      }
+    },
+    {
+      $project: {
+        placesDetails: 1,
+        requestNumber: { $ifNull: ['$requestNumber', null] },
+        requestOtp: { $ifNull: ['$requestOtp', null] },
+        isCompleted: { $ifNull: ['$isCompleted', null] },
+        isCancelled: { $ifNull: ['$isCancelled', null] },
+        paymentOpt: { $ifNull: ['$paymentOpt', null] },
+        rideType: { $ifNull: ['$rideType', null] },
+        tripType: { $ifNull: ['$tripType', null] },
+        completedAt: { $ifNull: ['$completedAt', null] },
+        cancelledAt: { $ifNull: ['$cancelledAt', null] },
+        createdAt: { $ifNull: ['$createdAt', null] },
+        // User profile information (complete profile)
+        'user._id': { $ifNull: ['$user._id', null] },
+        'user.firstName': { $ifNull: ['$user.firstName', null] },
+        'user.lastName': { $ifNull: ['$user.lastName', null] },
+        'user.email': { $ifNull: ['$user.email', null] },
+        'user.phoneNumber': { $ifNull: ['$user.phoneNumber', null] },
+        'user.emergencyNumber': { $ifNull: ['$user.emergencyNumber', null] },
+        'user.referralCode': { $ifNull: ['$user.referralCode', null] },
+        'user.gender': { $ifNull: ['$user.gender', null] },
+        'user.language': { $ifNull: ['$user.language', null] },
+        'user.country': { $ifNull: ['$user.country', null] },
+        'user.address': { $ifNull: ['$user.address', null] },
+        'user.active': { $ifNull: ['$user.active', null] },
+        'user.profilePic': { $ifNull: ['$user.profilePic', null] },
+        // Driver details
+        'driverDetails._id': { $ifNull: ['$driverDetails._id', null] },
+        'driverDetails.carNumber': { $ifNull: ['$driverDetails.carNumber', null] },
+        'driverDetails.firstName': { $ifNull: ['$driverPersonalDetails.firstName', null] },
+        'driverDetails.lastName': { $ifNull: ['$driverPersonalDetails.lastName', null] },
+        'driverDetails.phoneNumber': { $ifNull: ['$driverPersonalDetails.phoneNumber', null] },
+        'driverDetails.profilePic': { $ifNull: ['$driverPersonalDetails.profilePic', null] },
+        // Vehicle details
+        'vehicleDetails.vehicleName': { $ifNull: ['$vehicleDetails.vehicleName', null] },
+        'vehicleDetails.image': { $ifNull: ['$vehicleDetails.image', null] },
+        'vehicleDetails.capacity': { $ifNull: ['$vehicleDetails.capacity', null] },
+        // Billing details
+        'billingDetails.totalAmount': { $ifNull: ['$billingDetails.totalAmount', null] },
+        'billingDetails.basePrice': { $ifNull: ['$billingDetails.basePrice', null] },
+        'billingDetails.totalDistance': { $ifNull: ['$billingDetails.totalDistance', null] },
+        'billingDetails.totalTime': { $ifNull: ['$billingDetails.totalTime', null] },
+        // Rating details
+        'ratingDetails.rating': { $ifNull: ['$ratingDetails.rating', null] },
+        'ratingDetails.feedback': { $ifNull: ['$ratingDetails.feedback', null] },
+      }
+    },
+    {
+      $sort: { createdAt: -1 } // Sort by most recent first
+    }
+  ]);
+};
+
+
 
 module.exports = {
   createRequest,
@@ -4887,9 +4958,7 @@ module.exports = {
   createRequestPlace,
   getRequestByUserId,
   getRequesHistoryList,
-  getWebRequestHistory,
   getRideTypes,
-  getWebRideTypes,
   getRequestpagination,
   getTripByReports,
   getByTripCount,
@@ -4910,7 +4979,10 @@ module.exports = {
   getMonthlyReport,
   getYearlyRevenue,
   getTripsByUser,
+  getWebRideTypes,
   createWebRequest,
   getWebRequestStatus,
-  cancelWebRequest
+  cancelWebRequest,
+  getWebRequestHistory,
+
 };

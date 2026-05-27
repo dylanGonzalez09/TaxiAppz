@@ -9,10 +9,11 @@ import {
   Typography,
   Dialog,
   DialogContent,
-  DialogTitle
+  DialogTitle,
+  Box,
+  Chip
 } from '@mui/material';
 import { toast } from 'react-toastify';
-
 
 import {
   createColumnHelper,
@@ -29,8 +30,8 @@ import classnames from 'classnames';
 
 import { rankItem } from '@tanstack/match-sorter-utils';
 
-import TripleSwitch from './TripleSwitch'; // Ensure this path is correct
-import ConfirmationDialog from '@/components/dialogs/delete-data'; // Adjust path if necessary
+import TripleSwitch from './TripleSwitch';
+import ConfirmationDialog from '@/components/dialogs/delete-data';
 import EditDriverDocument from './AddEditDocument';
 
 import tableStyles from '@core/styles/table.module.css';
@@ -48,8 +49,123 @@ const fuzzyFilter = (row: any, columnId: string, value: any, addMeta: (meta: any
 
 const columnHelper = createColumnHelper<DriverDocumentType>();
 
-const DocumentStatusTable = ({ data, driverDataId, dictionary }: { data: DriverDocumentType[], driverDataId: string, dictionary: any }) => {
-  const [filteredData, setFilteredData] = useState<DriverDocumentType[]>(data);
+interface VehicleInfo {
+  driverVehicleId?: string | null;
+  vehicleMake: string;
+  vehicleModelName: string;
+  licensePlateNumber: string;
+  manufactureYear: number;
+  vehicleColor: string;
+  passengerCapacity: number;
+}
+
+interface VehicleDocuments {
+  vehicleInfo: VehicleInfo;
+  documents: DriverDocumentType[];
+}
+
+interface DocumentData {
+  driver: DriverDocumentType[];
+  vehicles: VehicleDocuments[];
+}
+
+// New component for vehicle document tables
+const VehicleDocumentsTable = ({
+  vehicle,
+  columns,
+  dictionary,
+}: {
+  vehicle: VehicleDocuments;
+  columns: any;
+  dictionary: any;
+}) => {
+
+  const table = useReactTable({
+    data: vehicle.documents,
+    columns,
+    filterFns: { fuzzy: fuzzyFilter },
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    initialState: { pagination: { pageSize: 25 } }
+  });
+
+  return (
+    <Card sx={{ mb: 4 }}>
+      <Box sx={{ p: 3, borderBottom: '1px solid #e0e0e0' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
+          <Typography variant="h5" sx={{ fontWeight: 600 }}>
+            {dictionary['navigation'].VehicleDocuments || 'Vehicle Documents'} - {vehicle.vehicleInfo.vehicleMake} {vehicle.vehicleInfo.vehicleModelName}
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            <Chip
+              label={`${dictionary['navigation'].LicensePlate || 'License'}: ${vehicle.vehicleInfo.licensePlateNumber}`}
+              size="small"
+              color="primary"
+              variant="outlined"
+            />
+            <Chip
+              label={`${dictionary['navigation'].Year || 'Year'}: ${vehicle.vehicleInfo.manufactureYear}`}
+              size="small"
+              variant="outlined"
+            />
+            <Chip
+              label={`${dictionary['navigation'].Capacity || 'Capacity'}: ${vehicle.vehicleInfo.passengerCapacity}`}
+              size="small"
+              variant="outlined"
+            />
+          </Box>
+        </Box>
+      </Box>
+      <div className='overflow-x-auto'>
+        <table className={classnames(tableStyles.table, 'w-full')}>
+          <thead>
+            {table.getHeaderGroups().map(headerGroup => (
+              <tr key={headerGroup.id}>
+                {headerGroup.headers.map(header => (
+                  <th key={header.id}>
+                    {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                  </th>
+                ))}
+              </tr>
+            ))}
+          </thead>
+          <tbody>
+            {table.getRowModel().rows.length === 0 ? (
+              <tr>
+                <td colSpan={columns.length} style={{ textAlign: 'center', padding: '20px' }}>
+                  <Typography variant="body2" color="textSecondary">
+                    {dictionary['navigation'].NoDocumentsFound || 'No documents found'}
+                  </Typography>
+                </td>
+              </tr>
+            ) : (
+              table.getRowModel().rows.map(row => (
+                <tr key={row.id}>
+                  {row.getVisibleCells().map(cell => (
+                    <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
+                  ))}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+};
+
+
+const DocumentStatusTable = ({
+  data,
+  driverDataId,
+  dictionary
+}: {
+  data: DocumentData;
+  driverDataId: string;
+  dictionary: any;
+}) => {
+  const [driverDocuments, setDriverDocuments] = useState<DriverDocumentType[]>(data.driver);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
   const [confirmationDialogOpen, setConfirmationDialogOpen] = useState(false);
@@ -60,13 +176,19 @@ const DocumentStatusTable = ({ data, driverDataId, dictionary }: { data: DriverD
   const [selectedDocument, setSelectedDocument] = useState<DriverDocumentType | null>(null);
   const [driverId, setDriverId] = useState<string | null>(driverDataId);
 
-  const handleStatusToggle = async (documentId: string, driverDocumentId: string, newStatus: 'approved' | 'notapproved' | 'denied' | 'notUploaded') => {
-    
-
-    const updatedStatus = newStatus === 'approved' ? 'APPROVED'
-      : newStatus === 'denied' ? 'DENIED'
-        : newStatus === 'notapproved' ? 'WAITINGFORAPPROVAL'
-          : 'NOTUPLOADED';
+  const handleStatusToggle = async (
+    documentId: string,
+    driverDocumentId: string,
+    newStatus: 'approved' | 'notapproved' | 'denied' | 'notUploaded'
+  ) => {
+    const updatedStatus =
+      newStatus === 'approved'
+        ? 'APPROVED'
+        : newStatus === 'denied'
+        ? 'DENIED'
+        : newStatus === 'notapproved'
+        ? 'WAITINGFORAPPROVAL'
+        : 'NOTUPLOADED';
 
     setDocumentId(driverDocumentId);
     setConfirmationType(updatedStatus === 'APPROVED' ? 'approve' : 'deny');
@@ -86,31 +208,45 @@ const DocumentStatusTable = ({ data, driverDataId, dictionary }: { data: DriverD
 
   const handleConfirmStatusChange = async (confirmed: boolean) => {
     if (confirmed && currentDocumentId) {
-      setFilteredData(prevData =>
-        prevData.map(item => {
-          return item.driverDocmentId === currentDocumentId
-            ? { ...item, documentStatus: confirmationType === 'approve' ? 'APPROVED' : 'DENIED' }
-            : item;
-        })
-      );
 
-      const updatedStatus = confirmationType === 'approve' ? 'APPROVED'
-        : confirmationType === 'deny' ? 'DENIED'
-        : 'WAITINGFORAPPROVAL'; 
+      const updatedStatus =
+        confirmationType === 'approve'
+          ? 'APPROVED'
+          : confirmationType === 'deny'
+          ? 'DENIED'
+          : 'WAITINGFORAPPROVAL';
 
-      const updateBody = {
-        documentStatus: updatedStatus
-      };
+      const updateBody = { documentStatus: updatedStatus };
 
       try {
         if (DocumentId !== null) {
-        await updateDriverDocumentStatus(DocumentId, updateBody);
+          const updateStatus = await updateDriverDocumentStatus(DocumentId, updateBody);
+
+          // ❗ if backend says error → do NOT update state
+          if (updateStatus.success === false) {
+            toast.error(updateStatus.message || 'Error updating document status');
+
+            return;
+          }
+
+          // ✔ API success → now update state
+          setDriverDocuments(prevData =>
+            prevData.map(item =>
+              item.driverDocumentId === currentDocumentId
+                ? { ...item, documentStatus: updatedStatus }
+                : item
+            )
+          );
+
+          toast.success(dictionary['navigation'].DocumentStatusUpdated || 'Document status updated successfully');
         }
       } catch (error) {
         console.error("Error updating document status:", error);
+        toast.error(dictionary['navigation'].ErrorUpdatingDocument || 'Error updating document status');
       }
     }
   };
+
 
   const handleOpenAddDocumentDrawer = (doc?: DriverDocumentType) => {
     setSelectedDocument(doc || null);
@@ -138,6 +274,7 @@ const DocumentStatusTable = ({ data, driverDataId, dictionary }: { data: DriverD
     columnHelper.accessor('documentImage', {
       header: dictionary['navigation'].DocumentImage,
       cell: ({ row }) => {
+
         const imageUrl = row.original.documentImage;
 
         return (
@@ -173,7 +310,7 @@ const DocumentStatusTable = ({ data, driverDataId, dictionary }: { data: DriverD
                   fontSize: '12px',
                 }}
               >
-                { dictionary['navigation'].NoImage} 
+                {dictionary['navigation'].NoImage}
               </Typography>
             )}
           </div>
@@ -185,22 +322,19 @@ const DocumentStatusTable = ({ data, driverDataId, dictionary }: { data: DriverD
       cell: ({ row }) => {
         const status = row.original.documentStatus || 'NOTUPLOADED';
 
-        const formattedStatus = status === 'WAITINGFORAPPROVAL' ? 'Not Approved'
-          : status === 'APPROVED' ? 'Approved'
-            : status === 'DENIED' ? 'Denied'
-              : 'Not Uploaded';
+        const formattedStatus =
+          status === 'WAITINGFORAPPROVAL' ? 'Not Approved' :
+          status === 'APPROVED' ? 'Approved' :
+          status === 'DENIED' ? 'Denied' :
+          'Not Uploaded';
 
         return (
           <Typography
             variant="body2"
             color={
-              status === 'APPROVED'
-                ? 'success.main'
-                : status === 'DENIED'
-                  ? 'error.main'
-                  : status === 'NOTUPLOADED'
-                    ? 'text.secondary'
-                    : 'text.primary'
+              status === 'APPROVED' ? 'success.main' :
+              status === 'DENIED' ? 'error.main' :
+              status === 'NOTUPLOADED' ? 'text.secondary' : 'text.primary'
             }
           >
             {formattedStatus}
@@ -211,9 +345,9 @@ const DocumentStatusTable = ({ data, driverDataId, dictionary }: { data: DriverD
     columnHelper.accessor('documentStatus', {
       header: dictionary['navigation'].approvedDenied,
       cell: ({ row }) => {
-        const { documentStatus, documentId, driverDocmentId } = row.original;
+        const { documentStatus, documentId, driverDocumentId } = row.original;
         const status = documentStatus || 'NOTUPLOADED';
-        const isDisabled = status === 'NOTUPLOADED';
+        const isDisabled = status === 'NOTUPLOADED' || !row.original.isUploaded;
 
         const statusMapping: any = {
           APPROVED: 'approved',
@@ -224,7 +358,7 @@ const DocumentStatusTable = ({ data, driverDataId, dictionary }: { data: DriverD
         const switchValue = statusMapping[status] || "";
 
         const handleStatusChange = (newStatus: any) => {
-          handleStatusToggle(documentId, driverDocmentId, newStatus);
+          handleStatusToggle(documentId, driverDocumentId, newStatus);
         };
 
         return (
@@ -249,7 +383,7 @@ const DocumentStatusTable = ({ data, driverDataId, dictionary }: { data: DriverD
         return hasExpiryDate ? (
           <Typography
             variant="body2"
-            color={expiryStatus ? 'danger.main' : 'success.main'}
+            color={expiryStatus ? 'error.main' : 'success.main'}
           >
             {expiryStatus ? dictionary['navigation'].Expired : dictionary['navigation'].NotExpired}
           </Typography>
@@ -261,15 +395,19 @@ const DocumentStatusTable = ({ data, driverDataId, dictionary }: { data: DriverD
     columnHelper.accessor('documentId', {
       header: dictionary['navigation'].actions,
       cell: ({ row }) => (
-        <Button size="small" variant="outlined" onClick={() => handleOpenAddDocumentDrawer(row.original)}>
+        <Button
+          size="small"
+          variant="contained"
+          onClick={() => handleOpenAddDocumentDrawer(row.original)}
+        >
           <i className="tabler-pencil-minus" />
         </Button>
       )
     })
   ], [dictionary]);
 
-  const table = useReactTable({
-    data: filteredData,
+  const driverTable = useReactTable({
+    data: driverDocuments,
     columns,
     filterFns: { fuzzy: fuzzyFilter },
     getCoreRowModel: getCoreRowModel(),
@@ -279,37 +417,61 @@ const DocumentStatusTable = ({ data, driverDataId, dictionary }: { data: DriverD
   });
 
   return (
-    <Card>
-      <div className='overflow-x-auto'>
-        <table className={classnames(tableStyles.table, 'w-full')}>
-          <thead>
-            {table.getHeaderGroups().map(headerGroup => (
-              <tr key={headerGroup.id}>
-                {headerGroup.headers.map(header => (
-                  <th key={header.id}>{header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}</th>
-                ))}
-              </tr>
-            ))}
-          </thead>
-          <tbody>
-            {table.getRowModel().rows.map(row => (
-              <tr key={row.id}>
-                {row.getVisibleCells().map(cell => (
-                  <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <Dialog open={dialogOpen} onClose={handleCloseDialog}>
+    <Box>
+      {/* Driver Documents Section */}
+      <Card sx={{ mb: 4 }}>
+        <Box sx={{ p: 3, borderBottom: '1px solid #e0e0e0' }}>
+          <Typography variant="h5" sx={{ fontWeight: 600 }}>
+            {dictionary['navigation'].DriverDocuments || 'Driver Documents'}
+          </Typography>
+        </Box>
+        <div className='overflow-x-auto'>
+          <table className={classnames(tableStyles.table, 'w-full')}>
+            <thead>
+              {driverTable.getHeaderGroups().map(headerGroup => (
+                <tr key={headerGroup.id}>
+                  {headerGroup.headers.map(header => (
+                    <th key={header.id}>
+                      {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                    </th>
+                  ))}
+                </tr>
+              ))}
+            </thead>
+            <tbody>
+              {driverTable.getRowModel().rows.length === 0 ? (
+                <tr>
+                  <td colSpan={columns.length} style={{ textAlign: 'center', padding: '20px' }}>
+                    <Typography variant="body2" color="textSecondary">
+                      {dictionary['navigation'].NoDocumentsFound || 'No documents found'}
+                    </Typography>
+                  </td>
+                </tr>
+              ) : (
+                driverTable.getRowModel().rows.map(row => (
+                  <tr key={row.id}>
+                    {row.getVisibleCells().map(cell => (
+                      <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
+                    ))}
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {/* Image Dialog */}
+      <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="md" fullWidth>
         <DialogTitle>{dictionary['navigation'].DocumentImage}</DialogTitle>
         <DialogContent>
           {selectedImageUrl && (
-            <img src={selectedImageUrl} alt="Document" style={{ width: '100%' }} />
+            <img src={selectedImageUrl} alt="Document" style={{ width: '100%', height: 'auto' }} />
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Confirmation Dialog */}
       <ConfirmationDialog
         open={confirmationDialogOpen}
         setOpen={setConfirmationDialogOpen}
@@ -317,16 +479,23 @@ const DocumentStatusTable = ({ data, driverDataId, dictionary }: { data: DriverD
         onConfirm={handleConfirmStatusChange}
         dictionary={dictionary}
       />
+
+      {/* Edit Document Drawer */}
       <EditDriverDocument
         open={addDocumentDrawerOpen}
         handleClose={handleCloseAddDocumentDrawer}
-        documentData={filteredData}
-        setData={setFilteredData}
+        documentData={driverDocuments}
+        setData={(newData) => {
+          const filteredData = typeof newData === 'function' ? newData(driverDocuments) : newData;
+
+          setDriverDocuments(filteredData.filter((d: any) => !d.driverVehicleId));
+        }}
         documentToEdit={selectedDocument}
         driverId={driverId}
         dictionary={dictionary}
       />
-    </Card>
+
+    </Box>
   );
 };
 

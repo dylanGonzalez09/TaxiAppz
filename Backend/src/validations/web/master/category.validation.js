@@ -1,12 +1,12 @@
 const Joi = require('joi');
-const { objectId } = require('../../custom.validation');
 const FormData = require('form-data');
+const { objectId } = require('../../custom.validation');
 
 const createCategory = {
   FormData: Joi.object().keys({
     category: Joi.string().required(),
     zoneId: Joi.string().required(),
-    status: Joi.boolean().required()
+    status: Joi.boolean().required(),
   }),
 };
 
@@ -21,20 +21,17 @@ const getCategories = {
 const getCategory = {
   params: Joi.object().keys({
     categoryId: Joi.string().custom(objectId).required(),
-    
   }),
 };
 
 const getCategoriesWithoutPagination = {
-  query: Joi.object().keys({
-  }),
+  query: Joi.object().keys({}),
 };
 
 const updateCategory = {
   params: Joi.object().keys({
     categoryId: Joi.string().custom(objectId).required(),
-
-  })
+  }),
 };
 
 const deleteCategory = {
@@ -51,7 +48,6 @@ const updateCategoryStatus = {
     clientId: Joi.string().custom(objectId).optional(),
     status: Joi.boolean().required(),
     zoneId: Joi.string().required(),
-    
   }),
 };
 
@@ -62,5 +58,5 @@ module.exports = {
   getCategoriesWithoutPagination,
   updateCategory,
   deleteCategory,
-  updateCategoryStatus
+  updateCategoryStatus,
 };

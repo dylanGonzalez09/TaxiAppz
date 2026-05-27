@@ -1,10 +1,14 @@
 'use client'
 
-// MUI Imports
+
+// Next Imports
+import Link from 'next/link'
+
 import MuiCard from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
 import Typography from '@mui/material/Typography'
 import { styled } from '@mui/material/styles'
+
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -12,7 +16,8 @@ import classnames from 'classnames'
 //Component Imports
 import CustomAvatar from '@core/components/mui/Avatar'
 
-const Card = styled(MuiCard)(({ color }) => ({
+
+const Card = styled(MuiCard)(({ color , clickable}) => ({
   transition: 'border 0.3s ease-in-out, box-shadow 0.3s ease-in-out, margin 0.3s ease-in-out',
   borderBottomWidth: '2px',
   borderBottomColor: `var(--mui-palette-${color}-darkerOpacity)`,
@@ -24,15 +29,15 @@ const Card = styled(MuiCard)(({ color }) => ({
     borderBottomColor: `var(--mui-palette-${color}-main) !important`,
     boxShadow: 'var(--mui-customShadows-lg)',
     marginBlockEnd: '-1px'
-  }
+  },
+  ...(clickable && { cursor: 'pointer', textDecoration: 'none', color: 'inherit' })
 }))
 
 const HorizontalWithBorder = props => {
-  // Props
-  const { title, stats, avatarIcon, color } = props
+  const { title, stats, avatarIcon, color, href } = props
 
-  return (
-    <Card color={color || 'primary'}>
+  const cardContent = (
+      <Card color={color || 'primary'} clickable={!!href}>
       <CardContent className='flex flex-col gap-1'>
         <div className='flex items-center gap-4'>
           <CustomAvatar color={color} skin='light' variant='rounded'>
@@ -56,6 +61,17 @@ const HorizontalWithBorder = props => {
       </CardContent>
     </Card>
   )
+
+  if (href) {
+    return (
+      <Link href={href} style={{ textDecoration: 'none' }}>
+        {cardContent}
+      </Link>
+    )
+  }
+
+  return cardContent
+
 }
 
 export default HorizontalWithBorder

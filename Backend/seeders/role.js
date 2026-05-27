@@ -2,22 +2,20 @@ const mongoose = require('mongoose');
 const Role = require('../src/models/boilerplate/role.model');
 require('dotenv').config();
 
-
-mongoose.connect(process.env.MONGODB_URL)
-.then(() => {
-  console.log('Successfully connected to MongoDB Atlas');
-})
-.catch((error) => {
-  console.error('Error connecting to MongoDB Atlas:', error);
-});
+mongoose
+  .connect(process.env.MONGODB_URL)
+  .then(() => {
+    console.log('Successfully connected to MongoDB Atlas');
+  })
+  .catch((error) => {
+    console.error('Error connecting to MongoDB Atlas:', error);
+  });
 
 const RoleData = [
   {
-    role: 'Superadmin'
-  }
+    role: 'Superadmin',
+  },
 ];
-
-
 
 // Function to seed data
 async function seedData() {
@@ -27,7 +25,6 @@ async function seedData() {
 
     // Insert new data
     await Role.insertMany(RoleData);
-
   } catch (err) {
     console.error('Error seeding data:', err);
   } finally {
@@ -38,5 +35,3 @@ async function seedData() {
 
 // Call the seed function
 seedData();
-
-

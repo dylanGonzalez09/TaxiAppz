@@ -1,10 +1,10 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 'use client';
 
 import React, { useState, useCallback } from 'react';
 
-import { useRouter } from 'next/navigation';
+
+import { useRouter,useParams } from 'next/navigation';
 
 import { Stepper, Step, StepLabel, Button, Card, CardContent, Typography } from '@mui/material';
 import { useForm, useFormState } from 'react-hook-form';
@@ -18,8 +18,31 @@ import ServiceLocation from './ServiceLocation';
 import RideNow from './RideNow';
 import RideLater from './RideLater';
 import SurgePricing from './SurgePricing';
-import { createZone , checkZone } from '@/app/api/apps/taxi/zone';
+import { createZone } from '@/app/api/apps/taxi/zone';
 import { useIsDemoUser } from '@/utils/demoUser'
+
+/** Normalize created zone id from API (mongoose id / _id / Extended JSON / nested data). */
+function getCreatedZoneIdFromResponse(payload: unknown): string | undefined {
+  if (payload == null || typeof payload !== 'object') return undefined
+  const o = payload as Record<string, unknown>
+
+  if ('data' in o && o.data != null && typeof o.data === 'object') {
+    const nested = getCreatedZoneIdFromResponse(o.data)
+
+    if (nested) return nested
+  }
+
+  const raw = o.id ?? o._id
+
+  if (raw == null) return undefined
+  if (typeof raw === 'string' && raw.trim() !== '') return raw
+
+  if (typeof raw === 'object' && raw !== null && '$oid' in raw && typeof (raw as { $oid: string }).$oid === 'string') {
+    return (raw as { $oid: string }).$oid
+  }
+
+  return String(raw)
+}
 
 interface FormValues {
   vehicleTypes: string[];
@@ -54,7 +77,7 @@ const AddAction: React.FC<AddZoneFormProps> = ({ lang, dictionary, subscriptionD
   ];
 
   const [activeStep, setActiveStep] = useState(0);
-  const [zoneLevel, setZoneLevel] = useState('KM');
+  const [zoneLevel, setZoneLevel] = useState('PRIMARY');
   const [unitLevel, setUnitLevel] = useState('');
   const [selectedVehicles, setSelectedVehicles] = useState<any[]>([]);
   const [vehicleTypes, setVehicleTypes] = useState<string[]>([]);
@@ -64,10 +87,13 @@ const AddAction: React.FC<AddZoneFormProps> = ({ lang, dictionary, subscriptionD
   const [loading, setLoading] = useState(false);
   const { checkDemoStatus } = useIsDemoUser();
   const [currency, setCurrency] = useState<string>(''); // Add this state
+  const params = useParams() as { lang?: string; zoneId?: string };
 
   const { control, handleSubmit, trigger, setValue, getValues, clearErrors } = useForm<FormValues>({
     mode: 'all',
     defaultValues: {
+      zoneLevel: 'PRIMARY',
+      primaryZone: '',
       vehicleTypes: [],
       paymentTypes: [],
       vehicleDetails: {},
@@ -89,17 +115,35 @@ const AddAction: React.FC<AddZoneFormProps> = ({ lang, dictionary, subscriptionD
     setPolygonCoordinates(coordinates);
   };
 
-  const handleChangeVehicles = (value: string[]) => {
-    setSelectedVehicles(value);
-    setVehicleTypes(value);
-    setValue('vehicleTypes', value);
-    const updatedVehicleDetails = { ...getValues('vehicleDetails') };
+  const handleChangeVehicles = (value: string[], vehicleObjects?: any[]) => {
+    const ids = value;
 
-    value.forEach(vehicle => {
-      if (!updatedVehicleDetails[vehicle]) {
-        updatedVehicleDetails[vehicle] = {};
-      }
+    const objects =
+      vehicleObjects?.map((v: any) => ({ ...v, id: v.id ?? v._id })) ??
+      selectedVehicles.filter((v: any) => ids.includes(v._id || v.id));
+
+    setSelectedVehicles(objects);
+    setVehicleTypes(ids);
+    setValue('vehicleTypes', ids);
+    const currentVehicleDetails = getValues('vehicleDetails') || {};
+    const updatedVehicleDetails: Record<string, any> = {};
+
+    // Keep only currently selected vehicles and initialize missing entries.
+    ids.forEach((vehicleId) => {
+      updatedVehicleDetails[vehicleId] = currentVehicleDetails[vehicleId] || {};
     });
+
+    // Also drop surge pricing entries for vehicles that were removed.
+    setSurgePricingData((prev) => {
+      const next: Record<string, any> = {};
+
+      ids.forEach((vehicleId) => {
+        if (prev?.[vehicleId]) next[vehicleId] = prev[vehicleId];
+      });
+      
+return next;
+    });
+
     setValue('vehicleDetails', updatedVehicleDetails);
   };
 
@@ -117,27 +161,16 @@ const AddAction: React.FC<AddZoneFormProps> = ({ lang, dictionary, subscriptionD
     if (activeStep === 0) {
       if (polygonCoordinates.length === 0) {
         toast.error(dictionary['navigation'].Apolygonmustbedrawntoproceed); // Show error
+        
 
         return;
-
       }
-
-      const Coordinates = polygonCoordinates.map(coord => ({
-        lat: parseFloat(coord.lat.toFixed(8)),
-        lng: parseFloat(coord.lng.toFixed(8))
-      }));
-
-      const zoneCordinateData = {
-        'coordinates' : Coordinates,
-      }
-
-      const checkZoneResponse = await checkZone(zoneCordinateData);
     }
 
     if (isStepValid) {
       setActiveStep(prev => prev + 1);
     }
-  }, [trigger, polygonCoordinates, activeStep]);
+  }, [dictionary,trigger, polygonCoordinates, activeStep]);
 
   const handleBack = useCallback(() => {
     setActiveStep(prev => prev - 1);
@@ -192,30 +225,71 @@ const AddAction: React.FC<AddZoneFormProps> = ({ lang, dictionary, subscriptionD
       paymentTypes: data.paymentTypes,
       zoneName: data.serviceLocation,
       mapCooder: roundedCoordinates,
-      primaryZoneId: data.primaryZone,
+
+      // PRIMARY zones have no parent; empty string breaks Mongo ObjectId cast on the server.
+      primaryZoneId:
+        data.zoneLevel === 'SECONDARY' && data.primaryZone && String(data.primaryZone).trim() !== ''
+          ? data.primaryZone
+          : undefined,
       zonePriceData: zonePriceData,
       zonesurgePriceData: convertedSurgePricing,
     };
 
+    let hasRedirected = false;
+
     try {
+
 
       const createZoneData = await createZone(zoneData);
 
       if (createZoneData) {
-        router.push('/apps/taxi/zone/list');
-        toast.success(dictionary['navigation'].Zonecreatedsuccessfully);
+        const createdZoneId = getCreatedZoneIdFromResponse(createZoneData);
+        const activeLang = lang || params?.lang || 'en';
+        const isPrimary = data.zoneLevel === 'PRIMARY';
+
+        // PRIMARY: URL uses the new zone id. SECONDARY: URL stays on the parent primary zone id (not the new zone).
+        let routeZoneId: string | undefined;
+
+        if (isPrimary) {
+          routeZoneId = createdZoneId;
+        } else {
+          routeZoneId =
+            (data.primaryZone && String(data.primaryZone).trim()) ||
+            (params?.zoneId && String(params.zoneId).trim()) ||
+            undefined;
+        }
+
+        if (routeZoneId) {
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('defaultZoneId', routeZoneId);
+          }
+
+          const targetUrl = `/${activeLang}/${routeZoneId}/apps/taxi/zone/list`;
+
+          hasRedirected = true;
+          toast.dismiss(toastId);
+          toast.success(dictionary['navigation'].Zonecreatedsuccessfully);
+          router.replace(targetUrl);
+
+          return;
+        }
+
+        toast.error(dictionary['navigation'].ErrorcreatingzonePleasetryagain);
         setLoading(false);
 
+        return;
       }
     } catch (error) {
       toast.error(dictionary['navigation'].ErrorcreatingzonePleasetryagain);
       console.error("Error creating zone:", error);
     } finally {
-      setLoading(false);
-      toast.dismiss(toastId); // Dismiss the loading toast
+      if (!hasRedirected) {
+        setLoading(false);
+        toast.dismiss(toastId); // Dismiss only when staying on this page
+      }
     }
 
-  }, [surgePricingData, polygonCoordinates, router]);
+  }, [checkDemoStatus, dictionary, surgePricingData, polygonCoordinates, unitLevel, currency, router, lang, params?.lang, params?.zoneId]);
 
   const handleSurgePricingChange = (surgePricing: Record<string, any>) => {
     setSurgePricingData(surgePricing);
@@ -228,6 +302,7 @@ const AddAction: React.FC<AddZoneFormProps> = ({ lang, dictionary, subscriptionD
         return (
           <ServiceLocation
             control={control}
+            setValue={setValue}
             clearErrors={clearErrors} // Pass clearErrors
             formErrors={formErrors}
             zoneLevel={zoneLevel}

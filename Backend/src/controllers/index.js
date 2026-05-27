@@ -12,7 +12,6 @@ module.exports.vehicleController = require('./web/master/vehicle.controller');
 module.exports.vehicleModelController = require('./web/master/vehiclemodel.controller');
 
 module.exports.driverController = require('./boilerplate/driver.controller');
-module.exports.companyController = require('./boilerplate/company.controller');
 module.exports.usersController = require('./boilerplate/users.controller');
 module.exports.adminController = require('./boilerplate/admin.controller');
 module.exports.countryController = require('./boilerplate/country.controller');
@@ -24,7 +23,6 @@ module.exports.invoiceQuestionController = require('./boilerplate/invoicequestio
 module.exports.rentalController = require('./boilerplate/rental.controller');
 module.exports.subscriptionController = require('./web/client/subscription.controller');
 module.exports.introController = require('./web/client/intro.controller');
-module.exports.complaintsController = require('./boilerplate/complaints.controller');
 
 module.exports.promoCodeController = require('./web/master/promo.controller');
 module.exports.cancellationReasonController = require('./web/master/cancellationReason.controller');
@@ -36,4 +34,5 @@ module.exports.ticketController = require('./boilerplate/ticket.controller');
 
 module.exports.sosController = require('./web/master/sos.controller');
 module.exports.deleteAccountController = require('./web/delete/deleteAccount.controller');
-module.exports.fineController = require('./web/master/fine.controller');
+module.exports.brandController = require('./web/master/brand.controller');
+module.exports.vehicleVariantController = require('./web/master/vehiclevariant.controller');

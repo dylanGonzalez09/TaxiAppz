@@ -8,10 +8,10 @@ const { ClientToken } = require('../../models');
  */
 const upsertClientToken = async (clientTokenBody) => {
   const { clientId, deviceInfoHash } = clientTokenBody;
-  
+
   // Find existing client token
   let clientToken = await ClientToken.findOne({ clientId });
-  
+
   if (clientToken) {
     // If deviceInfoHash is not already in the array, add it
     if (deviceInfoHash && !clientToken.deviceInfoHash.includes(deviceInfoHash)) {
@@ -22,10 +22,10 @@ const upsertClientToken = async (clientTokenBody) => {
     // Create new client token
     clientToken = await ClientToken.create({
       clientId,
-      deviceInfoHash: deviceInfoHash ? [deviceInfoHash] : []
+      deviceInfoHash: deviceInfoHash ? [deviceInfoHash] : [],
     });
   }
-  
+
   return clientToken;
 };
 

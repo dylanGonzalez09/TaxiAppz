@@ -158,7 +158,7 @@ const CountryTable = ({ countryData, dictionary }: { countryData: any, dictionar
       {
         id: 'serialNo',
         header: dictionary['navigation'].serialNo,
-        cell: ({ row }) => <Typography>{row.index + 1}</Typography>,
+        cell: ({ row }) => <Typography>{(pageIndex == 0 ? 0 : pageIndex - 1) * pageSize + row.index + 1}</Typography>,
       },
       columnHelper.accessor('name', {
         header: dictionary['navigation'].countryName,
@@ -216,7 +216,6 @@ const CountryTable = ({ countryData, dictionary }: { countryData: any, dictionar
     },
     state: {
       rowSelection,
-      globalFilter
     },
     initialState: {
       pagination: {
@@ -224,7 +223,6 @@ const CountryTable = ({ countryData, dictionary }: { countryData: any, dictionar
       }
     },
     enableRowSelection: true,
-    globalFilterFn: fuzzyFilter,
     onRowSelectionChange: setRowSelection,
     getCoreRowModel: getCoreRowModel(),
     onGlobalFilterChange: setGlobalFilter,
@@ -241,9 +239,8 @@ const CountryTable = ({ countryData, dictionary }: { countryData: any, dictionar
       const session = await getSession();
 
       const clientId = session?.user?.image?.clientId; // Access clientId
-      const companyId = session?.user?.image?.companyId; // Access companyId
 
-      return { clientId, companyId };
+      return { clientId };
     };
 
   const handlePageChange = async (event: unknown, newPage: number) => {

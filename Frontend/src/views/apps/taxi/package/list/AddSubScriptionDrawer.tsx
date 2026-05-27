@@ -252,26 +252,6 @@ const AddSubScriptionDrawer = (props: Props) => {
             )}
           />
 
-          {/* Radio Button Section */}
-          <Controller
-            name='type'
-            control={control}
-            rules={{ required: dictionary['navigation'].Youmustselectanoption }}
-            render={({ field }) => (
-              <FormControl component='fieldset' error={!!errors.type}>
-                <FormLabel component='legend'>{dictionary['navigation'].type}</FormLabel>
-                <RadioGroup {...field} row>
-                  <FormControlLabel
-                    value='CORPORATE'
-                    control={<Radio />}
-                    label={dictionary['navigation'].optionCorporate}
-                  />
-                  <FormControlLabel value='TAXI' control={<Radio />} label={dictionary['navigation'].optionTaxi} />
-                </RadioGroup>
-                {errors.type && <FormHelperText>{errors.type.message}</FormHelperText>}
-              </FormControl>
-            )}
-          />
 
           <Controller
             name='assignDriverManually'

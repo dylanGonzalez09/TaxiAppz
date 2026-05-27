@@ -1,0 +1,7 @@
+{
+  "navigation": {
+    "passwordChangedSuccessfully": "passwordChangedSuccessfully",
+    "ReferralPhoneNumber": "PhoneNumber",
+    "Confirmpasswordwasnotmatched": "비밀번호를 확인하지 않았습니다."
+  }
+}

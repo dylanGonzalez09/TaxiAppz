@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 'use client'
 
@@ -29,15 +28,20 @@ import CustomTextField from '@core/components/mui/TextField'
 
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
-import { fetchUserComplaintData } from '@/app/api/apps/taxi/complaints'
+import { fetchGroupTicketsByAdmin } from '@/app/api/apps/taxi/ticket'
 import TablePaginationComponent from '@/components/TablePaginationComponent'
 
-// Type Definitions
+// 1. Update Type Definition to match your JSON data
 interface ComplaintDataType {
+  id: string;
   title: string;
-  category: string;
-  type: string;
-  complaintType: number;
+  description: string;
+  status: string;
+  createdAt: string;
+  userId: string;
+  userName: string;
+  assignedToId: string | null;
+  assignedToName: string;
 }
 
 interface ComplaintDetailsProps {
@@ -61,29 +65,27 @@ const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
 
   addMeta({ itemRank })
-  
-return itemRank.passed
+
+  return itemRank.passed
 }
 
 // ComplaintTable Component
 const ComplaintTable = ({ userId, complaintData, dictionary }: ComplaintDetailsProps) => {
+  // 2. Remove manual pagination state (page, rowsPerPage). Let TanStack handle it.
   const [tableData, setTableData] = useState<ComplaintDataType[]>(complaintData);
   const [rowSelection, setRowSelection] = useState({})
   const [globalFilter, setGlobalFilter] = useState('')
-  const [page, setPage] = useState(0)
-  const [rowsPerPage, setRowsPerPage] = useState(5)
 
   // Fetch complaints data if not provided as props
   useEffect(() => {
     if (complaintData.length === 0) {
       const fetchComplaints = async () => {
         try {
-          const response = await fetchUserComplaintData(userId);
+          const response = await fetchGroupTicketsByAdmin(userId);
 
           setTableData(response);
         } catch (error) {
-          // Handle the error silently (for example, setting an error state)
-          setTableData([]); // You can set an empty array or show a message in the UI if needed
+          setTableData([]); 
         }
       };
 
@@ -103,22 +105,24 @@ const ComplaintTable = ({ userId, complaintData, dictionary }: ComplaintDetailsP
       header: dictionary['navigation'].Complaint,
       cell: ({ row }) => <Typography color='text.primary'>{row.original.title}</Typography>,
     },
+
+    // 3. Updated columns to match the provided JSON structure
     {
-      accessorKey: 'type',
-      header: dictionary['navigation'].Type,
-      cell: ({ row }) => <Typography color='text.primary'>{row.original.type}</Typography>,
+      accessorKey: 'userName',
+      header: dictionary['navigation'].User, // Assuming this key exists in your dictionary
+      cell: ({ row }) => <Typography color='text.primary'>{row.original.userName}</Typography>,
     },
     {
-      accessorKey: 'category',
-      header: dictionary['navigation'].Category,
-      cell: ({ row }) => <Typography color='text.primary'>{row.original.category}</Typography>,
+      accessorKey: 'assignedToName',
+      header: dictionary['navigation'].AssignedTo, // Assuming this key exists
+      cell: ({ row }) => <Typography color='text.primary'>{row.original.assignedToName}</Typography>,
     },
     {
-      accessorKey: 'complaintType',
-      header: dictionary['navigation'].ComplaintType,
-      cell: ({ row }) => <Typography color='text.primary'>{row.original.complaintType}</Typography>,
+      accessorKey: 'status',
+      header: dictionary['navigation'].Status,
+      cell: ({ row }) => <Typography color='text.primary'>{row.original.status}</Typography>,
     }
-  ], [])
+  ], [dictionary])
 
   // Table instance
   const table = useReactTable({
@@ -126,29 +130,27 @@ const ComplaintTable = ({ userId, complaintData, dictionary }: ComplaintDetailsP
     columns,
     filterFns: { fuzzy: fuzzyFilter },
     state: { rowSelection, globalFilter },
-    enableRowSelection: true,
+    enableRowSelection: true, // Only if you actually need checkboxes
     globalFilterFn: fuzzyFilter,
     onRowSelectionChange: setRowSelection,
     getCoreRowModel: getCoreRowModel(),
     onGlobalFilterChange: setGlobalFilter,
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
+    getPaginationRowModel: getPaginationRowModel(), // Enables built-in pagination logic
+    // 4. Set initial page size
+    initialState: {
+        pagination: {
+            pageSize: 5
+        }
+    }
   })
 
-  // Handle pagination changes
-  const handleChangePage = (_: unknown, newPage: number) => {
-    setPage(newPage)
-  }
-
-  const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setRowsPerPage(parseInt(event.target.value, 10))
-    setPage(0)
-  }
+  // 5. Remove manual handleChange handlers. Pass table methods directly to TablePagination.
 
   return (
     <Card>
-          <CardHeader title={`${dictionary['navigation'].ComplaintList} (${tableData.length ?? 0})`} className='flex flex-wrap gap-2' />
+      <CardHeader title={`${dictionary['navigation'].ComplaintList} (${tableData.length ?? 0})`} className='flex flex-wrap gap-2' />
       
       <div className='flex items-center justify-between p-6 gap-4'>
         <CustomTextField
@@ -157,7 +159,7 @@ const ComplaintTable = ({ userId, complaintData, dictionary }: ComplaintDetailsP
           placeholder={dictionary['navigation'].SearchComplaint}
         />
       </div>
-      <div className='overflow-x-auto'>
+      <div className='overflow-x-auto' id="table-container">
         <table className={tableStyles.table}>
           <thead>
             {table.getHeaderGroups().map(headerGroup => (
@@ -169,25 +171,24 @@ const ComplaintTable = ({ userId, complaintData, dictionary }: ComplaintDetailsP
             ))}
           </thead>
           
-          {tableData.length === 0 ? (
-            <tbody>
+          {/* 6. Use table.getRowModel().rows directly. Do NOT slice manually. */}
+          <tbody>
+            {table.getRowModel().rows.length === 0 ? (
               <tr>
                 <td colSpan={columns.length} className='text-center'>
                   {dictionary['navigation'].Nodataavailable}
                 </td>
               </tr>
-            </tbody>
-          ) : (
-            <tbody>
-              {table.getRowModel().rows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map(row => (
+            ) : (
+              table.getRowModel().rows.map(row => (
                 <tr key={row.id}>
                   {row.getVisibleCells().map(cell => (
                     <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
                   ))}
                 </tr>
-              ))}
-            </tbody>
-          )}
+              ))
+            )}
+          </tbody>
         </table>
       </div>
       <TablePagination
@@ -196,6 +197,7 @@ const ComplaintTable = ({ userId, complaintData, dictionary }: ComplaintDetailsP
         rowsPerPage={table.getState().pagination.pageSize}
         page={table.getState().pagination.pageIndex}
         onPageChange={(_, page) => table.setPageIndex(page)}
+        onRowsPerPageChange={(event) => table.setPageSize(Number(event.target.value))}
       />
     </Card>
   )

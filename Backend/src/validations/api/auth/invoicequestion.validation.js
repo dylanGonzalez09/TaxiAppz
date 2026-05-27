@@ -21,9 +21,7 @@ const getInvoiceQuestion = {
   }),
 };
 
-const getInvoiceQuestionWithOutPagination = {
-
-};
+const getInvoiceQuestionWithOutPagination = {};
 
 const updateInvoiceQuestion = {
   params: Joi.object().keys({

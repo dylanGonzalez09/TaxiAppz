@@ -1,4 +1,4 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const ApiError = require('../../../utils/ApiError');
 const { Permission } = require('../../../models');
 
@@ -35,7 +35,6 @@ const getPermissionById = async (permissionId) => {
   return Permission.findById(permissionId);
 };
 
-
 /**
  * Get permission
  * @returns {Promise<PermissionManage>}
@@ -55,7 +54,7 @@ const updatePermissionById = async (permissionId, updateBody) => {
   if (!permissionManage) {
     throw new ApiError(httpStatus.NOT_FOUND, 'permissionManage not found');
   }
- 
+
   Object.assign(permissionManage, updateBody);
   await permissionManage.save();
   return permissionManage;
@@ -72,7 +71,7 @@ const deletePermissionById = async (permissionId) => {
     throw new ApiError(httpStatus.NOT_FOUND, 'permission not found');
   }
   await permissionManage.deleteOne();
-  return {  msg:"data Deleted Successfully" };
+  return { msg: 'data Deleted Successfully' };
 };
 
 module.exports = {

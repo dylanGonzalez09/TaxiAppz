@@ -21,9 +21,7 @@ const getRole = {
   }),
 };
 
-const getRoleWithOutPagination = {
-
-};
+const getRoleWithOutPagination = {};
 
 const updateRole = {
   params: Joi.object().keys({
@@ -32,7 +30,7 @@ const updateRole = {
   body: Joi.object()
     .keys({
       role: Joi.string(),
-      clientId: Joi.string().custom(objectId).optional()
+      clientId: Joi.string().custom(objectId).optional(),
     })
     .min(1),
 };

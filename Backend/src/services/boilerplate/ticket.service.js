@@ -1,10 +1,9 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const ApiError = require('../../utils/ApiError');
-const { Ticket } = require('../../models');
+const { Ticket ,Role} = require('../../models');
 const mongoose = require('mongoose');
-
-const { sendPushNotification } = require('../../utils/commonFunction');
-
+const ObjectId = require('mongoose').Types.ObjectId
+const {sendPushNotification,getUserById} = require('../../utils/commonFunction')
 /**
  * Create a ticket
  * @param {Object} ticketBody
@@ -23,18 +22,52 @@ const createTicket = async (ticketBody) => {
  * @param {number} [options.page] - Current page (default = 1)
  * @returns {Promise<QueryResult>}
 */
-const queryTicket = async (filter = {}, options = {}) => {
+
+const queryTicket = async (req,filter = {}, options = {}, Status = '') => {
+
   try {
     // Validate and parse pagination options with reasonable limits
+
+     const user = await getUserById(req);
+
+     const userId = user?._id
+
+     let isSuperAdmin = false;
+
+     if(!user) {
+        throw new ApiError(httpStatus.BAD_REQUEST,"please authenticate !")
+     }
+
+    if (!user || user.roleIds.length === 0) {
+      throw new ApiError(httpStatus.UNAUTHORIZED, 'User or roles not found');
+    }
+
     const page = Math.max(1, parseInt(options.page, 10) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(options.limit, 10) || 10));
     const skip = (page - 1) * limit;
+
+    const userRoles = await Role.find({ _id: { $in: user.roleIds } }).select('role').lean();
+    const roleNames = userRoles.map(r => r.role);
+
+    if (!roleNames.includes('Client') && roleNames.includes('Admin') ) {
+      filter.assignedTo = new mongoose.Types.ObjectId(userId);
+    }
+
+    if (roleNames.includes('Client')) {
+      isSuperAdmin = true;
+    }else{
+      isSuperAdmin = false;
+    }
+
+    if (Status && Status !== 'All') {
+      filter.status = Status;
+    }
 
     // Build the aggregation pipeline
     const pipeline = [
       // Initial filter if provided
       ...(Object.keys(filter).length > 0 ? [{ $match: filter }] : []),
-      
+
       // Lookup user details
       {
         $lookup: {
@@ -45,7 +78,7 @@ const queryTicket = async (filter = {}, options = {}) => {
         }
       },
       { $unwind: { path: '$userDetails', preserveNullAndEmptyArrays: true } },
-      
+
       // Lookup user roles
       {
         $lookup: {
@@ -56,7 +89,7 @@ const queryTicket = async (filter = {}, options = {}) => {
         }
       },
       { $unwind: { path: '$userRoleDetails', preserveNullAndEmptyArrays: true } },
-      
+
       // Lookup assigned admin details
       {
         $lookup: {
@@ -70,17 +103,16 @@ const queryTicket = async (filter = {}, options = {}) => {
 
       // Process notes - unwind, filter, and reconstruct
       { $unwind: { path: '$notes', preserveNullAndEmptyArrays: true } },
-      {
-        $match: {
-          $or: [
-            { 'notes.status': 'open' },
-            { 
-              'notes.status': { $in: ['In-Progress', 'Action-Taken', 'closed'] },
-              'notes.note': { $exists: true, $ne: '' }
-            }
-          ]
-        }
-      },
+      // {
+      //   $match: {
+      //     $or: [
+      //       // { notes : null },
+      //       {
+      //         'notes.status': { $in: [ 'open' , 'In-Progress', 'Action-Taken', 'closed'] },
+      //       }
+      //     ]
+      //   }
+      // },
       {
         $group: {
           _id: '$_id',
@@ -98,7 +130,7 @@ const queryTicket = async (filter = {}, options = {}) => {
           }
         }
       },
-      
+
       // Final projection
       {
         $project: {
@@ -158,16 +190,18 @@ const queryTicket = async (filter = {}, options = {}) => {
 
     // Execute parallel operations for better performance
     const [result, totalResult] = await Promise.all([
-      Ticket.aggregate([
-        ...pipeline,
-        { $skip: skip },
-        { $limit: limit }
-      ]).exec(),
-      Ticket.aggregate([
-        ...pipeline,
-        { $count: 'total' }
-      ]).exec()
-    ]);
+            Ticket.aggregate([
+              ...pipeline,
+              { $sort: { createdAt: -1, _id: -1 } },
+              { $skip: skip },
+              { $limit: limit }
+            ]),
+            Ticket.aggregate([
+              ...pipeline,
+              { $count: 'total' }
+            ])
+          ]);
+
 
     const totalTickets = totalResult[0]?.total || 0;
 
@@ -176,6 +210,7 @@ const queryTicket = async (filter = {}, options = {}) => {
       message: 'Tickets fetched successfully',
       data: {
         results: result,
+        isSuperAdmin,
         total: totalTickets,
         page,
         limit,
@@ -229,6 +264,47 @@ const getAllTickets = async (page = 1, pageSize = 10) => {
   return mappedTickets;
 };
 
+const buildTrackTicketsDetailsForPush = async (ticketDoc) => {
+  const ticket = ticketDoc?.toObject ? ticketDoc.toObject() : ticketDoc;
+  if (!ticket) return null;
+
+  const [user, assignedToUser, requestDoc] = await Promise.all([
+    ticket.user ? User.findById(ticket.user).select('firstName lastName').lean() : Promise.resolve(null),
+    ticket.assignedTo ? User.findById(ticket.assignedTo).select('firstName lastName').lean() : Promise.resolve(null),
+    ticket.requestId ? Request.findById(ticket.requestId).select('requestNumber').lean() : Promise.resolve(null),
+  ]);
+
+  const userName = `${user?.firstName || ''} ${user?.lastName || ''}`;
+  const assignedToName = assignedToUser ? `${assignedToUser.firstName || ''} ${assignedToUser.lastName || ''}` : 'Unassigned';
+
+  return {
+    title: ticket.title,
+    description: ticket.description,
+    status: ticket.status,
+    notes: ticket.notes || [],
+    createdAt: ticket.createdAt,
+    updatedAt: ticket.updatedAt,
+    id: ticket._id ? ticket._id.toString() : ticket.id,
+    userId: ticket.user ? ticket.user.toString() : null,
+    requestNumber: requestDoc?.requestNumber ?? null,
+    userName,
+    assignedToId: ticket.assignedTo ? ticket.assignedTo.toString() : null,
+    assignedToName,
+  };
+};
+
+const getDriverUserIdForTicket = async (ticketDoc) => {
+  const ticket = ticketDoc?.toObject ? ticketDoc.toObject() : ticketDoc;
+  if (!ticket?.requestId) return null;
+
+  const requestDoc = await Request.findById(ticket.requestId).select('driverId').lean();
+  const driverId = requestDoc?.driverId;
+  if (!driverId) return null;
+
+  const driverDoc = await Driver.findById(driverId).select('userId').lean();
+  return driverDoc?.userId ? driverDoc.userId.toString() : null;
+};
+
 
 /**
  * Update ticket by ticketId
@@ -238,7 +314,6 @@ const getAllTickets = async (page = 1, pageSize = 10) => {
  */
 
 const updateTicketById = async (ticketId, updateBody) => {
-  try {
     // Find the ticket by ID
     const ticket = await Ticket.findById(ticketId);
 
@@ -246,24 +321,54 @@ const updateTicketById = async (ticketId, updateBody) => {
       throw new ApiError(httpStatus.NOT_FOUND, 'Ticket not found');
     }
 
-
-    let userId = ticket.user;
-
     if (!Array.isArray(ticket.notes)) {
       ticket.notes = [];
     }
 
+    if(ticket && updateBody.assignedToId){
+      updateBody.assignedTo = updateBody.assignedToId
+      delete updateBody.assignedToId
+    }
+
+    if(updateBody.note === '') {
+      updateBody.note === 'Status updated to ' + updateBody.status;
+    }
+
     if (updateBody.status && updateBody.note) {
+      const STATUS_FLOW = {
+        'open': 'In-Progress',
+        'In-Progress': 'Action-Taken',
+        'Action-Taken': 'closed',
+        'closed': null
+      };
+
+      if (updateBody.status) {
+        const currentStatus = ticket.status;
+        const allowedNextStatus = STATUS_FLOW[currentStatus];
+
+        if (!allowedNextStatus) {
+          throw new ApiError(httpStatus.BAD_REQUEST, 'No further status updates allowed');
+        }
+
+        if (updateBody.status !== currentStatus && updateBody.status !== allowedNextStatus ) {
+
+             throw new ApiError(
+               httpStatus.BAD_REQUEST,
+               `Next allowed status : ( ${allowedNextStatus} )`
+             );
+           }
+      }
       const existingNoteIndex = ticket.notes.findIndex(note => note.status === updateBody.status);
+
 
       if (existingNoteIndex >= 0) {
         ticket.notes[existingNoteIndex].note = updateBody.note;
         ticket.notes[existingNoteIndex].createdAt = new Date(); // Update timestamp
       } else {
         const newNote = {
-          note: updateBody.note || 'No note provided',  
+          note: updateBody.note || 'No note provided',
           status: updateBody.status,
-          createdAt: new Date(), 
+          createdAt: new Date(),
         };
         ticket.notes.push(newNote);
       }
@@ -272,11 +377,6 @@ const updateTicketById = async (ticketId, updateBody) => {
     Object.assign(ticket, updateBody);
 
     await ticket.save();
-
-     await sendPushNotification(userId, {
-          title: "TICKET STATUS",
-          message: "Your Ticket is "+updateBody.status,
-      });
 
     const updatedTicketDetails = await Ticket.aggregate([
       {
@@ -291,7 +391,7 @@ const updateTicketById = async (ticketId, updateBody) => {
         }
       },
       { $unwind: { path: '$userDetails', preserveNullAndEmptyArrays: true } },
-      
+
       {
         $lookup: {
           from: 'roles',
@@ -301,7 +401,7 @@ const updateTicketById = async (ticketId, updateBody) => {
         }
       },
       { $unwind: { path: '$userRoleDetails', preserveNullAndEmptyArrays: true } },
-      
+
       {
         $lookup: {
           from: 'users',
@@ -317,7 +417,7 @@ const updateTicketById = async (ticketId, updateBody) => {
         $match: {
           $or: [
             { 'notes.status': 'open' },
-            { 
+            {
               'notes.status': { $in: ['In-Progress', 'Action-Taken', 'closed'] },
               'notes.note': { $exists: true, $ne: '' }
             }
@@ -341,7 +441,7 @@ const updateTicketById = async (ticketId, updateBody) => {
           }
         }
       },
-      
+
       {
         $project: {
           _id: 0,
@@ -402,14 +502,8 @@ const updateTicketById = async (ticketId, updateBody) => {
       throw new ApiError(httpStatus.NOT_FOUND, 'Ticket not found after update');
     }
     return {
-      success: true,
-      message: 'Ticket updated successfully',
-      data: updatedTicketDetails[0] // Return the updated ticket details
-    };
-  } catch (error) {
-    console.error("Error updating ticket:", error);
-    throw new Error(`Failed to update ticket: ${error.message}`);
-  }
+      data: updatedTicketDetails[0]
+    }
 };
 
 
@@ -449,10 +543,15 @@ const usercreateByTicket = async (ticketBody) => {
   }
 };
 
-  
-const groupTicketsByAdmin = async () => {
+
+const groupTicketsByAdmin = async (userId) => {
   try {
     const flatTickets = await Ticket.aggregate([
+      {
+        $match:{
+          user:new ObjectId(userId)
+        }
+      },
       {
         // Lookup to populate 'user' details (creator of the ticket)
         $lookup: {
@@ -513,11 +612,8 @@ const groupTicketsByAdmin = async () => {
       }
     ]);
 
-    return {
-      success: true,
-      message: 'Tickets fetched successfully',
-      data: flatTickets
-    };
+    return flatTickets
+
   } catch (error) {
     throw new Error('Error fetching tickets: ' + error.message);
   }
@@ -556,7 +652,7 @@ const assignAdminAndUpdateStatus = async (ticketId, adminId, status, note) => {
   ticket.assignedTo = new mongoose.Types.ObjectId(adminId);
   ticket.status = status;
   ticket.updatedBy = new mongoose.Types.ObjectId(adminId);
-  
+
   // Add note to notes array (assuming notes is an array of objects)
   ticket.notes.push({
     note,
@@ -567,7 +663,34 @@ const assignAdminAndUpdateStatus = async (ticketId, adminId, status, note) => {
 
   // Save with validation
   const updatedTicket = await ticket.save({ validateBeforeSave: true });
-  
+
+  const ticketDetailsForPush = await buildTrackTicketsDetailsForPush(updatedTicket);
+  const driverUserId = await getDriverUserIdForTicket(updatedTicket);
+  if (ticketDetailsForPush) {
+    const encodedRequestData = encodeTicketDetailsForPush(ticketDetailsForPush);
+    await sendPushNotification(updatedTicket.user.toString(), {
+      title: "TICKET STATUS",
+      message: "Your Ticket is " + ticketDetailsForPush.status,
+      screen: "trackTicketsDetails",
+      screenName: "trackTicketsDetails",
+      requestId: "",
+      requestData: encodedRequestData,
+      params: "",
+    });
+
+    if (driverUserId && driverUserId !== updatedTicket.user.toString()) {
+      await sendPushNotification(driverUserId, {
+        title: "TICKET STATUS",
+        message: "Your Ticket is " + ticketDetailsForPush.status,
+        screen: "trackTicketsDetails",
+        screenName: "trackTicketsDetails",
+        requestId: "",
+        requestData: encodedRequestData,
+        params: "",
+      });
+    }
+  }
+
   return updatedTicket;
 };
 

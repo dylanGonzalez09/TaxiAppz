@@ -1,11 +1,15 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable import/no-unresolved */
 'use client';
 
 // React Imports
+import { stringify } from 'querystring';
+
 import type { ChangeEvent } from 'react';
+
 import { useState, useEffect, useMemo, useCallback } from 'react';
+
+import Link from 'next/link';
 
 // Next Imports
 import { useParams } from 'next/navigation';
@@ -39,7 +43,7 @@ import type { RankingInfo } from '@tanstack/match-sorter-utils';
 
 // Type Imports
 import { StatusCodes as httpStatus } from 'http-status-codes';
-import { Dialog, DialogActions, DialogContent, IconButton, Link, Tooltip } from '@mui/material';
+import { Dialog, DialogActions, DialogContent, IconButton, Tooltip } from '@mui/material';
 
 import type { Locale } from '@configs/i18n';
 import { useIsDemoUser } from '@/utils/demoUser'
@@ -57,15 +61,22 @@ import CustomTextField from '@core/components/mui/TextField';
 import tableStyles from '@core/styles/table.module.css';
 
 import { getInitials } from '@/utils/getInitials';
+
 import { getLocalizedUrl } from '@/utils/i18n';
 
 // Style Imports
 import AddDriverDrawer from './AddEditDrawer';
+
 import ExportOptions from '@/utils/ExportOptions';
 
 import ConfirmationDialog from '@/components/dialogs/delete-data';
+
 import ConfirmationDialogErrorHandle from '@/components/dialogs/delete-data/index-error-handle';
+
 import { deleteDriverById, getDriverByPagination, updateDriverStatus } from '@/app/api/apps/taxi/driver';
+
+import { fetchUserRating } from '@/app/api/apps/taxi/rating';
+
 
 declare module '@tanstack/table-core' {
   interface FilterFns {
@@ -90,11 +101,44 @@ const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   return itemRank.passed;
 };
 
+const formatRegistrationDateTime = (driver: any) => {
+  if (driver.regDate) {
+    return `${driver.regDate}${driver.regTime ? ` / ${driver.regTime}` : ''}`;
+  }
+
+  const createdValue = driver.createdAt ?? driver.createAt;
+
+  if (!createdValue) return '-';
+
+  const createdDate = new Date(createdValue);
+
+  if (Number.isNaN(createdDate.getTime())) return '-';
+
+  const date = createdDate.toLocaleDateString('en-GB');
+
+  const time = createdDate.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  });
+
+  return `${date} / ${time}`;
+};
+
 
 // Column Definitions
 const columnHelper = createColumnHelper<DriverDataWithAction>();
 
-const DriverListTable = ({ driverData, dictionary, showAddButton, showActionButton, subscriptionDetails }: { driverData?: any; dictionary: any; showAddButton?: boolean; showActionButton?: boolean, subscriptionDetails?: string }) => {
+const DriverListTable = ({zoneId, driverData, dictionary, showAddButton, showActionButton, subscriptionDetails }: { zoneId?:any ,driverData?: any; dictionary: any; showAddButton?: boolean; showActionButton?: boolean, subscriptionDetails?: string }) => {
+  const isSubscriptionEnabled = String(subscriptionDetails || '').trim().toLowerCase() === 'yes';
+
+  const normalizedDriverData = {
+    page: Number(driverData?.page) > 0 ? Number(driverData.page) : 1,
+    totalResults: Number(driverData?.totalResults) >= 0 ? Number(driverData.totalResults) : 0,
+    results: Array.isArray(driverData?.results) ? driverData.results : [],
+    limit: Number(driverData?.limit) > 0 ? Number(driverData.limit) : 10,
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [currentStatus, setCurrentStatus] = useState<'All' | 'Active' | 'Block'>('All');
   const [rowSelection, setRowSelection] = useState({});
@@ -109,37 +153,78 @@ const DriverListTable = ({ driverData, dictionary, showAddButton, showActionButt
 
 
   const [globalFilter, setGlobalFilter] = useState('');
-  const [pageIndex, setPageIndex] = useState(driverData.page - 1);
+  const [pageIndex, setPageIndex] = useState(normalizedDriverData.page);
   const [pageSearch, setPageSearch] = useState("");
-  const [totalResults, setTotalResults] = useState(driverData.totalResults); // To track the total number of records
-  const [data, setData] = useState(driverData.results);
-  const [filteredData, setFilteredData] = useState(data);
-  const [pageSize, setPageSize] = useState(driverData.limit);
+  const [totalResults, setTotalResults] = useState(normalizedDriverData.totalResults); // To track the total number of records
+  const [data, setData] = useState(normalizedDriverData.results);
+
+  // const [filteredData, setFilteredData] = useState(data);
+  const [pageSize, setPageSize] = useState(normalizedDriverData.limit);
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [errorData, setErrorData] = useState('');
   const { isDemoUser, checkDemoStatus } = useIsDemoUser();
+  const [status, setStatus] = useState<string>('all');
+  const currentReturnPage = pageIndex > 0 ? pageIndex : 1;
+  const returnQuery = `?returnPage=${currentReturnPage}&returnPageSize=${pageSize}&returnSearch=${encodeURIComponent(pageSearch)}`;
 
+  const [userRole, setUserRole] = useState<string>('');
+  const [ratingCountByUserId, setRatingCountByUserId] = useState<Record<string, number>>({});
+
+    useEffect(() => {
+      const role = localStorage.getItem('userRole') || '';
+
+      setUserRole(role);
+
+
+    }, []);
+
+  useEffect(() => {
+    const loadRatingCounts = async () => {
+      const uniqueUserIds = Array.from(
+        new Set(
+          (Array.isArray(data) ? data : [])
+            .map((item: any) => String(item?.userId || ''))
+            .filter(Boolean)
+        )
+      );
+
+      if (uniqueUserIds.length === 0) {
+        setRatingCountByUserId({});
+
+return;
+      }
+
+      const results = await Promise.all(
+        uniqueUserIds.map(async userId => {
+          const ratings = await fetchUserRating(userId);
+
+
+return [userId, Array.isArray(ratings) ? ratings.length : 0] as const;
+        })
+      );
+
+      const nextMap: Record<string, number> = {};
+
+      results.forEach(([userId, count]) => {
+        nextMap[userId] = count;
+      });
+      setRatingCountByUserId(nextMap);
+    };
+
+    loadRatingCounts();
+  }, [data]);
 
   const handleEditClick = (user: any) => {
-    if (checkDemoStatus()) {
-      toast.error(dictionary['navigation'].editError);
-
-      return;
-    }
 
     setEditDriver(user);
     setAddDriverOpen(true);
   }
 
   const handleDeleteClick = (driverId: any) => {
-    if (checkDemoStatus()) {
-      toast.error(dictionary['navigation'].deleteError);
-
-      return;
-    }
 
     setdeleteDriverId(driverId.toString()); // Convert number to string
+
     setDeleteConfirmationOpen(true);
   };
 
@@ -264,19 +349,21 @@ const DriverListTable = ({ driverData, dictionary, showAddButton, showActionButt
 
   const handlePageChange = async (event: unknown, newPage: number) => {
     try {
-      const { results, totalResults } = await getDriverByPagination(pageSearch, newPage, pageSize);
+      const response = await getDriverByPagination(pageSearch, newPage, pageSize, zoneId, status);
+      const results = Array.isArray(response?.results) ? response.results : [];
+      const total = Number(response?.totalResults) >= 0 ? Number(response.totalResults) : 0;
 
       // Apply the status filter after fetching the new page
-      const filteredResults = results.filter((driver: { status: boolean }) => {
-        if (currentStatus === 'Active' && driver.status !== true) return false;
-        if (currentStatus === 'Block' && driver.status !== false) return false;
+      // const filteredResults = results.filter((driver: { status: boolean }) => {
+      //   if (currentStatus === 'Active' && driver.status !== true) return false;
+      //   if (currentStatus === 'Block' && driver.status !== false) return false;
 
-        return true;
-      });
+      //   return true;
+      // });
 
-      setData(filteredResults);
+      setData(results);
       setPageIndex(newPage);
-      setTotalResults(totalResults);
+      setTotalResults(total);
     } catch (error) {
       console.error("Error fetching new page data:", error);
     }
@@ -287,13 +374,32 @@ const DriverListTable = ({ driverData, dictionary, showAddButton, showActionButt
 
     const newPageSize = parseInt(event.target.value);
 
-    const { results, totalResults } = await getDriverByPagination(pageSearch, 1, newPageSize);
+    const response = await getDriverByPagination(pageSearch, 1, newPageSize, zoneId, status);
+    const results = Array.isArray(response?.results) ? response.results : [];
+    const total = Number(response?.totalResults) >= 0 ? Number(response.totalResults) : 0;
 
     setPageSize(newPageSize);
     setData(results);
-    setTotalResults(totalResults);
-    setPageIndex(0);
+    setTotalResults(total);
+    setPageIndex(1);
   };
+
+  const handleStatusChange = async (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+
+    const newStatus = event.target.value || 'all';
+
+    const response = await getDriverByPagination(pageSearch, 1, pageSize, zoneId, newStatus);
+    const results = Array.isArray(response?.results) ? response.results : [];
+    const total = Number(response?.totalResults) >= 0 ? Number(response.totalResults) : 0;
+
+
+
+    setData(results);
+    setStatus(newStatus);
+    setTotalResults(total);
+    setPageIndex(1);
+  }
+
 
   const handleSearch = useCallback(
     async (searchTerm: string) => {
@@ -301,20 +407,21 @@ const DriverListTable = ({ driverData, dictionary, showAddButton, showActionButt
         const result = await getDriverByPagination(
           searchTerm,
           1,
-          pageSize
+          pageSize,
+          zoneId,
+          status
         );
 
 
-
         setPageSearch(searchTerm);
-        setData(result.results);
-        setTotalResults(result.totalResults);
-        setPageIndex(0);
+        setData(Array.isArray(result?.results) ? result.results : []);
+        setTotalResults(Number(result?.totalResults) >= 0 ? Number(result.totalResults) : 0);
+        setPageIndex(1);
       } catch (error) {
         console.error("Error fetching search results:", error);
       }
     },
-    [pageSize]
+    [pageSize, zoneId]
   );
 
 
@@ -325,7 +432,7 @@ const DriverListTable = ({ driverData, dictionary, showAddButton, showActionButt
         id: 'serialNo',
         header: dictionary['navigation'].serialNo,
         cell: ({ row }) => (
-          <Typography>{(pageIndex == 0 ? 0 : pageIndex - 1) * pageSize + row.index + 1}</Typography>
+          <Typography>{(pageIndex - 1) * pageSize + row.index + 1}</Typography>
         ),
       },
       columnHelper.accessor('firstName', {
@@ -342,8 +449,8 @@ const DriverListTable = ({ driverData, dictionary, showAddButton, showActionButt
                       row.original.userId
                         ? getLocalizedUrl(
                           showAddButton
-                            ? `apps/taxi/driver/view/${row.original.userId}`
-                            : `apps/taxi/wallet/driver/view/${row.original.userId}`,
+                            ? `${zoneId}/apps/taxi/driver/view/${row.original.userId}${returnQuery}`
+                            : `${zoneId}/apps/taxi/wallet/driver/view/${row.original.userId}${returnQuery}`,
                           locale as Locale
                         )
                         : undefined
@@ -353,27 +460,32 @@ const DriverListTable = ({ driverData, dictionary, showAddButton, showActionButt
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
-                      maxWidth: 150,
+                      maxWidth: 350,
                       display: 'inline-block',
                     }}
                   >
-                    {row.original.firstName.substring(0, 15) + '...'}
+                    {row.original.firstName}
                   </Typography>
                 </Tooltip>
               ) : (
                 <Typography
                   component={row.original.userId ? Link : 'span'}
                   href={
-                    row.original.userId
-                      ? getLocalizedUrl(`apps/taxi/driver/view/${row.original.userId}`, locale as Locale)
-                      : undefined
-                  }
+                      row.original.userId
+                        ? getLocalizedUrl(
+                          showAddButton
+                            ? `${zoneId}/apps/taxi/driver/view/${row.original.userId}${returnQuery}`
+                            : `${zoneId}/apps/taxi/wallet/driver/view/${row.original.userId}${returnQuery}`,
+                          locale as Locale
+                        )
+                        : undefined
+                    }
                   color="primary"
                   sx={{
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
-                    maxWidth: 150,
+                    maxWidth: 350,
                     display: 'inline-block',
                   }}
                 >
@@ -386,60 +498,81 @@ const DriverListTable = ({ driverData, dictionary, showAddButton, showActionButt
                   ? row.original.phoneNumber.slice(0, row.original.phoneNumber.length - 5) + '*****'
                   : row.original.phoneNumber}
               </Typography>
-              <Typography variant='body2' sx={{ color: row.original.onlineBy === 'Online' ? 'success.main' : 'error.main' }}>{row.original.onlineBy}</Typography>
+              <Typography variant='body2' sx={{ color: row.original.onlineBy === 'Online' ? 'success.main' : 'error.main' }}>{dictionary['navigation'][row.original.onlineBy]}</Typography>
             </div>
           </div>
         ),
       }),
-      columnHelper.accessor('trip', {
-        header: dictionary['navigation'].TripCount,
-        cell: ({ row }) => <Typography> {row.original.tripCount != null ? row.original.tripCount : "0"}</Typography>,
+
+      columnHelper.accessor('regDate', {
+        header: dictionary['navigation'].RegDateTime,
+        cell: ({ row }) => <Typography>{formatRegistrationDateTime(row.original)}</Typography>,
       }),
-      columnHelper.accessor('wallet', {
+
+      columnHelper.accessor('Trip', {
+        header: dictionary['navigation'].TripCount,
+        cell: ({ row }) => {
+
+          return(
+
+              <Typography>
+                {row.original.tripCount != null ? row.original.tripCount : "0"}
+              </Typography>
+
+            );
+          }
+      }),
+
+
+        columnHelper.accessor('wallet', {
         header: dictionary['navigation'].Wallet,
         cell: ({ row }) => <Typography> {row.original.Wallet != null ? row.original.Wallet : "0"}</Typography>,
       }),
+
       columnHelper.accessor('rating', {
         header: dictionary['navigation'].Rating,
-        cell: ({ row }) => <Typography>{`${row.original.rating != null ? row.original.rating != 0 ? row.original.rating : "5" : "5"}`}</Typography>,
-      }),
-
-      columnHelper.accessor('vehicleName', {
-        header: dictionary['navigation'].VehicleName,
-        cell: ({ row }) => (
-          <div className='flex items-center gap-3'>
-            <div className='flex flex-col'>
-              <Typography className='font-medium' color='text.primary'>
-                {row.original.vehicleName}
+       cell: ({ row }) => (
+            <Typography className='capitalize' color='text.primary'>
+                {Number(row.original?.rating || 0)}
               </Typography>
-              <Typography variant='body2'>{row.original.vehicleModelName}</Typography>
-            </div>
-          </div>
-        ),
-      }),
+                        ),
+       }),
 
-      ...(subscriptionDetails === "yes"
-        ? [
-          columnHelper.accessor('subscriptionName', {
-            header: 'Subscription',
-            cell: ({ row }) => (
-              <div className='flex items-center gap-3'>
-                <div className='flex flex-col'>
-                  <Typography className='font-medium' color='text.primary'>
-                    {row.original.subscriptionName}
-                  </Typography>
-                  <Typography variant='body2'>{row.original.isDriverSubscriptionValid}</Typography>
-                  <Typography variant='body2'>
-                    {row.original.remainingDays != null
-                      ? row.original.remainingDays + " days Remaining"
-                      : "false"}
-                  </Typography>
-                </div>
-              </div>
-            ),
-          }),
-        ]
-        : []),
+      // columnHelper.accessor('vehicleName', {
+      //   header: dictionary['navigation'].VehicleName,
+      //   cell: ({ row }) => (
+      //     <div className='flex items-center gap-3'>
+      //       <div className='flex flex-col'>
+      //         <Typography className='font-medium' color='text.primary'>
+      //           {row.original.vehicleName}
+      //         </Typography>
+      //         <Typography variant='body2'>{row.original.vehicleModelName}</Typography>
+      //       </div>
+      //     </div>
+      //   ),
+      // }),
+      // ...(isSubscriptionEnabled
+      //   ? [
+      //     columnHelper.accessor('subscriptionName', {
+      //       header: 'Subscription',
+      //       cell: ({ row }) => (
+      //         <div className='flex items-center gap-3'>
+      //           <div className='flex flex-col'>
+      //             <Typography className='font-medium' color='text.primary'>
+      //               {row.original.subscriptionName}
+      //             </Typography>
+      //             <Typography variant='body2'>{row.original.isDriverSubscriptionValid}</Typography>
+      //             <Typography variant='body2'>
+      //               {row.original.remainingDays != null
+      //                 ? row.original.remainingDays + " days Remaining"
+      //                 : "false"}
+      //             </Typography>
+      //           </div>
+      //         </div>
+      //       ),
+      //     }),
+      //   ]
+      //   : []),
 
 
       columnHelper.accessor('status', {
@@ -468,83 +601,151 @@ const DriverListTable = ({ driverData, dictionary, showAddButton, showActionButt
           </div>
         )
       }),
+
+      // columnHelper.accessor('action', {
+      //   header: dictionary['navigation'].action,
+      //   cell: ({ row }) => (
+      //     <div className='flex items-center'>
+      //       <IconButton>
+      //         <Link
+      //           href={showAddButton
+      //             ? getLocalizedUrl(`${zoneId}/apps/taxi/driver/view/${row.original.userId}`, locale as Locale)
+      //             : getLocalizedUrl(`${zoneId}/apps/taxi/wallet/driver/view/${row.original.userId}`, locale as Locale)}
+      //           className='flex'
+      //         >
+      //           <i className='tabler-eye text-textSecondary' />
+      //         </Link>
+      //       </IconButton>
+
+      //       {showActionButton && (
+      //         <OptionMenu
+      //           iconButtonProps={{ size: 'medium' }}
+      //           iconClassName='text-textSecondary'
+      //           options={[
+      //             {
+      //               text: dictionary['navigation'].document,
+      //               icon: 'tabler-script',
+      //               href: getLocalizedUrl(`${zoneId}/apps/taxi/driver/document/${row.original._id}`, locale as Locale),
+      //               linkProps: {
+      //                 className: 'flex items-center is-full plb-2 pli-4 gap-2 text-textSecondary',
+      //               },
+      //             },
+      //             {
+      //               text: dictionary['navigation'].edit,
+      //               icon: 'tabler-pencil-minus',
+      //               menuItemProps: {
+      //                 onClick: () => handleEditClick(row.original),
+      //               },
+      //             },
+      //             {
+      //               text: dictionary['navigation'].delete,
+      //               icon: 'tabler-trash',
+      //               menuItemProps: {
+      //                 onClick: () => handleDeleteClick(row.original._id),
+      //               },
+      //             },
+      //           ]}
+      //         />
+      //       )}
+      //     </div>
+      //   )
+      // }),
+
       columnHelper.accessor('action', {
         header: dictionary['navigation'].action,
-        cell: ({ row }) => (
-          <div className='flex items-center'>
-            <IconButton>
-              <Link
-                href={showAddButton
-                  ? getLocalizedUrl(`/apps/taxi/driver/view/${row.original.userId}`, locale as Locale)
-                  : getLocalizedUrl(`/apps/taxi/wallet/driver/view/${row.original.userId}`, locale as Locale)}
-                className='flex'
-              >
-                <i className='tabler-eye text-textSecondary' />
-              </Link>
-            </IconButton>
+        cell: ({ row }) => {
+          // Define all options
+          const allOptions = [
+            {
+              text: dictionary['navigation'].document,
+              icon: 'tabler-script',
+              href: getLocalizedUrl(`${zoneId}/apps/taxi/driver/document/${row.original._id}`, locale as Locale),
+              linkProps: {
+                className: 'flex items-center is-full plb-2 pli-4 gap-2 text-textSecondary',
+              },
+            },
 
-            {showActionButton && (
-              <OptionMenu
-                iconButtonProps={{ size: 'medium' }}
-                iconClassName='text-textSecondary'
-                options={[
-                  {
-                    text: dictionary['navigation'].document,
-                    icon: 'tabler-script',
-                    href: getLocalizedUrl(`/apps/taxi/driver/document/${row.original._id}`, locale as Locale),
-                    linkProps: {
-                      className: 'flex items-center is-full plb-2 pli-4 gap-2 text-textSecondary',
-                    },
-                  },
-                  {
-                    text: dictionary['navigation'].edit,
-                    icon: 'tabler-pencil-minus',
-                    menuItemProps: {
-                      onClick: () => handleEditClick(row.original),
-                    },
-                  },
-                  {
-                    text: dictionary['navigation'].delete,
-                    icon: 'tabler-trash',
-                    menuItemProps: {
-                      onClick: () => handleDeleteClick(row.original._id),
-                    },
-                  },
-                ]}
-              />
-            )}
-          </div>
-        )
+            {
+              text: dictionary['navigation'].edit,
+              icon: 'tabler-pencil-minus',
+              menuItemProps: {
+                onClick: () => handleEditClick(row.original),
+              },
+            },
+            {
+              text: dictionary['navigation'].delete,
+              icon: 'tabler-trash',
+              menuItemProps: {
+                onClick: () => handleDeleteClick(row.original._id),
+              },
+            },
+          ];
+
+          const filteredOptions = allOptions.filter(option => {
+
+            return true;
+          });
+
+          return (
+            <div className='flex items-center'>
+              <IconButton>
+                <Link
+                  href={showAddButton
+                    ? getLocalizedUrl(`${zoneId}/apps/taxi/driver/view/${row.original.userId}${returnQuery}`, locale as Locale)
+                    : getLocalizedUrl(`${zoneId}/apps/taxi/wallet/driver/view/${row.original.userId}${returnQuery}`, locale as Locale)}
+                  className='flex'
+                >
+                  <i className='tabler-eye text-textSecondary' />
+                </Link>
+              </IconButton>
+
+              {showActionButton && (
+                <OptionMenu
+                  iconButtonProps={{ size: 'medium' }}
+                  iconClassName='text-textSecondary'
+                  options={filteredOptions}
+                />
+              )}
+            </div>
+          );
+        }
       }),
 
+
     ],
-    [dictionary, locale, pageIndex, pageSize]
+    [checkDemoStatus, dictionary, handleDeleteClick, handleEditClick, isSubscriptionEnabled, locale, pageIndex, pageSize, ratingCountByUserId, showActionButton, showAddButton, zoneId]
   );
 
-  const table = useReactTable({
-    data: filteredData as any[],
-    columns,
-    filterFns: {
-      fuzzy: fuzzyFilter,
+
+const table = useReactTable({
+  data: data as any[],
+  columns,
+  filterFns: {
+    fuzzy: fuzzyFilter,
+  },
+  state: {
+    rowSelection,
+
+    // Remove globalFilter from state
+  },
+  initialState: {
+    pagination: {
+      pageSize: 25,
     },
-    state: {
-      rowSelection,
-      globalFilter,
-    },
-    initialState: {
-      pagination: {
-        pageSize: 25,
-      },
-    },
-    enableRowSelection: true,
-    globalFilterFn: fuzzyFilter,
-    onRowSelectionChange: setRowSelection,
-    getCoreRowModel: getCoreRowModel(),
-    onGlobalFilterChange: setGlobalFilter,
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-  });
+  },
+  enableRowSelection: true,
+
+  // Remove globalFilterFn
+  onRowSelectionChange: setRowSelection,
+  getCoreRowModel: getCoreRowModel(),
+
+  // Remove onGlobalFilterChange
+  getFilteredRowModel: getFilteredRowModel(),
+  getSortedRowModel: getSortedRowModel(),
+  getPaginationRowModel: getPaginationRowModel(),
+});
+
+
 
   const getAvatar = (params: Pick<any, 'firstName'>) => {
     const { firstName } = params;
@@ -557,16 +758,9 @@ const DriverListTable = ({ driverData, dictionary, showAddButton, showActionButt
 
   };
 
-  useEffect(() => {
-    const filteredData = data.filter((driver: { status: boolean }) => {
-      if (currentStatus === 'Active' && driver.status !== true) return false;
-      if (currentStatus === 'Block' && driver.status !== false) return false;
-
-      return true;
-    });
-
-    setFilteredData(filteredData);
-  }, [currentStatus, data]);
+// useEffect(() => {
+//   setFilteredData(data);
+// }, [data]);
 
 
 
@@ -584,14 +778,25 @@ const DriverListTable = ({ driverData, dictionary, showAddButton, showActionButt
               const searchTerm = e.target.value;
 
               setGlobalFilter(searchTerm);
-
-
               handleSearch(searchTerm);
             }}
             className="flex-auto"
           />
         </div>
         <div className='flex flex-col sm:flex-row is-full sm:is-auto items-start sm:items-center gap-4'>
+          <div className='flex items-center gap-2'>
+            <CustomTextField
+              select
+              value={status}
+              onChange={(e) => handleStatusChange(e)}
+              className='flex-auto'
+              style={{ minWidth: '150px' }}
+            >
+              <MenuItem value='all'>{dictionary['navigation'].All}</MenuItem>
+              <MenuItem value='pending'>{dictionary['navigation'].Pending}</MenuItem>
+
+            </CustomTextField>
+          </div>
 
           <div className='flex items-center gap-2'>
             <CustomTextField
@@ -605,7 +810,8 @@ const DriverListTable = ({ driverData, dictionary, showAddButton, showActionButt
               ))}
             </CustomTextField>
           </div>
-          <CustomTextField
+
+          {/* <CustomTextField
             select
             fullWidth
             value={currentStatus}
@@ -615,7 +821,7 @@ const DriverListTable = ({ driverData, dictionary, showAddButton, showActionButt
             <MenuItem value='All'>{dictionary['navigation'].All}</MenuItem>
             <MenuItem value='Active'>{dictionary['navigation'].active}</MenuItem>
             <MenuItem value='Block'>{dictionary['navigation'].block}</MenuItem>
-          </CustomTextField>
+          </CustomTextField> */}
           <ExportOptions
             data={data}
             tableContainerId="table-container"
@@ -624,7 +830,7 @@ const DriverListTable = ({ driverData, dictionary, showAddButton, showActionButt
 
           />
 
-          {showAddButton && (
+           {showAddButton && (
             <Button
               variant="contained"
               onClick={() => {
@@ -718,7 +924,7 @@ const DriverListTable = ({ driverData, dictionary, showAddButton, showActionButt
         component={() => <TablePaginationComponent
           table={table}  // Pass the table object
           totalResults={totalResults}  // Pass the total results
-          pageIndex={pageIndex == 0 ? pageIndex + 1 : pageIndex}  // Current page index
+          pageIndex={pageIndex}  // Current page index
           pageSize={pageSize}  // Current page size
           handlePageChange={handlePageChange}  // Page change handler
           handlePageSizeChange={handlePageSizeChange}  // Page size change handler
@@ -745,6 +951,7 @@ const DriverListTable = ({ driverData, dictionary, showAddButton, showActionButt
         onPageChange={handlePageChange}
         rowsPerPage={pageSize}
         dictionary={dictionary}
+        zoneId={zoneId}
       />
 
       <ConfirmationDialogErrorHandle

@@ -1,81 +1,81 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
+const dotenv = require('dotenv');
 const pick = require('../../utils/pick');
 const ApiError = require('../../utils/ApiError');
-const {    } = require('../../utils/errorHandler');
+const {} = require('../../utils/errorHandler');
 
-const catchAsync = require('../../utils/catchAsync' );
+const catchAsync = require('../../utils/catchAsync');
 const { dispatcherService, userService } = require('../../services');
 const Response = require('../../config/response');
-const dotenv = require('dotenv');
-dotenv.config(); // Load environment variables
+
+dotenv.config({ quiet: true }); // Load environment variables
 
 // Create a dispatcher
-const createDispatcher = catchAsync(async (req, res,next) => {
-  try{
-  if (!req.headers.clientid) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
-  }
-
-  let imageFile = '';
-
-  if(req.file && req.file.filename){
-     imageFile = req.file.filename;
-  }
-
-  const userData = {
-    firstName: req.body.firstName || "",
-    lastName: req.body.lastName || "",
-    email: req.body.email || "",
-    phoneNumber: req.body.phoneNumber || "",
-    password: req.body.password || "",
-    roleIds: req.body.roleIds,
-    language:req.body.language,
-    profilePic:imageFile ? imageFile : null,
-    clientId: req.headers.clientid,
-  };
-  let user;
-
+const createDispatcher = catchAsync(async (req, res, next) => {
   try {
-        user = await userService.createUser(userData); 
+    if (!req.headers.clientid) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
+    }
+
+    let imageFile = '';
+
+    if (req.file && req.file.filename) {
+      imageFile = req.file.filename;
+    }
+
+    const userData = {
+      firstName: req.body.firstName || '',
+      lastName: req.body.lastName || '',
+      email: req.body.email || '',
+      phoneNumber: req.body.phoneNumber || '',
+      password: req.body.password || '',
+      roleIds: req.body.roleIds,
+      language: req.body.language,
+      profilePic: imageFile || null,
+      clientId: req.headers.clientid,
+    };
+    let user;
+
+    try {
+      user = await userService.createUser(userData);
     } catch (error) {
       return handleMongoError(error, next); // Use next to handle async errors
     }
-  const dispatcherData = {
-    location: req.body.location || "",
-    serviceType: req.body.serviceType || "",
-    clientId: req.headers.clientid,
-    zoneId:req.body.zoneId,
-    userId : user.id
-  };
+    const dispatcherData = {
+      location: req.body.location || '',
+      serviceType: req.body.serviceType || '',
+      clientId: req.headers.clientid,
+      zoneId: req.body.zoneId,
+      userId: user.id,
+    };
 
-  let newDispatcher = await dispatcherService.createDispatcher(dispatcherData);
+    const newDispatcher = await dispatcherService.createDispatcher(dispatcherData);
 
-  newDispatcher.profilePic = imageFile;
+    newDispatcher.profilePic = imageFile;
 
-  const response = Response(true, userData, "Dispatcher created successfully");
-  res.status(httpStatus.CREATED).send(response);
-}catch (error) {
-  return handleMongoError(error, next);
-}
+    const response = Response(true, userData, 'Dispatcher created successfully');
+    res.status(httpStatus.CREATED).send(response);
+  } catch (error) {
+    return handleMongoError(error, next);
+  }
 });
-
 
 const updateDispatcher = catchAsync(async (req, res) => {
   if (!req.headers.clientid) {
     throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
   }
 
-  const dispatcherId = req.params.dispatcherId;
+  const { dispatcherId } = req.params;
   const dispatchers = await dispatcherService.getDispatcherUserById(dispatcherId);
-  
+
   if (!dispatchers) {
     throw new ApiError(httpStatus.NOT_FOUND, 'Dispatcher not found');
   }
 
   let imageFile = '';
 
-  if(req.file && req.file.filename){
-     imageFile = req.file.filename;
+  if (req.file && req.file.filename) {
+    imageFile = req.file.filename;
   }
 
   const dispatcher = dispatchers[0];
@@ -86,15 +86,15 @@ const updateDispatcher = catchAsync(async (req, res) => {
     lastName: req.body.lastName || dispatcher.lastName,
     email: req.body.email || dispatcher.email,
     phoneNumber: req.body.phoneNumber || dispatcher.phoneNumber,
-    language:req.body.language || dispatcher.language,
-    profilePic: imageFile ? imageFile : dispatcher.image,
+    language: req.body.language || dispatcher.language,
+    profilePic: imageFile || dispatcher.image,
   };
 
   // Prepare the updated dispatcher data
   const dispatcherData = {
     location: req.body.location || dispatcher.location,
     serviceType: req.body.serviceType || dispatcher.serviceType,
-    zoneId:req.body.zoneId || dispatcher.zoneId,
+    zoneId: req.body.zoneId || dispatcher.zoneId,
   };
 
   // Update user data
@@ -103,7 +103,7 @@ const updateDispatcher = catchAsync(async (req, res) => {
   // Update dispatcher data
   const updatedDispatcher = await dispatcherService.updateDispatcherById(dispatcherId, dispatcherData);
 
-  const response = Response(true, updatedUser, "Dispatcher updated successfully");
+  const response = Response(true, updatedUser, 'Dispatcher updated successfully');
   res.status(httpStatus.OK).send(response);
 });
 
@@ -112,7 +112,7 @@ const getDispatchers = catchAsync(async (req, res) => {
   const filter = pick(req.query, ['name', 'role']);
   const options = pick(req.query, ['sortBy', 'limit', 'page']);
   const result = await dispatcherService.queryDispatchers(filter, options);
-  const response = Response(true, result, "Dispatchers retrieved successfully");
+  const response = Response(true, result, 'Dispatchers retrieved successfully');
   res.status(httpStatus.OK).send(response);
 });
 
@@ -133,14 +133,14 @@ const getDispatcher = catchAsync(async (req, res) => {
   if (!dispatcher) {
     throw new ApiError(httpStatus.NOT_FOUND, 'Dispatcher not found');
   }
-  const response = Response(true, dispatcher, "Dispatcher retrieved successfully");
+  const response = Response(true, dispatcher, 'Dispatcher retrieved successfully');
   res.status(httpStatus.OK).send(response);
 });
 
 // Delete a dispatcher
 const deleteDispatcher = catchAsync(async (req, res) => {
   const dispatcher = await dispatcherService.deleteDispatcherById(req.params.dispatcherId);
-  const response = Response(true, dispatcher, "Dispatcher deleted successfully");
+  const response = Response(true, dispatcher, 'Dispatcher deleted successfully');
   res.status(httpStatus.OK).send(response);
 });
 
@@ -172,23 +172,22 @@ const updateActiveStatus = catchAsync(async (req, res) => {
 const getDispatcherPagination = catchAsync(async (req, res) => {
   const filter = pick(req.query, ['name', 'role']);
   const options = pick(req.query, ['sortBy', 'limit', 'page']);
-  const result = await dispatcherService.getDispatcherPagination(req,filter, options);
+  const result = await dispatcherService.getDispatcherPagination(req, filter, options);
   const response = Response(true, result, 'Success');
 
   res.status(httpStatus.OK).send(response);
 });
 
 const getDropDownList = catchAsync(async (req, res) => {
-  let data = await dispatcherService.getDropDowns(req.params.clientId);
-  
+  const data = await dispatcherService.getDropDowns(req.params.clientId);
+
   if (!data) {
     throw new ApiError(httpStatus.NOT_FOUND, 'data not found');
   }
-  
-  const response = Response(true, data, "Success");
+
+  const response = Response(true, data, 'Success');
   res.status(httpStatus.OK).send(response);
 });
-
 
 module.exports = {
   createDispatcher,
@@ -199,5 +198,5 @@ module.exports = {
   updateDispatcher,
   getDispatchersWithOutPagination,
   getDispatcherPagination,
-  getDropDownList
+  getDropDownList,
 };

@@ -7,7 +7,7 @@ const createUserComplaint = {
     userId: Joi.string().custom(objectId).optional(),
     complainId: Joi.string().custom(objectId).optional(),
     requestId: Joi.string().custom(objectId).optional(),
-    answer: Joi.string().trim().optional()
+    answer: Joi.string().trim().optional(),
   }),
 };
 
@@ -28,12 +28,14 @@ const updateUserComplaint = {
   params: Joi.object().keys({
     userComplaintId: Joi.string().custom(objectId).required(),
   }),
-  body: Joi.object().keys({
-    userId: Joi.string().custom(objectId).optional(),
-    complainId: Joi.string().custom(objectId).optional(),
-    requestId: Joi.string().custom(objectId).optional(),
-    answer: Joi.string().trim().optional()
-  }).min(1),
+  body: Joi.object()
+    .keys({
+      userId: Joi.string().custom(objectId).optional(),
+      complainId: Joi.string().custom(objectId).optional(),
+      requestId: Joi.string().custom(objectId).optional(),
+      answer: Joi.string().trim().optional(),
+    })
+    .min(1),
 };
 
 const deleteUserComplaint = {

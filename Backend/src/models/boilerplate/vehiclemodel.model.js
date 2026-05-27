@@ -1,45 +1,46 @@
 const mongoose = require('mongoose');
-const { toJSON, paginate } = require('./../plugins');
+const { toJSON, paginate } = require('../plugins');
 
 const vehicleModelSchema = mongoose.Schema(
-    {
-        modelname: {
-            type: String,
-            required: true
-        },
-        description: {
-            type: String,
-            required: false
-        },
-        image: {
-            type: String,
-            required: true
-        },
-        vehicleId:{
-            type: mongoose.SchemaTypes.ObjectId,
-            ref: 'Vehicle',
-            required: true,
-        },
-        status: {
-            type: Boolean,
-            required: true
-        },
-        clientId: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: 'Client',
-        },
-        companyId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref:'Company',
-            default: null,
-        }
+  {
+    modelname: {
+      type: String,
+      required: true,
     },
-    {
-        timestamps: true,
-    }
+    description: {
+      type: String,
+      required: false,
+      default: '',
+    },
+    image: {
+      type: String,
+      required: true,
+    },
+    brandId: {
+      type: mongoose.SchemaTypes.ObjectId,
+      ref: 'Brand',
+      required: true,
+    },
+    status: {
+      type: Boolean,
+      required: true,
+    },
+    clientId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Client',
+    },
+    zoneId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Zone',
+      default: null,
+    },
+  },
+  {
+    timestamps: true,
+  },
 );
 
-// add plugin that converts mongoose to json
+// plugins
 vehicleModelSchema.plugin(toJSON);
 vehicleModelSchema.plugin(paginate);
 

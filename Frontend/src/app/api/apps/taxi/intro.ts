@@ -3,9 +3,9 @@ import { get, post, patch, del } from './formApiService';
 import { ENDPOINTS } from './endpoint';
 
 
-export const fetchIntro = async () => {
+export const fetchIntro = async (overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.intro.list);
+    const response = await get(ENDPOINTS.intro.list, undefined, overrideZoneId);
 
     if (response.success) {
       return response.data
@@ -17,11 +17,11 @@ export const fetchIntro = async () => {
   }
 };
 
-export const createIntro = async (formData: FormData) => {
+export const createIntro = async (formData: FormData, overrideZoneId?: any) => {
   try {
     const response = await post(ENDPOINTS.intro.create, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    }, overrideZoneId);
 
     if (response.success) {
       return response.data
@@ -33,11 +33,11 @@ export const createIntro = async (formData: FormData) => {
   }
 };
 
-export const updateIntro = async (id: string, formData: FormData) => {
+export const updateIntro = async (id: string, formData: FormData, overrideZoneId?: any) => {
   try {
     const response = await patch(ENDPOINTS.intro.update(id), formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    }, overrideZoneId);
 
     if (response.success) {
       return response.data
@@ -49,9 +49,9 @@ export const updateIntro = async (id: string, formData: FormData) => {
   }
 };
 
-export const getByIntroId = async (id: string) => {
+export const getByIntroId = async (id: string, overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.intro.getById(id));
+    const response = await get(ENDPOINTS.intro.getById(id), undefined, overrideZoneId);
 
     if (response.success) {
       return response.data
@@ -63,9 +63,9 @@ export const getByIntroId = async (id: string) => {
   }
 };
 
-export const deleteIntroById = async (id: string) => {
+export const deleteIntroById = async (id: string, overrideZoneId?: any) => {
   try {
-    const response = await del(ENDPOINTS.intro.deleteById(id));
+    const response = await del(ENDPOINTS.intro.deleteById(id), undefined, overrideZoneId);
 
     if (response.success) {
       return response.data
@@ -77,9 +77,9 @@ export const deleteIntroById = async (id: string) => {
   }
 };
 
-export const updateIntroStatus = async (id: string, vehicle: any) => {
+export const updateIntroStatus = async (id: string, vehicle: any, overrideZoneId?: any) => {
   try {
-    const response = await patch(ENDPOINTS.intro.updateStatus(id), vehicle);
+    const response = await patch(ENDPOINTS.intro.updateStatus(id), vehicle, undefined, overrideZoneId);
 
     if (response.success) {
       return response.data;
@@ -87,7 +87,7 @@ export const updateIntroStatus = async (id: string, vehicle: any) => {
       return null;
     }
   } catch (error) {
-    console.error('Error updating role:', error);
+    ;
 
     return null;
   }

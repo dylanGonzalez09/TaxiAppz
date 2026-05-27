@@ -1,33 +1,27 @@
 const Joi = require('joi');
-const { objectId } = require('../custom.validation');
 const FormData = require('form-data');
+const { objectId } = require('../custom.validation');
 
 const createDriver = {
   FormData: Joi.object().keys({
     firstName: Joi.string().required(),
-    lastName: Joi.string().optional(),
-    email: Joi.string().email().optional().allow("", null),
+    email: Joi.string().email().required(),
     phoneNumber: Joi.string().required(),
     roleIds: Joi.array().items(Joi.string().custom(objectId)).required(),
-    gender: Joi.string(),
-    language: Joi.string(),
     country: Joi.string(),
-    address: Joi.string(),
-    type: Joi.number().required(),
-    carModel: Joi.string().required(),
+    regDate: Joi.string().optional(),
+    regTime: Joi.string().optional(),
+    type: Joi.string().custom(objectId).required(),
+    carModel: Joi.string().custom(objectId).required(),
     serviceLocation: Joi.string().custom(objectId).required(),
-    notes: Joi.string(),
-    rating: Joi.number().integer(),
-    serviceCategory: Joi.string().required(),
-    referralCode: Joi.string().optional(),
-    // company: Joi.string().when('serviceCategory', {
-    //   is: 'Company',
-    //   then: Joi.required().messages({
-    //     'any.required': 'Company is required when service category is Company',
-    //   }),
-    // }),
+    secondaryZone: Joi.array().items(Joi.string().custom(objectId)).default([]).optional(),
+    specialPrice: Joi.boolean().optional(),
     active: Joi.boolean(),
-    profilePic: Joi.string()
+    profilePic: Joi.string(),
+    carColour: Joi.string().optional(),
+    vehicleBrand: Joi.string().custom(objectId).required(),
+    vehicleVariant: Joi.string().custom(objectId).required(),
+    licensePlateNumber: Joi.string().required(),
   }),
 };
 
@@ -53,31 +47,39 @@ const updateDriver = {
   params: Joi.object().keys({
     driverId: Joi.string().custom(objectId).required(),
   }),
-  FormData: Joi.object().keys({
-    firstName: Joi.string(),
-    lastName: Joi.string(),
-    email: Joi.string().email().optional().allow("", null),
-    phoneNumber: Joi.string(),
-    emergencyNumber: Joi.string(),
-    password: Joi.string(),
-    roleIds: Joi.array().items(Joi.string().custom(objectId)),
-    gender: Joi.string(),
-    language: Joi.string(),
-    country: Joi.string(),
-    address: Joi.string(),
-    city: Joi.string(),
-    state: Joi.string(),
-    pincode: Joi.string(),
-    type: Joi.number(),
-    rating: Joi.number().integer(),
-    carModel: Joi.string(),
-    serviceLocation: Joi.string().custom(objectId),
-    notes: Joi.string(),
-    serviceCategory: Joi.string(),
-    active: Joi.boolean(),
-    profilePic: Joi.string(),
-    clientId: Joi.string().custom(objectId).optional()
-  }).min(1), // Ensure at least one field is being updated
+  FormData: Joi.object()
+    .keys({
+      firstName: Joi.string(),
+      lastName: Joi.string(),
+      email: Joi.string().email(),
+      phoneNumber: Joi.string(),
+      emergencyNumber: Joi.string(),
+      password: Joi.string(),
+      roleIds: Joi.array().items(Joi.string().custom(objectId)),
+      gender: Joi.string(),
+      language: Joi.string(),
+      country: Joi.string(),
+      address: Joi.string(),
+      city: Joi.string(),
+      specialPrice: Joi.boolean(),
+      secondaryZone: Joi.array().items(Joi.string().custom(objectId)),
+      state: Joi.string(),
+      pincode: Joi.string(),
+      type: Joi.number(),
+      rating: Joi.number().integer(),
+      carModel: Joi.string(),
+      serviceLocation: Joi.string().custom(objectId),
+      notes: Joi.string(),
+      serviceCategory: Joi.string(),
+      carColour: Joi.string().optional(),
+      active: Joi.boolean(),
+      profilePic: Joi.string(),
+      vehicleBrand: Joi.string().custom(objectId).optional(),
+      vehicleVariant: Joi.string().custom(objectId).optional(),
+      licensePlateNumber: Joi.string().optional(),
+      clientId: Joi.string().custom(objectId).optional(),
+    })
+    .min(1),
 };
 
 const deleteDriver = {
@@ -105,5 +107,5 @@ module.exports = {
   getDriversWithoutPagination,
   updateDriver,
   deleteDriver,
-  updateActiveStatus
+  updateActiveStatus,
 };

@@ -5,7 +5,7 @@ const createUser = {
   body: Joi.object().keys({
     firstName: Joi.string().required(),
     lastName: Joi.string().optional(),
-    email: Joi.string().email().optional().allow("", null),
+    email: Joi.string().email().required(),
     phoneNumber: Joi.string().required(),
     gender: Joi.string(),
     roleIds: Joi.array().items(Joi.string().custom(objectId)).required(),
@@ -38,7 +38,7 @@ const createUser = {
     adminDemoKey: Joi.string(),
     rating: Joi.number().integer(),
     othersUserId: Joi.number().integer(),
-    zoneId: Joi.string().custom(objectId)
+    zoneId: Joi.string().custom(objectId),
   }),
 };
 
@@ -98,7 +98,7 @@ const updateUser = {
       adminDemoKey: Joi.string(),
       rating: Joi.number().integer(),
       othersUserId: Joi.number().integer(),
-      zoneId: Joi.string().custom(objectId)
+      zoneId: Joi.string().custom(objectId),
     })
     .min(1),
 };
@@ -114,7 +114,6 @@ const getUserByEmail = {
     email: Joi.string().required(),
   }),
 };
-
 
 const getUserByRole = {
   params: Joi.object().keys({
@@ -139,5 +138,5 @@ module.exports = {
   deleteUser,
   getUserByRole,
   updateActiveStatus,
-  getUserByEmail
+  getUserByEmail,
 };

@@ -14,14 +14,12 @@ interface DriverDetailsProps {
   zoneDetails: any[];
   selectedVehicle: any;
   onDriverChange: (value: any) => void;
-  isValidationError?: boolean;
 }
 
 const DriverDetails: React.FC<DriverDetailsProps> = ({
   zoneDetails,
   selectedVehicle,
-  onDriverChange,
-  isValidationError
+  onDriverChange
 }) => {
   const [filteredDrivers, setFilteredDrivers] = useState<any[]>([]);
   const [selectedDriver, setSelectedDriver] = useState<any | null>(null);
@@ -34,12 +32,10 @@ const DriverDetails: React.FC<DriverDetailsProps> = ({
       return;
     }
 
-    const selectedVehicleId = selectedVehicle?._id || selectedVehicle?.id;
-
     if (selectedVehicle) {
       const filtered = zoneDetails.filter(
         driver => 
-          driver.vehicleId?.id === selectedVehicleId &&
+          driver.vehicleId?.id === selectedVehicle._id &&
           driver.isAvailable === true &&
           driver.isOnline === true
       );
@@ -88,14 +84,7 @@ const DriverDetails: React.FC<DriverDetailsProps> = ({
         {filteredDrivers.length === 0 ? (
           <p>No drivers available{selectedVehicle ? " for selected vehicle" : ""}.</p>
         ) : (
-          <>
-            {isValidationError && (
-              <div style={{ color: 'red', marginBottom: '10px', fontSize: '14px' }}>
-                Kindly select a driver before submitting.
-              </div>
-            )}
-          
-          {filteredDrivers.map((driver, index) => {
+          filteredDrivers.map((driver, index) => {
             const selectable = isDriverSelectable(driver);
 
 
@@ -185,8 +174,7 @@ const DriverDetails: React.FC<DriverDetailsProps> = ({
                 </div>
               </div>
             );
-          })}
-          </>
+          })
         )}
       </div>
     </div>

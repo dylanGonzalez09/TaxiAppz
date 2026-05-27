@@ -98,7 +98,18 @@ const OptionMenu = (props: OptionsMenuType) => {
             <Paper className={settings.skin === 'bordered' ? 'border shadow-none' : 'shadow-lg'}>
               <ClickAwayListener onClickAway={handleClose}>
                 <MenuList autoFocusItem={open}>
-                  {options.map((option: OptionType, index: number) => {
+                  {options
+                    .filter((option: OptionType) => {
+                      if (typeof option === 'string') return true
+                      if (option && typeof option === 'object' && 'divider' in option) return true
+                      
+                      if (option && typeof option === 'object' && 'hidden' in option && (option as { hidden?: boolean }).hidden) {
+                        return false
+                      }
+
+                      return true
+                    })
+                    .map((option: OptionType, index: number) => {
                     if (typeof option === 'string') {
                       return (
                         <MenuItem key={index} onClick={handleClose}>
@@ -106,7 +117,7 @@ const OptionMenu = (props: OptionsMenuType) => {
                         </MenuItem> 
                       )
                     } else if ('divider' in option) {
-                      return option?.divider && <Divider key={index} {...option?.dividerProps} />
+                      return option.divider && <Divider key={index} {...option.dividerProps} />
                     } else {
                       return (
                         <MenuItem

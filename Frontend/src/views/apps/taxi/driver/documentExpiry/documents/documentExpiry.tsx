@@ -54,11 +54,23 @@ const DocumentExpiryTable = ({ staticGroup, dictionary,driverId }: { staticGroup
   const { lang: locale } = useParams();
   const { checkDemoStatus } = useIsDemoUser();
 
-  const [pageIndex, setPageIndex] = useState(staticGroup.page - 1);
+  const [pageIndex, setPageIndex] = useState(staticGroup.page - 1 || 1);
   const [pageSearch, setPageSearch] = useState("");
-  const [totalResults, setTotalResults] = useState(staticGroup.totalResults);
-  const [data, setData] = useState(staticGroup.results);
-  const [pageSize, setPageSize] = useState(staticGroup.limit);
+  const [totalResults, setTotalResults] = useState(staticGroup.totalResults || 0);
+  const [data, setData] = useState(staticGroup.results || []);
+  const [pageSize, setPageSize] = useState(staticGroup.limit || 10);
+
+  useEffect(()=>{
+    const fechData = async()=>{
+    const { results, totalResults } = await fetchExpiryDocument('', 1,10);
+
+    setPageSize(10);
+    setData(results);
+    setTotalResults(totalResults);
+    }
+    
+    fechData()
+  },[])
 
   const columns = useMemo<ColumnDef<DocumentExpiryType, any>[]>(() => [
     {
@@ -157,7 +169,7 @@ const DocumentExpiryTable = ({ staticGroup, dictionary,driverId }: { staticGroup
 
   const handlePageChange = async (event: unknown, newPage: number) => {
     try {
-      const { results, totalResults } = await fetchExpiryDocument(driverId,pageSearch, newPage, pageSize);
+      const { results, totalResults } = await fetchExpiryDocument(pageSearch, newPage, pageSize);
 
       setData(results);
       setPageIndex(newPage);
@@ -171,7 +183,7 @@ const DocumentExpiryTable = ({ staticGroup, dictionary,driverId }: { staticGroup
 
     const newPageSize = parseInt(event.target.value);
 
-    const { results, totalResults } = await fetchExpiryDocument(driverId,pageSearch, pageIndex, newPageSize);
+    const { results, totalResults } = await fetchExpiryDocument(pageSearch, pageIndex, newPageSize);
 
     setPageSize(newPageSize);
     setData(results);
@@ -183,7 +195,7 @@ const DocumentExpiryTable = ({ staticGroup, dictionary,driverId }: { staticGroup
     async (searchTerm: string) => {
       try {
         const result = await fetchExpiryDocument(
-          driverId,
+          
           searchTerm,
           1, // Reset to first page on new search
           pageSize
@@ -239,7 +251,7 @@ const DocumentExpiryTable = ({ staticGroup, dictionary,driverId }: { staticGroup
           />
         </div>
       </div>
-      <div className='overflow-x-auto'>
+      <div className='overflow-x-auto' id="table-container">
         <table className={tableStyles.table}>
           <thead>
             {table.getHeaderGroups().map(headerGroup => (

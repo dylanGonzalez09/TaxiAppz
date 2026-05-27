@@ -39,7 +39,7 @@ interface FormValues {
 const ViewTable: React.FC<ViewZoneFormProps> = ({ lang, zoneId, dictionary }) => {
   const { lang: locale } = useParams();
   const [zoneLevel, setZoneLevel] = useState('');
-  const [selectedVehicles, setSelectedVehicles] = useState<any[]>([]);
+  const [selectedVehicles, setSelec3tedVehicles] = useState<any[]>([]);
   const [data, setData] = useState<any[]>([]);
   const [vehicleTypes, setVehicleTypes] = useState<string[]>([]);
   const [paymentTypes, setPaymentTypes] = useState<string[]>([]);
@@ -80,7 +80,7 @@ const ViewTable: React.FC<ViewZoneFormProps> = ({ lang, zoneId, dictionary }) =>
         surgePricing: zoneData[0].zonesurgePriceData,
       });
       setZoneLevel(zoneData[0].zoneLevel);
-      setSelectedVehicles(zoneData[0].vehicleTypes);
+      setSelec3tedVehicles(zoneData[0].vehicleTypes);
       setVehicleTypes(zoneData[0].vehicleTypes);
       setPaymentTypes(zoneData[0].paymentTypes);
       setSurgePricingData(zoneData[0].zoneSurgePriceDetails);

@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 'use client'
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 
 import { Button, Card, CardContent, CardHeader, Grid } from '@mui/material';
 import { Controller, useForm } from 'react-hook-form';
@@ -12,6 +12,9 @@ import CustomTextField from '@/@core/components/mui/TextField';
 import { createSetting, updateSetting } from '@/app/api/apps/taxi/setting';
 
 import { useIsDemoUser } from '@/utils/demoUser';
+
+/** Legacy mask string; submit still maps this back to the saved secret via `secretSnapshotRef` if unchanged. */
+const SECRET_MASK = '********'
 
 interface KeysTableProps {
   translationData: any[];
@@ -23,6 +26,9 @@ interface KeysTableProps {
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const KeysTable = ({ translationData, currentTab, activeLanguage, dictionary }: KeysTableProps) => {
   const { checkDemoStatus } = useIsDemoUser();
+
+  /** Preserves actual values loaded from the API so submit does not replace secrets with SECRET_MASK. */
+  const secretSnapshotRef = useRef<Record<string, string>>({})
 
   const { control, handleSubmit, setValue, formState: { errors } } = useForm({
     defaultValues: {
@@ -49,14 +55,21 @@ const KeysTable = ({ translationData, currentTab, activeLanguage, dictionary }: 
 
   useEffect(() => {
     if (translationData.length > 0) {
+      secretSnapshotRef.current = {}
       translationData.forEach((item: any) => {
+        const raw = item.value != null ? String(item.value) : ''
 
-        const values = checkDemoStatus() ? "*************************************" : item.value;
+        if (raw.trim() !== '') {
+          secretSnapshotRef.current[item.name] = raw
 
-        setValue(item.name, values);
-      });
+          // Show real values in the admin UI; demo users still see a masked placeholder only.
+          setValue(item.name, checkDemoStatus() ? '*************************************' : raw)
+        } else {
+          setValue(item.name, '')
+        }
+      })
     }
-  }, [translationData, setValue]);
+  }, [translationData, setValue, checkDemoStatus]);
 
   const onSubmit = async (data: any) => {
     if (checkDemoStatus()) {
@@ -68,9 +81,15 @@ const KeysTable = ({ translationData, currentTab, activeLanguage, dictionary }: 
     const formData = new FormData();
 
     for (const [key, value] of Object.entries(data)) {
-      formData.append(key, value as string);
-    
-    
+      let v = value as string
+
+
+      // If the user left the mask as-is, submit the real secret from the snapshot (never persist the mask).
+      if (v === SECRET_MASK && secretSnapshotRef.current[key] !== undefined) {
+        v = secretSnapshotRef.current[key]
+      }
+
+      formData.append(key, v)
     }
    
     formData.append('type', 'keys');

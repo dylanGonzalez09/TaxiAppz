@@ -29,15 +29,59 @@
   import ConfirmationDialog from '@/components/dialogs/delete-data';
   import tableStyles from '@core/styles/table.module.css';
   import AddPushNotificationDialog from './addEdit';
-  import { BASE_IMAGE_URL } from '@apis/endpoint';
+
+  // import { BASE_IMAGE_URL } from '@apis/endpoint';
+
   import { deleteByNotificationId } from '@/app/api/apps/taxi/notification';
 
   type PushNotificationType = {
+    id?: string;
     title: string;
     subTitle: string;
     date?: string;
-    image?:string;
+    image?: string;
     actions?: string;
+    notificationType?: string;
+    emailTitle?: string;
+    emailSubtitle?: string;
+    emailSubject?: string;
+    emailContent?: string;
+  };
+
+  const stripHtml = (html: string): string => {
+    if (!html || typeof html !== 'string') return '';
+
+    return html.replace(/<[^>]*>/g, '').trim();
+  };
+
+  // Backend creates one record per recipient (zone×user×driver) - dedupe to show one per send
+  const deduplicateNotifications = (records: any[]): any[] => {
+    if (!Array.isArray(records) || records.length === 0) return records;
+    const seen = new Set<string>();
+
+return records.filter((record) => {
+      const title = record.title ?? record.emailTitle ?? record.emailSubject ?? '';
+      const subTitle = record.subTitle ?? record.emailSubtitle ?? record.emailContent ?? '';
+      const message = record.message ?? '';
+      const date = record.createdAt ?? record.created_at ?? record.date ?? record.timestamp ?? '';
+      const key = `${String(title)}|${String(subTitle)}|${String(message)}|${String(date).slice(0, 19)}`;
+
+      if (seen.has(key)) return false;
+      seen.add(key);
+
+      return true;
+    });
+  };
+
+  const normalizeNotificationData = (staticGroup: any): any[] => {
+    if (!staticGroup) return [];
+
+    const arr = Array.isArray(staticGroup)
+      ? staticGroup
+      : (staticGroup.results ?? staticGroup.data ?? []);
+
+
+return Array.isArray(arr) ? deduplicateNotifications(arr) : [];
   };
 
   // Fuzzy filter for searching
@@ -82,7 +126,11 @@
   const PushNotificationTable = ({ staticGroup, dictionary }: { staticGroup: PushNotificationType[]; dictionary: any }) => {
     const [pushNotificationOpen, setPushNotificationOpen] = useState(false);
     const [rowSelection, setRowSelection] = useState({});
-    const [data, setData] = useState<any[]>(staticGroup);
+    const [data, setData] = useState<any[]>(() => normalizeNotificationData(staticGroup));
+
+    useEffect(() => {
+      setData(normalizeNotificationData(staticGroup));
+    }, [staticGroup]);
 
     const [globalFilter, setGlobalFilter] = useState('');
     const [deletePushNotificationIndex, setDeletePushNotificationIndex] = useState<number | null>(null);
@@ -90,6 +138,7 @@
     const { checkDemoStatus } = useIsDemoUser();
 
     const handleDeleteClick = (index: number) => {
+
       if (checkDemoStatus()) {
        toast.error(dictionary['navigation'].deleteError);
 
@@ -126,13 +175,44 @@
         header: dictionary['navigation'].serialNo,
         cell: ({ row }) => <Typography>{row.index + 1}</Typography>,
       },
+      {
+        id: 'notificationType',
+        header: dictionary['navigation'].type ?? 'Type',
+        cell: ({ row }) => (
+          <Typography className='font-medium'>
+            {row.original.notificationType === 'email'
+              ? (dictionary['navigation'].email ?? 'Email')
+              : (dictionary['navigation'].push ?? 'Push')}
+          </Typography>
+        ),
+      },
       columnHelper.accessor('title', {
         header: dictionary['navigation'].title,
-        cell: ({ row }) => <Typography className='font-medium'>{row.original.title}</Typography>,
+        cell: ({ row }) => {
+          const isEmail = row.original.notificationType === 'email';
+
+          const raw = isEmail
+            ? (row.original.emailTitle ?? row.original.emailSubject ?? row.original.title ?? '')
+            : (row.original.title ?? '');
+
+          const displayTitle = stripHtml(raw);
+
+          return <Typography className='font-medium'>{displayTitle}</Typography>;
+        },
       }),
       columnHelper.accessor('subTitle', {
         header: dictionary['navigation'].subTitle,
-        cell: ({ row }) => <Typography className='font-medium'>{row.original.subTitle}</Typography>,
+        cell: ({ row }) => {
+          const isEmail = row.original.notificationType === 'email';
+
+          const raw = isEmail
+            ? (row.original.emailSubtitle ?? row.original.emailContent ?? row.original.subTitle ?? '')
+            : (row.original.subTitle ?? '');
+
+          const displaySubtitle = stripHtml(raw);
+
+          return <Typography className='font-medium'>{displaySubtitle}</Typography>;
+        },
       }),
       columnHelper.accessor('date', {
         header: dictionary['navigation'].date,
@@ -143,16 +223,17 @@
           return <Typography className='font-medium'>{formattedDate}</Typography>;
         },
       }),
-    columnHelper.accessor('image', {
-        header: dictionary['navigation'].image,
-        cell: ({ row }) => (
-          <img
-            src={row.original.image ? `${BASE_IMAGE_URL}${row.original.image}` : ''}
-            style={{ width: '100px', height: '30px', borderRadius: '4px' }}
-            alt={row.original.title}
-          />
-        ),
-      }),
+
+    // columnHelper.accessor('image', {
+    //     header: dictionary['navigation'].image,
+    //     cell: ({ row }) => (
+    //       <img
+    //         src={row.original.image ? `${BASE_IMAGE_URL}${row.original.image}` : ''}
+    //         style={{ width: '100px', height: '30px', borderRadius: '4px' }}
+    //         alt={row.original.title}
+    //       />
+    //     ),
+    //   }),
       columnHelper.accessor('actions', {
         header: dictionary['navigation'].actions,
         cell: ({ row }) => (
@@ -164,7 +245,7 @@
         ),
         enableSorting: false,
       }),
-    ], [ dictionary]);
+    ], [ dictionary,handleDeleteClick]);
 
     const table = useReactTable({
       data,
@@ -200,6 +281,7 @@
               onChange={e => table.setPageSize(Number(e.target.value))}
               className='flex-auto'
             >
+              <MenuItem value={5}>5</MenuItem>
               <MenuItem value={10}>10</MenuItem>
               <MenuItem value={15}>15</MenuItem>
               <MenuItem value={25}>25</MenuItem>

@@ -5,6 +5,8 @@
 // React Imports
 import { useState, useMemo } from 'react'
 
+import { format } from 'date-fns'
+
 // MUI Imports
 import Chip from '@mui/material/Chip'
 import Card from '@mui/material/Card'
@@ -68,18 +70,23 @@ const TripTable = ({ requestData,dictionary }: { requestData?: any,dictionary:an
   const columns = useMemo<ColumnDef<dataType, any>[]>(() => [
     columnHelper.accessor('Invoice', {
       header: dictionary['navigation'].TripIdDetails?.replace(/([a-z])([A-Z])/g, '$1 $2') || 'Trip Id Details',
-      cell: ({ row }) => (
+      cell: ({ row }) => {
+          const formattedDate = format(new Date(data[0].tripStartTime), 'yyyy-MM-dd');
+         const formatteTime = format(new Date(data[0].tripStartTime), ' HH:mm:ss');
+
+        
+return(
         <div className='flex items-center gap-3'>
           <div>
             <Typography color='text.primary' className='font-medium'>
               {data[0].requestNumber}
             </Typography>
             <Typography variant='body2' color='textSecondary'>
-              {data[0].tripStartTime}
+              {`${formattedDate} , ${formatteTime}`}
             </Typography>
           </div>
         </div>
-      ),
+      )},
     }),
     columnHelper.accessor('otp', {
       header: dictionary['navigation'].OTP,
@@ -181,6 +188,7 @@ const TripTable = ({ requestData,dictionary }: { requestData?: any,dictionary:an
 }
 
 const TripDetailsCard = ({ requestData,dictionary }: { requestData?: any,dictionary:any }) => {
+
   const data = requestData?.[0] ?? {};
   const billing = data.billingDetails ?? {};
   const zonePrices = data.zonePrice ?? [];
@@ -208,6 +216,7 @@ const TripDetailsCard = ({ requestData,dictionary }: { requestData?: any,diction
   else{
     extraDistance = 0;
   }
+  
 
   return (
     <Card>
@@ -314,7 +323,7 @@ const TripDetailsCard = ({ requestData,dictionary }: { requestData?: any,diction
           </div>
         )}
       </CardContent>
-
+      
     </Card>
   );
 };

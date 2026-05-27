@@ -3,9 +3,9 @@ import { get, post, patch, del } from './formApiService';
 import { ENDPOINTS } from './endpoint';
 
 
-export const fetchCategories = async () => {
+export const fetchCategories = async (overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.category.list);
+    const response = await get(ENDPOINTS.category.list, undefined, overrideZoneId);
 
     if (response.success) {
       return response.data
@@ -18,9 +18,9 @@ export const fetchCategories = async () => {
 };
 
 
-export const getByCategoryByPagination = async (searchTerm: string, page: number, limit: number) => {
+export const getByCategoryByPagination = async (searchTerm: string, page: number, limit: number, overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.category.getByPagination(searchTerm, page, limit))
+    const response = await get(ENDPOINTS.category.getByPagination(searchTerm, page, limit), undefined, overrideZoneId)
 
     if (response.success) {
 
@@ -36,11 +36,11 @@ export const getByCategoryByPagination = async (searchTerm: string, page: number
   }
 }
 
-export const createCategory = async (formData: FormData) => {
+export const createCategory = async (formData: FormData, overrideZoneId?: any) => {
   try {
     const response = await post(ENDPOINTS.category.create, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    }, overrideZoneId);
 
     if (response.success) {
       return response.data
@@ -52,11 +52,11 @@ export const createCategory = async (formData: FormData) => {
   }
 };
 
-export const updateCategory = async (id: string, formData: FormData) => {
+export const updateCategory = async (id: string, formData: FormData, overrideZoneId?: any) => {
   try {
     const response = await patch(ENDPOINTS.category.update(id), formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    }, overrideZoneId);
 
     if (response.success) {
       return response.data
@@ -68,9 +68,9 @@ export const updateCategory = async (id: string, formData: FormData) => {
   }
 };
 
-export const getByCategoryId = async (id: string) => {
+export const getByCategoryId = async (id: string, overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.category.getById(id));
+    const response = await get(ENDPOINTS.category.getById(id), undefined, overrideZoneId);
 
     if (response.success) {
       return response.data
@@ -82,9 +82,9 @@ export const getByCategoryId = async (id: string) => {
   }
 };
 
-export const deleteCategoryById = async (id: string) => {
+export const deleteCategoryById = async (id: string, overrideZoneId?: any) => {
   try {
-    const response = await del(ENDPOINTS.category.deleteById(id));
+    const response = await del(ENDPOINTS.category.deleteById(id), undefined, overrideZoneId);
 
     if (response.success) {
       return response.data
@@ -96,9 +96,9 @@ export const deleteCategoryById = async (id: string) => {
   }
 };
 
-export const updateCategoryStatus = async (id: string, category: any) => {
+export const updateCategoryStatus = async (id: string, category: any, overrideZoneId?: any) => {
   try {
-    const response = await patch(ENDPOINTS.category.updateStatus(id), category);
+    const response = await patch(ENDPOINTS.category.updateStatus(id), category, undefined, overrideZoneId);
 
     if (response.success) {
       return response.data;
@@ -106,7 +106,7 @@ export const updateCategoryStatus = async (id: string, category: any) => {
       return null;
     }
   } catch (error) {
-    console.error('Error updating role:', error);
+    ;
 
     return null;
   }

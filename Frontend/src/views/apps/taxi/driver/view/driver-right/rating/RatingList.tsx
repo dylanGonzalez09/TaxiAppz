@@ -142,7 +142,7 @@ const RatingTable = (dictionary: any) => {
     columns,
     filterFns: { fuzzy: fuzzyFilter },
     state: { rowSelection, globalFilter },
-    initialState: { pagination: { pageSize: 25 } },
+    initialState: { pagination: { pageSize: 5 } },
     enableRowSelection: true,
     globalFilterFn: fuzzyFilter,
     onRowSelectionChange: setRowSelection,
@@ -179,7 +179,7 @@ const RatingTable = (dictionary: any) => {
           placeholder={dictionary['navigation'].SearchRating}
         />
       </div>
-      <div className='overflow-x-auto'>
+      <div className='overflow-x-auto' id="table-container">
         <table className={tableStyles.table}>
           <thead>
             {table.getHeaderGroups().map(headerGroup => (

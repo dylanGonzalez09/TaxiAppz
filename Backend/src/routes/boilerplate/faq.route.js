@@ -6,13 +6,19 @@ const faqController = require('../../controllers/boilerplate/faq.controller');
 
 const router = express.Router();
 
-router.route('/create').post(auth('Faq'),validate(faqValidation.createFaq),faqController.createFaq);
-router.route('/getFaqwithpagination').get(auth('Faq'),faqController.getFaqs);
-router.route('/getFaq/list').get(auth('Faq'),faqController.getFaqWithoutPagination);
+router.route('/create').post(auth('Faq'), validate(faqValidation.createFaq), faqController.createFaq);
+router.route('/getFaqwithpagination').get(auth('Faq'), faqController.getFaqs);
+router.route('/getFaq/list').get(auth('Faq'), faqController.getFaqWithoutPagination);
+router
+  .route('/getFaqs/list/user')
+  .post(auth('Faq'), validate(faqValidation.getFaqsListUser), faqController.getFaqsForUser);
+router
+  .route('/getFaqs/list/driver')
+  .post(auth('Faq'), validate(faqValidation.getFaqsListDriver), faqController.getFaqsForDriver);
 router.route('/updateFaq/:faqId').patch(auth('Faq'), validate(faqValidation.updateFaq), faqController.UpdateFaq);
 router.route('/deleteFaq/:faqId').delete(auth('Faq'), validate(faqValidation.deleteFaq), faqController.deleteFaq);
-router.route('/getFaq/:faqId').get(auth('Faq'),faqController.getFaqWithoutPagination);
+router.route('/getFaq/:faqId').get(auth('Faq'), faqController.getFaqWithoutPagination);
 router.patch('/updateFaqStatus/:faqId', auth('Faq'), validate(faqValidation.UpdateFaqStatus), faqController.UpdateFaqStatus);
-router.route('/getFaqByLanguage/:langId').get( auth('Faq'),faqController.getFaqByLanguage);
+router.route('/getFaqByLanguage/:langId').get(auth('Faq'), faqController.getFaqByLanguage);
 
 module.exports = router;

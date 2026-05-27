@@ -8,18 +8,49 @@ const { vehicleModelUpload } = require('../../../middlewares/upload');
 const router = express.Router();
 
 // Routes with authentication and validation
-router.post('/create', auth('VehicleModels'), validate(vehicleModelValidation.createVehicleModel), vehicleModelUpload.single('image'), vehicleModelController.createVehicleModel);
+router.post(
+  '/create',
+  auth('VehicleModels'),
+  validate(vehicleModelValidation.createVehicleModel),
+  vehicleModelUpload.single('image'),
+  vehicleModelController.createVehicleModel,
+);
 router.get('/getVehicleModelsWithPagination/:id', auth('VehicleModels'), vehicleModelController.getVehicleModels);
-router.get('/getVehicleModels/:vehicleModelId', auth('VehicleModels'), validate(vehicleModelValidation.getVehicleModel), vehicleModelController.getVehicleModel);
-router.get('/getVehicleModel/:vehicleId', auth('VehicleModels'),validate(vehicleModelValidation.getVehicleModelbyVehicle), vehicleModelController.getVehicleModelByVehicle);
+router.get(
+  '/getVehicleModels/:vehicleModelId',
+  auth('VehicleModels'),
+  validate(vehicleModelValidation.getVehicleModel),
+  vehicleModelController.getVehicleModel,
+);
+router.get(
+  '/getVehicleModel/:vehicleId',
+  auth('VehicleModels'),
+  validate(vehicleModelValidation.getVehicleModelbyVehicle),
+  vehicleModelController.getVehicleModelByVehicle,
+);
 router.get('/getAllVehicleModel/list', auth('VehicleModels'), vehicleModelController.getVehicleModelWithoutPagination);
-router.patch('/updateVehicleModels/:vehicleModelId', auth('VehicleModels'), validate(vehicleModelValidation.updateVehicleModel), vehicleModelUpload.single('image'), vehicleModelController.updateVehicleModel);
-router.delete('/deleteVehicleModels/:vehicleModelId', auth('VehicleModels'), validate(vehicleModelValidation.deleteVehicleModel), vehicleModelController.deleteVehicleModel);
-router.patch('/updateVehicleModelStatus/:vehicleModelId', auth('VehicleModels'), validate(vehicleModelValidation.updateVehicleStatus), vehicleModelController.updateVehicleModelStatus);
+router.patch(
+  '/updateVehicleModels/:vehicleModelId',
+  auth('VehicleModels'),
+  validate(vehicleModelValidation.updateVehicleModel),
+  vehicleModelUpload.single('image'),
+  vehicleModelController.updateVehicleModel,
+);
+router.delete(
+  '/deleteVehicleModels/:vehicleModelId',
+  auth('VehicleModels'),
+  validate(vehicleModelValidation.deleteVehicleModel),
+  vehicleModelController.deleteVehicleModel,
+);
+router.patch(
+  '/updateVehicleModelStatus/:vehicleModelId',
+  auth('VehicleModels'),
+  validate(vehicleModelValidation.updateVehicleStatus),
+  vehicleModelController.updateVehicleModelStatus,
+);
 router.route('/getDropDown/list/:clientId').get(vehicleModelController.getDropDownList);
 
 module.exports = router;
-
 
 /**
  * @swagger

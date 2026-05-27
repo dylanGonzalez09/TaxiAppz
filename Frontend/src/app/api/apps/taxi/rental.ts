@@ -33,6 +33,21 @@ export const fetchDocumentCount = async () => {
         return [];
     }
 };
+export const getRentalPakages = async (overrideZoneId?:any) => {
+    try {
+        const response = await post(ENDPOINTS.rental.getRentalPakages,overrideZoneId);
+
+        console.log(response);
+
+        if (response.success) {
+            return response.data
+        } else {
+            return []
+        }
+    } catch (error) {
+        return error;
+    }
+};
 
 // export const fetchCountries = async () => {
 //     try {
@@ -188,15 +203,15 @@ export const updateRentalStatus = async (id: string, rental: any) => {
             return null;
         }
     } catch (error) {
-        console.error('Error updating role:', error);
+        ;
 
         return null;
     }
 };
 
-export const getRentalZones = async () => {
+export const getRentalZones = async (overrideZoneId?: any) => {
     try {
-        const response = await get(ENDPOINTS.rental.getRentalZones);
+        const response = await get(ENDPOINTS.rental.getRentalZones, undefined, overrideZoneId);
 
         if (response.success) {
             return response.data;

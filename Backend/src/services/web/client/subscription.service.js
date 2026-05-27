@@ -1,8 +1,6 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const ApiError = require('../../../utils/ApiError');
 const { SubScription } = require('../../../models');
-const { CompanySubScription } = require('../../../models');
-
 
 /**
  * Create a SubScription
@@ -36,13 +34,12 @@ const getSubScriptionById = async (subScriptionId) => {
   return SubScription.findById(subScriptionId);
 };
 
-
 /**
  * Get subScription
  * @returns {Promise<SubScription>}
  */
-const getSubScription = async () => {
-  return SubScription.find();
+const getSubScription = async (filter = {}) => {
+  return SubScription.find(filter);
 };
 
 /**
@@ -73,7 +70,7 @@ const deleteSubScriptionnById = async (subScriptionId) => {
     throw new ApiError(httpStatus.NOT_FOUND, 'subScription not found');
   }
   await subScriptionManage.deleteOne();
-  return { msg: "data Deleted Successfully" };
+  return { msg: 'data Deleted Successfully' };
 };
 
 const queryclientSubScription = async (filter, options) => {
@@ -81,11 +78,7 @@ const queryclientSubScription = async (filter, options) => {
   return subScription;
 };
 
-const querysuperadminSubScription = async (filter, options) => {
-  const subScription = await CompanySubScription.paginate(filter, options);
-  return subScription;
-};
-
+const querysuperadminSubScription = async (filter, options) => {};
 
 module.exports = {
   createSubScription,
@@ -95,5 +88,5 @@ module.exports = {
   updateSubScriptionById,
   deleteSubScriptionnById,
   queryclientSubScription,
-  querysuperadminSubScription
+  querysuperadminSubScription,
 };

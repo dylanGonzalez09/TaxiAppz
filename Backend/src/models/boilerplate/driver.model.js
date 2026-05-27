@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
+const { required, boolean } = require('joi');
 const { toJSON, paginate } = require('../plugins');
-const { required } = require('joi');
 
 const driverSchema = mongoose.Schema(
   {
@@ -37,8 +37,23 @@ const driverSchema = mongoose.Schema(
     carModel: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'VehicleModel',
+      default: null,
+    },
+    vehicleVariant: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'VehicleVariant',
       trim: true,
       default: null,
+    },
+    vehicleBrand: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Brand',
+      trim: true,
+      default: null,
+    },
+    specialPrice: {
+      type: Boolean,
+      default: false,
     },
     carYear: {
       type: String,
@@ -60,6 +75,10 @@ const driverSchema = mongoose.Schema(
       required: true,
       default: false,
     },
+    pendingAdminBlock: {
+      type: Boolean,
+      default: false,
+    },
     deletedAt: {
       type: Date,
       default: null,
@@ -67,11 +86,11 @@ const driverSchema = mongoose.Schema(
     serviceLocation: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Zone',
-      required: true
+      required: true,
     },
     secondaryZone: {
       type: [mongoose.Schema.Types.ObjectId],
-      default: null
+      default: null,
     },
     rejectCount: {
       type: Number,
@@ -108,21 +127,17 @@ const driverSchema = mongoose.Schema(
       type: String,
       enum: ['COMMISSION', 'SUBSCRIPTION', 'BOTH'],
       required: true,
-      default: 'BOTH'
+      default: 'BOTH',
     },
-    companyId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Company',
-      default: null,
-    },
+
     serviceCategory: {
       type: String,
-      enum: ['individual', 'company'],
+      enum: ['individual'],
       default: 'individual',
     },
     serviceType: {
       type: [String],
-      default: null,
+      default: [],
     },
     brandLabel: {
       type: String,
@@ -146,16 +161,21 @@ const driverSchema = mongoose.Schema(
     clientId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Client',
-    }
+    },
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // Add plugin that converts mongoose to json
 driverSchema.plugin(toJSON);
 driverSchema.plugin(paginate);
+
+// Indexes for findOne by userId, count by serviceLocation (zone/request flows)
+driverSchema.index({ userId: 1 }, { background: true });
+driverSchema.index({ serviceLocation: 1 }, { background: true });
+driverSchema.index({ clientId: 1, status: 1 }, { background: true });
 
 /**
  * @typedef Driver

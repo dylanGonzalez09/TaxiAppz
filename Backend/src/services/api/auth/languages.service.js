@@ -1,12 +1,13 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const ApiError = require('../../../utils/ApiError');
 const { Language, ProjectVersion } = require('../../../models');
 const fs = require('fs').promises;
 const fsSync = require('fs');
-const { Settings, Client } = require('../../../models');
+const { Settings, Client,PhoneInfo } = require('../../../models');
 const ObjectId = require('mongoose').Types.ObjectId
 const { getClientId, validateClientId } = require('../../../config/clientValidator'); // Import the functions
-
+const mongoose = require('mongoose');
+const { trackDeviceInstall,getInstallCounts } = require('../../../services/api/auth/phoneInfo.service');
 
 
 
@@ -26,14 +27,29 @@ const getSettingsApi = async (clientId) => {
     const formattedResults = results.map(group => {
       const settingsObject = {};
       group.settings.forEach(setting => {
-        settingsObject[setting.name] = setting.value; // or setting.status based on your requirements
+        settingsObject[setting.name] = setting.value;
       });
+
+
       return {
         name: group._id,
         settings: settingsObject
       };
     });
 
+    const [general, keys, modules] = ['general', 'keys', 'modules'].map(
+          (name) => formattedResults.find((e) => e.name === name)
+      );
+
+    const lang = await Language.findById(general?.settings?.defaultLanguage);
+
+    if (lang) {
+      [general, keys, modules].forEach((item) => {
+        if (item?.settings) {
+          item.settings.defaultLanguage = lang.code;
+        }
+      });
+    }
 
     return formattedResults;
   } catch (error) {
@@ -63,46 +79,53 @@ const getSettingsApi = async (clientId) => {
 
 //     return data;
 //   } else {
-//     // throw new ApiError(426, "Please Update Application");
-
-//     throw new ApiError(httpStatus.UPGRADE_REQUIRED, "Please Update Application");
-    
+//     throw new ApiError(426, "Please Update Application");
 //   }
 // }
+
 const getLanguages = async (req) => {
+
+  // ✅ Track install (upsert only)
+  await trackDeviceInstall(req);
+
   const clientID = await getClientId(req);
   await validateClientId(clientID);
 
-  const code = req.body.Code;
-  const versioncode = await ProjectVersion.find({ versionCode: code, status: true, clientId: clientID });
-
-  if (versioncode.length > 0) {
-    const settingApi = await getSettingsApi(clientID);
-    const languages = await Language.find({ status: true, clientId: clientID });
-
-    // Extract defaultLanguage ID from settings
-    let defaultLanguageId = settingApi.find(s => s.name === "general")?.settings?.defaultLanguage;
-
-    // Find the language code by matching the defaultLanguage ID
-    let defaultLanguageCode = languages.find(lang => lang._id.toString() === defaultLanguageId)?.code;
-
-    // Now, replace the defaultLanguage ID with the found code
-    if (defaultLanguageCode) {
-      settingApi.forEach(setting => {
-        if (setting.name === "general") {
-          setting.settings.defaultLanguage = defaultLanguageCode;
-        }
-      });
-    }
-
-    return {
-        languages,
-        settings: settingApi,
-    };
-  } else {
-    throw new ApiError(httpStatus.UPGRADE_REQUIRED, "Please Update Application");
+  const version = req.body?.Code;
+  if (!version) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Version code is required');
   }
+
+  const versionDoc = await ProjectVersion.findOne({
+    clientId: clientID,
+    status: true,
+    $or: [
+      { versionCode: version },
+      { versionNumber: version }
+    ]
+  });
+
+  if (!versionDoc) {
+    throw new ApiError(426, 'Please Update Application');
+  }
+
+  const settingApi = await getSettingsApi(clientID);
+  const languages = await Language.find({
+    status: true,
+    clientId: clientID
+  }).lean();
+
+  // ✅ GET INSTALL COUNTS (ANDROID / IOS)
+  const installCounts = await getInstallCounts(clientID);
+
+  // ✅ RETURN IN SAME API
+  return {
+    languages,
+    settings: settingApi,
+    installs: installCounts   //  added here
+  };
 };
+
 
 const getLauguageByCode = async (req) => {
 
@@ -117,7 +140,7 @@ const getLauguageByCode = async (req) => {
 
   code = req.params.languageCode;
 
-  const filePath = `src/json/mob_${code}.json`;
+  const filePath = `json/mob_${code}.json`;
   try {
     if (!fsSync.existsSync(filePath)) {
       // Create the file with default content if it doesn't exist

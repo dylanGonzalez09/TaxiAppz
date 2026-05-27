@@ -8,12 +8,11 @@
  * @returns {object} Standard response object.
  */
 const Response = (success, data, message) => {
-    return {
-      success: success,
-      data: data,
-      message: message
-    };
+  return {
+    success,
+    data,
+    message,
   };
-  
-  module.exports = Response;
-  
+};
+
+module.exports = Response;

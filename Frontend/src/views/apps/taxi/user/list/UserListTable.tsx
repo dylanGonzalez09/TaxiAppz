@@ -1,6 +1,6 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable import/no-unresolved */
+
 'use client';
 
 import type { ChangeEvent } from 'react';
@@ -79,6 +79,7 @@ declare module '@tanstack/table-core' {
 type UsersTypeWithAction = UsersType & {
   action?: string;
   tripsCount?: number;
+   tripCount?: number;
 };
 
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
@@ -96,9 +97,10 @@ interface UserListTableProps {
   dictionary:any
   showAddButton?: boolean;
   showActionButton?: boolean;
+  zoneId?: string;
 }
 
-const UserListTable = ({ tableData, dictionary, showAddButton ,showActionButton}: UserListTableProps) => {
+const UserListTable = ({ tableData, dictionary, showAddButton ,showActionButton,zoneId}: UserListTableProps) => {
   // State Management
   const [addUserOpen, setAddUserOpen] = useState(false);
   const [editUserOpen, setEditUserOpen] = useState(false);
@@ -120,6 +122,9 @@ const UserListTable = ({ tableData, dictionary, showAddButton ,showActionButton}
 
   const { isDemoUser, checkDemoStatus } = useIsDemoUser();
   const { lang: locale } = useParams();
+  const currentReturnPage = pageIndex + 1;
+  const returnQuery = `?returnPage=${currentReturnPage}&returnPageSize=${pageSize}&returnSearch=${encodeURIComponent(pageSearch)}`;
+  const toApiPage = (uiPage: number) => Math.max(0, uiPage - 1);
 
   // Helper Functions
   const getAvatar = (params: Pick<UsersType, 'avatar' | 'firstName'>) => {
@@ -134,6 +139,7 @@ return <CustomAvatar size={34}>{getInitials(firstName as string)}</CustomAvatar>
   };
 
   // Event Handlers
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const handleEditUser = (user: UsersType) => {
     if (checkDemoStatus()) {
       toast.error(dictionary['navigation'].editError);
@@ -141,7 +147,7 @@ return <CustomAvatar size={34}>{getInitials(firstName as string)}</CustomAvatar>
 return;
     }
 
-    setCurrentUser(user);
+    setCurrentUser({...user});
     setEditUserOpen(true);
   };
 
@@ -178,7 +184,7 @@ return;
           handlePageChangeForAddRecord();
         }
 
-        // toast.success(dictionary['navigation'].deleteSuccess);
+        toast.success(dictionary['navigation'].deleteSuccess);
       }
 
       setErrorData(response.status);
@@ -220,11 +226,12 @@ return;
         )
       );
 
-      toast.success(
-        updatedUser.active
-          ? dictionary['navigation'].statusActivated
-          : dictionary['navigation'].statusDeactivated
-      );
+      // toast.success(
+      //   updatedUser.active
+      //     ? dictionary['navigation'].statusActivated
+      //     : dictionary['navigation'].statusDeactivated
+      // );
+      toast.success(dictionary['navigation'].statusUpdatedSuccessfully);
 
       setStatusConfirmationOpen(false);
       setStatusUser(null);
@@ -238,7 +245,7 @@ return;
   // Pagination Functions
   const handlePageChange = async (event: unknown, newPage: number) => {
     try {
-      const { results, totalResults } = await getUserByPagination(pageSearch, newPage, pageSize);
+      const { results, totalResults } = await getUserByPagination(pageSearch, newPage, pageSize,zoneId);
 
       setData(results);
       setPageIndex(newPage);
@@ -249,21 +256,27 @@ return;
     }
   };
 
-  const handlePageSizeChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const newPageSize = parseInt(event.target.value);
+const handlePageSizeChange = async (
+  event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+) => {
+  const newPageSize = parseInt(event.target.value);
 
-    try {
+  try {
+    const { results, totalResults } = await getUserByPagination(
+      pageSearch,
+      1,
+      newPageSize,
+      zoneId
+    );
 
-      const { results, totalResults } = await getUserByPagination(pageSearch, pageIndex, newPageSize);
-
-      setPageSize(newPageSize);
-      setData(results);
-      setTotalResults(totalResults);
-    } catch (error) {
-      console.error("Page size change error:", error);
-      toast.error(dictionary['navigation'].pageSizeError);
-    }
-  };
+    setPageSize(newPageSize);
+    setData(results);
+    setTotalResults(totalResults);
+    setPageIndex(0); // reset page
+  } catch (error) {
+    console.error("Page size change error:", error);
+  }
+};
 
   const handlePageChangeForAddRecord = () => {
     handlePageChange({} as ChangeEvent<unknown>, pageIndex - 1);
@@ -278,18 +291,19 @@ return;
     async (searchTerm: string) => {
       try {
 
-        const result = await getUserByPagination(searchTerm, 0, pageSize);
+        const result = await getUserByPagination(searchTerm, 1, pageSize,zoneId);
 
         setPageSearch(searchTerm);
         setData(result.results);
         setTotalResults(result.totalResults);
         setPageIndex(0);
+
       } catch (error) {
         console.error("Search error:", error);
         toast.error(dictionary['navigation'].searchError);
       }
     },
-    [pageSize, dictionary]
+    [pageSize, zoneId, dictionary]
   );
 
   // Table Columns
@@ -316,8 +330,8 @@ return;
         row.original.id
           ? getLocalizedUrl(
               showAddButton
-                ? `apps/taxi/user/view/${row.original.id}`
-                : `apps/taxi/wallet/user/view/${row.original.id}`,
+                ? `${zoneId}/apps/taxi/user/view/${row.original.id}${returnQuery}`
+                : `${zoneId}/apps/taxi/wallet/user/view/${row.original.id}${returnQuery}`,
               locale as Locale
             )
           : undefined
@@ -327,11 +341,11 @@ return;
         whiteSpace: 'nowrap',
         overflow: 'hidden',
         textOverflow: 'ellipsis',
-        maxWidth: 150,
+        maxWidth: 350,
         display: 'inline-block',
       }}
     >
-      {row.original.firstName.substring(0, 15) + '...'}
+      {row.original.firstName}
     </Typography>
   </Tooltip>
 ) : (
@@ -341,24 +355,24 @@ return;
       row.original.id
         ? getLocalizedUrl(
             showAddButton
-              ? `apps/taxi/user/view/${row.original.id}`
-              : `apps/taxi/wallet/user/view/${row.original.id}`,
+              ? `${zoneId}/apps/taxi/user/view/${row.original.id}${returnQuery}`
+              : `${zoneId}/apps/taxi/wallet/user/view/${row.original.id}${returnQuery}`,
             locale as Locale
           )
         : undefined
-    }
-    color="primary"
-    sx={{
-      whiteSpace: 'nowrap',
-      overflow: 'hidden',
-      textOverflow: 'ellipsis',
-      maxWidth: 150,
-      display: 'inline-block',
-    }}
-  >
-    {row.original.firstName}
-  </Typography>
-)}
+        }
+        color="primary"
+        sx={{
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          maxWidth: 350,
+          display: 'inline-block',
+        }}
+      >
+        {row.original.firstName}
+      </Typography>
+    )}
 
               <Typography variant='body2'>
                 {checkDemoStatus() && row.original.phoneNumber?.length > 5
@@ -370,15 +384,9 @@ return;
         )
       }),
       columnHelper.accessor('Trip', {
-        header: dictionary['navigation'].tripCount,
-        cell: ({ row }) => (
-          <div className='flex items-center gap-2'>
-            <Typography className='capitalize' color='text.primary'>
-              {row.original.tripsCount || 0}
-            </Typography>
-          </div>
-        )
-      }),
+              header: dictionary['navigation'].TripCount,
+              cell: ({ row }) => <Typography> {row.original.tripsCount != null ? row.original.tripsCount : "0"}</Typography>,
+            }),
       columnHelper.accessor('Wallet', {
         header: dictionary['navigation'].wallet,
         cell: ({ row }) => (
@@ -391,12 +399,16 @@ return;
       }),
       columnHelper.accessor('rating', {
         header: dictionary['navigation'].rating,
-        cell: ({ row }) => (
+       cell: ({ row }) => (
           <Typography className='capitalize' color='text.primary'>
-            {`${row.original.rating != null ? row.original.rating != "0" ?  row.original.rating : "5" : "5"}`}
+            {Number(row.original?.tripsCount || 0) > 0 && Number(row.original?.rating || 0) > 0
+              ? Number(row.original.rating)
+              : 0
+            }
           </Typography>
-        )
+)
       }),
+
       columnHelper.accessor('active', {
         header: dictionary['navigation'].Status,
         cell: ({ row }) => (
@@ -431,8 +443,8 @@ return;
         <Link
           href={getLocalizedUrl(
             showAddButton
-              ? `/apps/taxi/user/view/${row.original._id}`
-              : `/apps/taxi/wallet/user/view/${row.original._id}`,
+              ? `${zoneId}/apps/taxi/user/view/${row.original._id}${returnQuery}`
+              : `${zoneId}/apps/taxi/wallet/user/view/${row.original._id}${returnQuery}`,
             locale as Locale
           )}
           className='flex'
@@ -471,37 +483,23 @@ return;
 })
 
     ],
-    [data, dictionary, locale, showAddButton]
+    [checkDemoStatus, dictionary, handleDeleteClick, handleEditUser, handleStatusToggle, locale, pageIndex, pageSize, showActionButton, showAddButton, zoneId]
   );
 
-  // React Table Instance
-  const table = useReactTable({
-    data,
-    columns,
-    filterFns: {
-      fuzzy: fuzzyFilter
-    },
-    state: {
-      rowSelection,
-      globalFilter
-    },
-    initialState: {
-      pagination: {
-        pageSize: 25
-      }
-    },
-    enableRowSelection: true,
-    globalFilterFn: fuzzyFilter,
-    onRowSelectionChange: setRowSelection,
-    getCoreRowModel: getCoreRowModel(),
-    onGlobalFilterChange: setGlobalFilter,
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    getFacetedRowModel: getFacetedRowModel(),
-    getFacetedUniqueValues: getFacetedUniqueValues(),
-    getFacetedMinMaxValues: getFacetedMinMaxValues()
-  });
+const table = useReactTable({
+  data,
+  columns,
+  state: {
+    rowSelection
+  },
+  enableRowSelection: true,
+  onRowSelectionChange: setRowSelection,
+  getCoreRowModel: getCoreRowModel(),
+  getSortedRowModel: getSortedRowModel(),
+  filterFns: {
+      fuzzy: fuzzyFilter,
+    }
+});
 
   return (
     <>
@@ -523,12 +521,12 @@ return;
           </div>
 
           <div className='flex flex-col sm:flex-row is-full sm:is-auto items-start sm:items-center gap-4'>
-            <CustomTextField
-              select
-              value={table.getState().pagination.pageSize}
-              onChange={e => table.setPageSize(Number(e.target.value))}
-              className='is-[70px]'
-            >
+          <CustomTextField
+                      select
+                      value={pageSize}
+                      onChange={handlePageSizeChange}
+                      className='is-[70px]'
+                    >
               {[5, 10, 15, 25].map(size => (
                 <MenuItem key={size} value={size.toString()}>
                   {size}
@@ -572,10 +570,13 @@ return;
                           onClick={header.column.getToggleSortingHandler()}
                         >
                           {flexRender(header.column.columnDef.header, header.getContext())}
-                          {{
-                            asc: <i className='tabler-chevron-up text-xl' />,
-                            desc: <i className='tabler-chevron-down text-xl' />
-                          }[header.column.getIsSorted() as 'asc' | 'desc'] ?? null}
+                          {header.column.getIsSorted() ? (
+                            header.column.getIsSorted() === 'asc' ? (
+                              <i className='tabler-chevron-up text-xl' />
+                            ) : (
+                              <i className='tabler-chevron-down text-xl' />
+                            )
+                          ) : null}
                         </div>
                       )}
                     </th>
@@ -593,10 +594,7 @@ return;
               </tbody>
             ) : (
               <tbody>
-                {table
-                  .getRowModel()
-                  .rows.slice(0, table.getState().pagination.pageSize)
-                  .map(row => (
+  {table.getRowModel().rows.map(row => (
                     <tr key={row.id} className={classnames({ selected: row.getIsSelected() })}>
                       {row.getVisibleCells().map(cell => (
                         <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
@@ -637,6 +635,7 @@ return;
         onPageChange={handlePageChange}
         rowsPerPage={pageSize}
         dictionary={dictionary}
+        zoneId={zoneId}
       />
 
       <EditUserDrawer
@@ -646,6 +645,7 @@ return;
         handleClose={() => setEditUserOpen(false)}
         initialData={currentUser}
         dictionary={dictionary}
+        zoneId={zoneId}
       />
       <ConfirmationDialogErrorHandle
         open={deleteConfirmationOpen}

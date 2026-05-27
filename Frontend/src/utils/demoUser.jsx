@@ -37,3 +37,12 @@ return false;
 
   return { isDemoUser, checkDemoStatus };
 };
+
+
+export const getUserRole = () => {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('userRole');
+  }
+  
+  return null;
+};

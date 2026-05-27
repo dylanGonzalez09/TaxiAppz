@@ -31,6 +31,7 @@ interface AddOutZoneDrawerProps {
   dictionary?: any;
   editData?: any;
   setData: (data: any[]) => void;
+  setTotalResults?: React.Dispatch<React.SetStateAction<number>>;
 }
 
 interface FormValues {
@@ -44,6 +45,7 @@ const AddOutZoneDrawer: React.FC<AddOutZoneDrawerProps> = ({
   outZoneData,
   editData,
   setData,
+  setTotalResults,
   dictionary
 }) => {
   const [loading, setLoading] = useState(false);
@@ -90,6 +92,10 @@ const AddOutZoneDrawer: React.FC<AddOutZoneDrawerProps> = ({
         : [...outZoneData, newItem];
 
       setData(updatedOutZoneData);
+
+      if (!editData && setTotalResults) {
+        setTotalResults((prev) => prev + 1);
+      }
 
       toast.success(editData ? dictionary['navigation'].OutZoneupdatedsuccessfully : dictionary['navigation'].OutZonecreatedsuccessfully);
       reset();

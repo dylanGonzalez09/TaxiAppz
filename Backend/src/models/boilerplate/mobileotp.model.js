@@ -12,11 +12,11 @@ const otpSchema = mongoose.Schema(
       type: String,
       trim: true,
       default: 1,
-    }
+    },
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 otpSchema.plugin(toJSON);

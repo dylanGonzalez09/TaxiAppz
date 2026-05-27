@@ -1,10 +1,7 @@
 const Joi = require('joi');
 const { objectId } = require('../../custom.validation');
 
-const getDriverDocument = {
-  
-};
-
+const getDriverDocument = {};
 
 const createDriverDocument = {
   FormData: Joi.object().keys({
@@ -16,6 +13,7 @@ const createDriverDocument = {
     issueDate: Joi.date().iso().allow(null),
     documentStatus: Joi.string().valid('NOTUPLOADED', 'WAITINGFORAPPROVAL', 'APPROVED', 'EXPIRED', 'DENIED').required(),
     documentId: Joi.string().custom(objectId).required(),
+    driverVehicleId: Joi.string().custom(objectId).optional(),
   }),
 };
 
@@ -32,9 +30,9 @@ const updateDriverDocument = {
     issueDate: Joi.date().iso().allow(null).optional(),
     documentStatus: Joi.string().valid('NOTUPLOADED', 'WAITINGFORAPPROVAL', 'APPROVED', 'EXPIRED', 'DENIED').optional(),
     documentId: Joi.string().custom(objectId).optional(),
+    driverVehicleId: Joi.string().custom(objectId).optional(),
   }),
 };
-
 
 const getDriverDocuments = {
   query: Joi.object().keys({
@@ -55,11 +53,9 @@ const updateDriverDocumentStatus = {
     driverDocumentId: Joi.string().required(),
   }),
   body: Joi.object().keys({
-    documentStatus: Joi.string().optional()
+    documentStatus: Joi.string().optional(),
   }),
 };
-
-
 
 module.exports = {
   getDriverDocument,
@@ -68,5 +64,5 @@ module.exports = {
   getDriverDocument,
   getDriverDocuments,
   deleteDriverDocument,
-  updateDriverDocumentStatus
+  updateDriverDocumentStatus,
 };

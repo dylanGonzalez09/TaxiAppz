@@ -1,8 +1,10 @@
-// src/services/apiService.ts
+// Enhanced API service with explicit zone support
 import axios from 'axios';
-import { getSession } from 'next-auth/react';  // For client-side
+import { getSession } from 'next-auth/react';
 
-import { getServerSession } from 'next-auth';  // For server-side
+import { getServerSession } from 'next-auth';
+
+import { authOptions } from '@/app/api/login/auth'
 
 import { BASE_URL } from './endpoint';
 
@@ -12,87 +14,123 @@ const apiService = axios.create({
     'Content-Type': 'application/json',
   },
   withCredentials: true,
+  timeout: 30000, // 30s - avoid hanging requests
 });
 
-// Helper function to add headers to the request
-const addHeaders = async (config: any) => {
+const toReadableError = (error: any): Error => {
+  const data = error?.response?.data || {};
+
+  const message =
+    data?.message ||
+    data?.msg ||
+    data?.data?.message ||
+    data?.data?.msg ||
+    (Array.isArray(data?.errors) && data.errors.length > 0
+      ? data.errors[0]?.message || data.errors[0]?.msg
+      : undefined) ||
+    error?.message ||
+    'Request failed';
+
+  return (message);
+};
+
+// Enhanced helper function with explicit zone override
+const addHeaders = async (config: any, overrideZoneId?: any) => {
   let session;
 
-  // Determine whether the code is running on the client or server
   if (typeof window !== 'undefined') {
-    // Client-side: use getSession
     session = await getSession();
   } else {
-    // Server-side: use getServerSession
-    session = await getServerSession();
+    session = await getServerSession(authOptions);
   }
 
-  // Ensure headers object is initialized
   if (!config.headers) {
     config.headers = {};
   }
 
-  // Add Authorization header if the session contains an accessToken
-  if (session?.user?.name) {
-    config.headers['Authorization'] = `Bearer ${session.user.name}`;
-  }
+  // NextAuth stores our API token on `session.accessToken` (see auth callbacks).
+  const accessToken = (session as any)?.accessToken;
 
-  const clientId = session?.user?.image?.clientId; // Access clientId
-  const companyId = session?.user?.image?.companyId; // Access companyId
+  if (accessToken) {
+    config.headers['Authorization'] = `Bearer ${accessToken}`;
+  }
+  
+  const clientId = session?.user?.image?.clientId;
+  
+  
+  // Use override zone if provided, otherwise use session zone
+  const zoneId = overrideZoneId || session?.user?.image?.zoneId || '';
+  
 
   if (clientId) {
     config.headers.clientId = clientId;
   }
 
-  if (companyId) {
-    config.headers.companyId = companyId;
+  if (zoneId) {
+    config.headers.zoneId = zoneId;
   }
 
   return config;
 };
 
-export const get = async (url: string, params?: any) => {
+// Enhanced API functions with optional zone override
+export const get = async (url: string, params?: any, overrideZoneId?: any) => {
+ 
   try {
-    const config = await addHeaders({ params });
+    
+    const config = await addHeaders({ params }, overrideZoneId);
     const response = await apiService.get(url, config);
-
+    
     return response.data;
   } catch (error) {
-    throw error;
+    throw toReadableError(error);
   }
 };
 
-export const post = async (url: string, data: any) => {
+export const post = async (url: string, data: any, overrideZoneId?: any) => {
+  
   try {
-    const config = await addHeaders({});
+   
+    const config = await addHeaders({}, overrideZoneId);
+    
     const response = await apiService.post(url, data, config);
-
+    
     return response.data;
   } catch (error) {
-    throw error;
+    throw toReadableError(error);
   }
 };
 
-export const patch = async (url: string, data: any) => {
+export const patch = async (url: string, data: any, overrideZoneId?: any) => {
   try {
-    const config = await addHeaders({});
+   
+    const config = await addHeaders({}, overrideZoneId);
+    
+    
     const response = await apiService.patch(url, data, config);
 
-    return response.data;
+    console.log(response)
+    
+return response.data;
   } catch (error) {
     console.error('PATCH request error:', error);
-    throw error;
+
+    throw toReadableError(error);
   }
 };
 
-export const del = async (url: string) => {
+export const del = async (url: string, overrideZoneId?: any) => {
+ 
   try {
-    const config = await addHeaders({});
+   
+    const config = await addHeaders({}, overrideZoneId);
+   
     const response = await apiService.delete(url, config);
-
+   
     return response.data;
   } catch (error) {
     console.error('DELETE request error:', error);
-    throw error;
+
+    throw toReadableError(error);
   }
 };

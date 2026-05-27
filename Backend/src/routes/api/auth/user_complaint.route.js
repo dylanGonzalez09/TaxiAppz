@@ -6,12 +6,34 @@ const userComplaintController = require('../../../controllers/api/auth/user_comp
 
 const router = express.Router();
 
-router.route('/create').post(auth('UserComplaint'),validate(userComplainValidation.createUserComplaint), userComplaintController.createUserComplaint);
-router.route('/getUserComplaints').get(auth('UserComplaint'),validate(userComplainValidation.getUserComplaints), userComplaintController.getUserComplaints);
-router.route('/getUserComplaint/:userComplaintId').get(auth('UserComplaint'),validate(userComplainValidation.getUserComplaint), userComplaintController.getUserComplaint);
-router.route('/getUserComplaint/list').get(auth('UserComplaint'),userComplaintController.getUserComplaintWithOutPagination);
-router.route('/updateUserComplaint/:userComplaintId').patch(auth('UserComplaint'),validate(userComplainValidation.updateUserComplaint), userComplaintController.updateUserComplaint);
-router.route('/deleteUserComplaint/:userComplaintId').delete(auth('UserComplaint'),validate(userComplainValidation.deleteUserComplaint), userComplaintController.deleteUserComplaint);
+router
+  .route('/create')
+  .post(
+    auth('UserComplaint'),
+    validate(userComplainValidation.createUserComplaint),
+    userComplaintController.createUserComplaint,
+  );
+router
+  .route('/getUserComplaints')
+  .get(auth('UserComplaint'), validate(userComplainValidation.getUserComplaints), userComplaintController.getUserComplaints);
+router
+  .route('/getUserComplaint/:userComplaintId')
+  .get(auth('UserComplaint'), validate(userComplainValidation.getUserComplaint), userComplaintController.getUserComplaint);
+router.route('/getUserComplaint/list').get(auth('UserComplaint'), userComplaintController.getUserComplaintWithOutPagination);
+router
+  .route('/updateUserComplaint/:userComplaintId')
+  .patch(
+    auth('UserComplaint'),
+    validate(userComplainValidation.updateUserComplaint),
+    userComplaintController.updateUserComplaint,
+  );
+router
+  .route('/deleteUserComplaint/:userComplaintId')
+  .delete(
+    auth('UserComplaint'),
+    validate(userComplainValidation.deleteUserComplaint),
+    userComplaintController.deleteUserComplaint,
+  );
 
 module.exports = router;
 
@@ -237,4 +259,3 @@ module.exports = router;
  *       404:
  *         description: SOS request not found
  */
-

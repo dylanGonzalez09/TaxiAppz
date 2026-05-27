@@ -1,6 +1,8 @@
 // React Imports
 
 // MUI Imports
+import { useState } from 'react';
+
 import Drawer from '@mui/material/Drawer';
 import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
@@ -20,6 +22,8 @@ import { Controller } from 'react-hook-form';
 import type { Editor } from '@tiptap/core';
 
 // Component Imports
+import { toast } from 'react-toastify';
+
 import CustomIconButton from '@core/components/mui/IconButton';
 import CustomAutocomplete from '@core/components/mui/Autocomplete'; // Update with the correct path
 import CustomTextField from '@core/components/mui/TextField'; // Update with the correct path
@@ -27,15 +31,20 @@ import CustomTextField from '@core/components/mui/TextField'; // Update with the
 // Hook Imports
 
 // Style Imports
-import '@/libs/styles/tiptapEditor.css';
+// import '@/libs/styles/tiptapEditor.css';
+
+
+import { sendBulkemail } from '@/app/api/apps/taxi/notification';
 
 type Props = {
   openCompose: boolean;
   setOpenCompose: (value: boolean) => void;
-  control: any; // Assuming control comes from react-hook-form
-  userOptions: any[]; // Define your user options type
-  driverOptions: any[]; // Define your driver options type
-  dictionary: any; // Define your dictionary type
+  control: any;
+  getValues: any;
+  userOptions: any[];
+  driverOptions: any[];
+  dictionary: any;
+  onSendSuccess?: (subject: string, content: string) => void;
 };
 
 const EditorToolbar = ({ editor }: { editor: Editor | null }) => {
@@ -114,8 +123,9 @@ const EditorToolbar = ({ editor }: { editor: Editor | null }) => {
 };
 
 const ComposeMail = (props: Props) => {
-  const { openCompose, setOpenCompose, control, userOptions, driverOptions, dictionary } = props;
-
+  const { openCompose, setOpenCompose, getValues, control, userOptions, driverOptions, dictionary, onSendSuccess } = props;
+  const [subject, setSubject] = useState('');
+  const [sending, setSending] = useState(false);
 
   const editor = useEditor({
     extensions: [
@@ -130,10 +140,42 @@ const ComposeMail = (props: Props) => {
     ],
   });
 
-  function clearErrors(arg0: string) {
-    throw new Error(`Error for ${arg0} not implemented.`);
-  }
-  
+  const handleSendMail = async () => {
+    const users = getValues('userTo') || [];
+    const drivers = getValues('driverTo') || [];
+    const userIds = users.map((u: any) => u.id || u._id);
+    const driverIds = drivers.map((d: any) => d.id || d._id);
+    const messageContent = editor?.getHTML() ?? editor?.getText() ?? '';
+
+    const payload = {
+      userIds,
+      driverIds,
+      subject,
+      message: messageContent,
+      onmessage: messageContent,
+    };
+
+    setSending(true);
+
+    try {
+      const result = await sendBulkemail(payload);
+
+      if (result != null) {
+        toast.success(dictionary['navigation']?.mailSentSuccessfully ?? 'Mail sent successfully');
+        onSendSuccess?.(subject, messageContent);
+        setSubject('');
+        editor?.commands.clearContent();
+        setOpenCompose(false);
+      } else {
+        toast.error(dictionary['navigation']?.failedToSendMail ?? 'Failed to send mail');
+      }
+    } catch (error) {
+      toast.error(dictionary['navigation']?.failedToSendMail ?? 'Failed to send mail');
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
     <Drawer
       anchor='bottom'
@@ -184,9 +226,17 @@ const ComposeMail = (props: Props) => {
                   limitTags={2}
                   options={userOptions}
                   id="autocomplete-user-to"
-                  getOptionLabel={(option) => option.name || ''}
+
+                  // getOptionLabel={(option) => option.name || ''}
+               getOptionLabel={(option) => {
+  const name = option.userId?.firstName || option.firstName || ""
+  const phone = option.userId?.phoneNumber || option.phoneNumber || ""
+  const email = option.userId?.email || option.email || ""
+
+  return `${name} [${phone}] ${email ? "- " + email : ""}`
+}}
                   value={field.value || []}
-                  isOptionEqualToValue={(option, value) => option.name === value.name}
+isOptionEqualToValue={(option, value) => option.id === value.id}
                   renderInput={(params) => (
                     <CustomTextField
                       {...params}
@@ -198,86 +248,116 @@ const ComposeMail = (props: Props) => {
                   renderTags={(tagValue, getTagProps) =>
                     tagValue.map((option, index) => (
                       <Chip
-                        label={option.name}
+label={`${option.firstName} - ${option.email || option.phoneNumber}`}
                         {...getTagProps({ index })}
                         key={option.id}
                         size="small"
                       />
                     ))
                   }
-                  onChange={(event, value) => {
-                    field.onChange(value);
-                    
-                    if (value.length > 0) {
-                      clearErrors('userTo');
-                    }
-                  }}
+               onChange={(event, value) => {
+
+
+  // const emails = value.map((user: any) =>
+  //   user.userId?.email || user.email
+  // )
+
+
+  field.onChange(value)
+}}
                 />
               )}
             />
           </Grid>
           <Grid item xs={12} sm={6}>
             <Controller
-              name="driverTo"
-              control={control}
-              rules={{ required: dictionary['navigation'].Atleastonedriverisrequired }}
-              render={({ field, fieldState }) => (
-                <CustomAutocomplete
-                  multiple
-                  limitTags={2}
-                  options={driverOptions}
-                  id="autocomplete-driver-to"
-                  getOptionLabel={(option) => option.name || ''}
-                  value={field.value || []}
-                  isOptionEqualToValue={(option, value) => option.name === value.name}
-                  renderInput={(params) => (
-                    <CustomTextField
-                      {...params}
-                      label={dictionary['navigation'].DriverTo}
-                      error={Boolean(fieldState.error)}
-                      helperText={fieldState.error?.message || ''}
-                    />
-                  )}
-                  renderTags={(tagValue, getTagProps) =>
-                    tagValue.map((option, index) => (
-                      <Chip
-                        label={option.name}
-                        {...getTagProps({ index })}
-                        key={option.id}
-                        size="small"
-                      />
-                    ))
-                  }
-                  onChange={(event, value) => {
-                    
-                    field.onChange(value);
-                    
-                    if (value.length > 0) {
-                      clearErrors('driverTo');
-                    }
-                  }}
-                />
-              )}
+  name="driverTo"
+  control={control}
+  rules={{ required: dictionary['navigation'].Atleastonedriverisrequired }}
+  render={({ field, fieldState }) => (
+    <CustomAutocomplete
+      multiple
+      limitTags={2}
+      options={driverOptions}
+      id="autocomplete-driver-to"
+      getOptionLabel={(option) => {
+        const name = option.userId?.firstName || option.firstName || ''
+        const phone = option.userId?.phoneNumber || option.phoneNumber || ''
+        const email = option.userId?.email || option.email || ''
+
+        return phone
+          ? `${name} [${phone}]${email ? ` - ${email}` : ''}`
+          : name
+      }}
+      value={field.value || []}
+      isOptionEqualToValue={(option, value) => option.id === value.id}
+      renderInput={(params) => (
+        <CustomTextField
+          {...params}
+          label={dictionary['navigation'].DriverTo}
+          error={Boolean(fieldState.error)}
+          helperText={fieldState.error?.message || ''}
+        />
+      )}
+      renderTags={(tagValue, getTagProps) =>
+        tagValue.map((option, index) => {
+          const name = option.userId?.firstName || option.firstName || ''
+
+          // const phone = option.userId?.phoneNumber || option.phoneNumber || ''
+          const email = option.userId?.email || option.email || ''
+
+          return (
+            <Chip
+              label={`${name} ${email ? ` - ${email}` : ''}`}
+              {...getTagProps({ index })}
+              key={option.id}
+              size="small"
             />
+          )
+        })
+      }
+      onChange={(event, value) => {
+
+        // const emails = value
+        //   .map((driver: any) => driver.userId?.email || driver.email)
+        //   .filter(Boolean)
+
+
+        field.onChange(value)
+
+        // if (value.length > 0) {
+        //   clearErrors('driverTo')
+        // }
+      }}
+    />
+  )}
+/>
           </Grid>
         </Grid>
       </div>
-      <InputBase
-        className='plb-1 pli-6 border-bs'
-        startAdornment={
-          <Typography className='font-medium mie-2' color='text.disabled'>
-            {dictionary['navigation'].Subject}:
-          </Typography>
-        }
-      />
+   <InputBase
+  className='plb-1 pli-6 border-bs'
+  value={subject}
+  onChange={(e) => setSubject(e.target.value)}
+  startAdornment={
+    <Typography className='font-medium mie-2' color='text.disabled'>
+      {dictionary['navigation'].Subject}:
+    </Typography>
+  }
+/>
       <EditorToolbar editor={editor} />
       <EditorContent editor={editor} className='bs-[105px] overflow-y-auto flex border-bs' />
       <div className='plb-4 pli-5 flex justify-between items-center gap-4'>
         <div className='flex items-center gap-4 max-sm:gap-3'>
     
-            <Button variant='contained' endIcon={<i className='tabler-send' />} onClick={() => setOpenCompose(false)}>
-              {dictionary['navigation'].Send}
-            </Button>
+          <Button
+            variant='contained'
+            endIcon={<i className='tabler-send' />}
+            onClick={handleSendMail}
+            disabled={sending}
+          >
+            {sending ? (dictionary['navigation']?.sending ?? 'Sending...') : dictionary['navigation'].Send}
+          </Button>
           <IconButton size='small'>
             <i className='tabler-paperclip text-textSecondary' />
           </IconButton>

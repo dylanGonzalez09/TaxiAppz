@@ -1,23 +1,40 @@
 const cron = require('node-cron');
 const mongoose = require('mongoose');
-const { Request, RequestPlace, DriverDocument, Settings,DriverSubscription, DriverLocation, RequestMeta,RequestBid, requestListView,NoDriverTrips, ZonePrice, Rental, Driver, Zone } = require('./../models');
+const {
+  Request,
+  RequestPlace,
+  DriverDocument,
+  Settings,
+  DriverSubscription,
+  DriverLocation,
+  RequestMeta,
+  RequestDriverData,
+  RequestBid,
+  requestListView,
+  NoDriverTrips,
+  ZonePrice,
+  Rental,
+  Driver,
+  Zone,
+  PromoCode
+} = require('../models');
 
 const MqttService = require('../services/mqtt/mqtt.service');
 
 const ApiError = require('../utils/ApiError');
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const config = require('../config/config');
 const moment = require('moment');
-const { sendPushNotification,sendClientNotification,fetchDispatchDriver} = require('../utils/commonFunction');
-const ObjectId = require('mongoose').Types.ObjectId;
+const { sendPushNotification, sendClientNotification } = require('../utils/commonFunction');
+const { ObjectId } = require('mongoose').Types;
 
-const { mqttConfig } = require('../config/string')
-
+const { mqttConfig } = require('../config/string');
 
 // Connect to MongoDB
-mongoose.connect(config.mongoose.url)
+mongoose
+  .connect(config.mongoose.url)
   .then(() => console.log('MongoDB connected for cron job'))
-  .catch(err => {
+  .catch((err) => {
     console.error('MongoDB connection error:', err);
     process.exit(1); // Exit process if connection fails
   });
@@ -28,40 +45,53 @@ cron.schedule('* 9 * * *', async () => {
     // First find the documents that need to be updated
     const documentsToUpdate = await DriverDocument.find({
       expiryDate: { $lt: new Date() },
-      expriyStatus: false
+      expriyStatus: false,
     }).select('clientId'); // Only select the clientId field
-    
+
     // Extract the clientIds
-    const clientIds = documentsToUpdate.map(doc => doc.clientId);
-    
+    const clientIds = documentsToUpdate.map((doc) => doc.clientId);
+
     // Then perform the update
     const result = await DriverDocument.updateMany(
       {
         expiryDate: { $lt: new Date() },
-        expriyStatus: false
+        expriyStatus: false,
       },
       {
-        $set: { expriyStatus: true }
-      }
+        $set: { expriyStatus: true },
+      },
     );
 
     await sendClientNotification(clientIds[0], {
-      title: "Driver Document",
-      message: "Drivers Documents Expired please inform to driver to Update the Document",
+      title: 'Driver Document',
+      message: 'Drivers Documents Expired please inform to driver to Update the Document',
     });
-
   } catch (error) {
     console.error('Error running cron job:', error);
   }
 });
 
+
+// Daily at midnight, update expired promo codes to inactive
+cron.schedule('0 0 0 * * *', async () => {
+  try {
+    await PromoCode.updateMany({ toDate: { $lt: new Date() }, status: true }, { $set: { status: false } });
+
+  } catch (error) {
+
+    console.error("Daily promocode updation error :", error)
+  }
+})
+
+
 async function assignDriver(request, driver) {
   try {
     // Check if the driver is free
-    const isDriverFree = await RequestMeta.countDocuments({ driverId: driver.driverId, active: true }) === 0;
+    const isDriverFree = (await RequestMeta.countDocuments({ driverId: driver.driverId, active: true })) === 0;
     if (!isDriverFree) {
-      return;
+      return false;
     }
+
 
     // Assign the driver to the request
     request.driverId = driver.driverId;
@@ -79,19 +109,22 @@ async function assignDriver(request, driver) {
       updated_at: new Date(),
     });
 
-
+    // Track drivers already offered (same idea as local trips / fetchExcludeDriver + RequestDriverData)
+    await RequestDriverData.findOneAndUpdate(
+      { requestId: request._id },
+      { $addToSet: { driverIds: driver.driverId } },
+      { upsert: true, setDefaultsOnInsert: true },
+    );
 
     // Notify the driver
     await sendPushNotification(driver.userId.toString(), {
-      title: "New Trip Requested",
-      message: "New Trip Requested, you can accept or Reject the request",
+      title: 'New Trip Requested',
+      message: 'New Trip Requested, you can accept or Reject the request',
     });
 
+    const userTopic = `${mqttConfig.USER_REQUEST}${request.userId.toString()}`;
 
-   const userTopic = mqttConfig.USER_REQUEST+""+request.userId.toString();
-    
-   let driverTopic = mqttConfig.DRIVER_REQUEST+""+ driver.driverId.toString();
-
+    const driverTopic = `${mqttConfig.DRIVER_REQUEST}${driver.driverId.toString()}`;
 
     // let driverTopic = "driver/request/" + driver.driverId.toString();
 
@@ -103,16 +136,15 @@ async function assignDriver(request, driver) {
     await MqttService.publishMessage(
       driverTopic,
       JSON.stringify({
-        title: "New Trip Requested",
-        message: "New Trip Requested, you can accept or Reject the request",
+        title: 'New Trip Requested',
+        message: 'New Trip Requested, you can accept or Reject the request',
         trip: responseData[0],
-      })
+      }),
     );
 
-
     await sendPushNotification(request.userId, {
-      title: "Your Trip Start With In 15 Min",
-      message: "Your Trip Start With In 15 Min",
+      title: 'Your Trip Start With In 15 Min',
+      message: 'Your Trip Start With In 15 Min',
     });
 
     // await MqttService.publishMessage(
@@ -123,9 +155,10 @@ async function assignDriver(request, driver) {
     //     trip: responseData[0],
     //   })
     // );
-
+    return true;
   } catch (error) {
     console.error(`Error assigning driver to request ${request.requestNumber}:`, error);
+    return false;
   }
 }
 
@@ -138,145 +171,89 @@ async function checkAndProcessRequests() {
   try {
     // Find requests that match the criteria
 
-
     const requests = await Request.find({
       isLater: true,
       tripTime: {
         $gte: now,
-        $lte: fifteenMinutesLater
+        $lte: fifteenMinutesLater,
       },
-      // driverId: null,
-      isDriverStarted: false,
-      isCompleted: false,
-      isCancelled: false
+      driverId: null,
+      isCancelled: false,
     });
 
     if (requests.length > 0) {
-      
-
       // Process each request
       for (const request of requests) {
-
-        let requestPlace = await RequestPlace.findOne({ requestId: request._id })
-
-
+        const requestPlace = await RequestPlace.findOne({ requestId: request._id });
 
         let zoneId = '';
-        if(request.tripType == 'LOCAL')
-        {
-          const zonePrice = ZonePrice.findById(request.zoneTypeId);
+        if (request.tripType == 'LOCAL') {
+          const zonePrice = await ZonePrice.findById(request.zoneTypeId);
           zoneId = zonePrice ? zonePrice.zoneId : '';
-        }
-        else
-        {
-          const packagePrice = Rental.findById(request.packageId);
+        } else {
+          const packagePrice = await Rental.findById(request.packageId);
           zoneId = packagePrice ? packagePrice.zoneId : '';
         }
 
-        // Fetch available drivers
-        let drivers;
-        if(request.ifDispatch === false)
-        {
-          drivers = await fetchDriver(
-            requestPlace.pickLat,
-            requestPlace.pickLng,
-            requestPlace.vehicleType,
-            requestPlace.rideType,
-            zoneId,
-            requestPlace.dropLat,
-            requestPlace.dropLng
-          );
-        }
-        else
-        {
-          drivers = await fetchDispatchDriver(request.adminDemoKey,requestPlace.pickLat,requestPlace.pickLng,requestPlace.vehicleType,requestPlace.rideType,zoneId,requestPlace.dropLat,requestPlace.dropLng)
-        }
+        const offeredRow = await RequestDriverData.findOne({ requestId: request._id }).lean();
+        const excludeDriverIds = (offeredRow?.driverIds || [])
+          .filter((id) => id && mongoose.Types.ObjectId.isValid(String(id)))
+          .map((id) => new ObjectId(String(id)));
 
-        
+        // DriverLocation.serviceType is the service the driver runs (LOCAL / RENTAL), not booking mode (RIDE_LATER / RIDE_NOW)
+        const serviceTypeForMatch = request.tripType || 'RENTAL';
+
+        // Fetch available drivers, excluding drivers already notified for this trip (like fetchExcludeDriver for local)
+        const drivers = await fetchDriver(
+          requestPlace.pickLat,
+          requestPlace.pickLng,
+          requestPlace.vehicleType,
+          serviceTypeForMatch,
+          zoneId,
+          requestPlace.dropLat,
+          requestPlace.dropLng,
+          excludeDriverIds,
+        );
 
         if (!drivers || !drivers.length) {
           request.cancelledAt = moment();
           request.isCancelled = true;
           request.cancelMethod = 'Automatic';
           await request.save();
+
+          await sendPushNotification(request.userId.toString(), {
+            title: 'Trip Cancelled',
+            message: 'No driver found for your scheduled trip',
+          });
+
+          const userTopic = `${mqttConfig.USER_REQUEST}${request.userId.toString()}`;
+          const responseData = await getRequestListData(request._id);
+
+          await MqttService.publishMessage(
+            userTopic,
+            JSON.stringify({
+              title: 'Trip Cancelled',
+              message: 'No driver found for your scheduled trip',
+              trip: responseData[0],
+            }),
+          );
           continue;
         }
 
-
-        let zone = await Zone.findById(zoneId);
-
-
-
-        if (zone?.biddingZone != null && zone?.biddingZone === 'yes') {
-          const driverIds = drivers.map(driver => driver.driverId);
-          // Fetch all driver data in a single query
-          const driversData = await Driver.find({ _id: { $in: driverIds } });
-          // Fetch all existing bids for the drivers in a single query
-            const existingBids = await RequestBid.find({
-              requestId: requestDetail._id,
-              driverId: { $in: driverIds },
-              tripType: request.tripType
-            });
-
-
-              // Create a set of driver IDs who already have a bid
-              const driversWithBids = new Set(existingBids.map(bid => bid.driverId.toString()));
-            
-              // Prepare new bids to be inserted
-              const newBids = driversData
-                .filter(driver => !driversWithBids.has(driver._id.toString()))
-                .map(driver => ({
-                  requestId: request._id,
-                  driverId: driver._id,
-                  promoAmount: promoAmount,
-                  estAmount: request.etaAmount,
-                  tripType: request.tripType,
-                  createdAt: new Date()
-                }));
-            
-            
-              // Insert all new bids in a single batch operation
-              if (newBids.length > 0) {
-                await RequestBid.insertMany(newBids);
-              }
-
-                // Prepare MQTT and push notification tasks
-                const notificationTasks = driversData.map(async driver => {
-                  const matchedDriver = drivers.find(d => d.driverId.toString() === driver._id.toString());
-              
-              
-                  if (!matchedDriver) return null; // Skip if no match found
-              
-                  const message = JSON.stringify({
-                    title: "New Trip Requested",
-                    message: "New Trip Requested, you can bid or Reject the request",
-                    tripDetails: responseData
-                  });
-                  const driverTopic = mqttConfig.DRIVER_REQUEST + "" + matchedDriver.driverId;
-              
-                  return await Promise.all([
-                    sendClientNotification(clientId, {
-                      title: "New Trip Requested",
-                      message: "New Trip Requested Received"
-                    }),
-                    sendPushNotification(driver.userId, {
-                      title: "New Trip Requested",
-                      message: "New Trip Requested, you can accept or Reject the request"
-                    }),
-                    MqttService.publishMessage(
-                      driverTopic,
-                      message
-                    )
-                  ]);
-                });
-              
-                // Execute all notification tasks concurrently
-                await Promise.all(notificationTasks);
-          
-        }else {
-          const firstDriver = drivers[0];
-          await assignDriver(request, firstDriver);
+        let assigned = false;
+        for (const driver of drivers) {
+          // eslint-disable-next-line no-await-in-loop
+          if (await assignDriver(request, driver)) {
+            assigned = true;
+            break;
+          }
         }
+
+        if (!assigned) {
+          // Drivers in range exist but none were free; retry on a later cron tick without cancelling
+          continue;
+        }
+        // }
       }
     } else {
       console.log('No requests to process.');
@@ -286,15 +263,39 @@ async function checkAndProcessRequests() {
   }
 }
 
-const fetchDriver = async (pick_lat, pick_lng, vehicle_type, ride_type, zoneId, drop_lat, drop_lng) => {
+
+
+const fetchDriver = async (
+  pick_lat,
+  pick_lng,
+  vehicle_type,
+  serviceTypeMatch,
+  zoneId,
+  drop_lat,
+  drop_lng,
+  excludeDriverIds = [],
+) => {
   const settingsPlaces = await Settings.findOne({ name: 'driverShowingKm' });
+  const SECONDARY_ZONE_DATA = Number(await getSettingCached('secondaryZone'));
+
+  const SECONDARY_ZONE = SECONDARY_ZONE_DATA.value === 'yes' ? true : false
+
+  if(zoneId && !SECONDARY_ZONE){
+     const zoneData = await Zone.findById(zoneId)
+     zoneId = zoneData.primaryZoneId || zoneData._id
+  }
+  
   const RADIUS_IN_KM = settingsPlaces.value;
-  const METERS_PER_KM = 10000;
-  let maxDistanceInMeters = RADIUS_IN_KM * METERS_PER_KM;
-  const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+  const METERS_PER_KM = 1000;
+  const maxDistanceInMeters = RADIUS_IN_KM * METERS_PER_KM;
+  const nowMs = Date.now();
+  const thirtyMinutesAgoMs = nowMs - 30 * 60 * 1000;
+  const thirtyMinutesAgoUs = nowMs * 1000 - 30 * 60 * 1000 * 1000;
 
   try {
-    const nearbyDrivers = await DriverLocation.find({
+   const zoneObjectId = new ObjectId(zoneId);
+
+    const query = {
       location: {
         $near: {
           $geometry: {
@@ -304,87 +305,102 @@ const fetchDriver = async (pick_lat, pick_lng, vehicle_type, ride_type, zoneId, 
           $maxDistance: maxDistanceInMeters,
         },
       },
-      lastUpdated: { $gte: thirtyMinutesAgo },
+      $and: [
+        {
+          $or: [{ lastUpdated: { $gte: thirtyMinutesAgoMs } }, { lastUpdated: { $gte: thirtyMinutesAgoUs } }],
+        },
+        {
+          $or: [
+            { zoneId: zoneObjectId },
+            {
+              secondaryZone: {
+                $in: [zoneObjectId],
+              },
+            },
+          ],
+        },
+      ],
       vehicleId: vehicle_type,
-      // zoneId: zoneId
-    });
+      isAvailable: true,
+      isOnline: true,
+      serviceType: { $regex: new RegExp(`\\b${String(serviceTypeMatch).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i') },
+    };
+
+    if (excludeDriverIds && excludeDriverIds.length > 0) {
+      query.driverId = { $nin: excludeDriverIds };
+    }
+
+    const nearbyDrivers = await DriverLocation.find(query);
 
     return nearbyDrivers;
   } catch (error) {
-    console.error("Error processing driver location1:", error);
+    console.error('Error processing driver location1:', error);
   }
 };
 
 const getRequestListData = async (requestId) => {
-
   const getRequest = requestListView.aggregate([
     {
       $match: {
         _id: new ObjectId(requestId),
-      }
-    }
+      },
+    },
   ]);
 
   return getRequest;
 };
-cron.schedule('*/5 * * * *', async () => {
+//10 MIN
+cron.schedule('*/1 * * * *', async () => {
   await checkAndProcessRequests();
   await driverNotAcceptedTrips();
   await driverNotArrivedTrips();
-  await removeNotAcceptedTrips();
   await changeDriverAvailability();
 });
-
 
 cron.schedule('0 0 * * *', async () => {
   await DriverDailyReport();
 });
 
-
 cron.schedule('0 0 * * *', async () => {
   try {
-    
     // Calculate the date 2 days from now
     const twoDaysFromNow = new Date();
     twoDaysFromNow.setDate(twoDaysFromNow.getDate() + 2);
-    
+
     // Find subscriptions that expire in exactly 2 days
     const expiringSubscriptions = await DriverSubscription.find({
       Enddate: {
         $gte: new Date(twoDaysFromNow.setHours(0, 0, 0, 0)), // Start of day 2 days from now
-        $lt: new Date(twoDaysFromNow.setHours(23, 59, 59, 999)) // End of day 2 days from now
+        $lt: new Date(twoDaysFromNow.setHours(23, 59, 59, 999)), // End of day 2 days from now
       },
-      status: true // Only active subscriptions
+      status: true, // Only active subscriptions
     }).populate('driverId', 'deviceToken'); // Assuming driver has deviceToken field
-    
+
     // Send notifications
     for (const subscription of expiringSubscriptions) {
       try {
         if (subscription.driverId && subscription.driverId.deviceToken) {
-
-          let userDetails= await Driver.findOne({ _id: subscription.driverId.toString() });
+          const userDetails = await Driver.findOne({ _id: subscription.driverId.toString() });
 
           await sendPushNotification(userDetails.userId.toString(), {
-            title: "Subscription Expiring Soon",
-            message: `Your subscription will expire in 2 days (on ${subscription.Enddate.toLocaleDateString()}). Renew now to avoid service interruption.`
+            title: 'Subscription Expiring Soon',
+            message: `Your subscription will expire in 2 days (on ${subscription.Enddate.toLocaleDateString()}). Renew now to avoid service interruption.`,
           });
         }
       } catch (error) {
         console.error(`Error sending notification to driver ${subscription.driverId}:`, error);
       }
     }
-    
   } catch (error) {
     console.error('Error in subscription expiration cron job:', error);
   }
 });
 
-
 const DriverDailyReport = async () => {
   if (!mongoose.connection.db) {
     return;
   }
-  const db = mongoose.connection.db;
+  const { db } = mongoose.connection;
 
   try {
     // Check if view exists and drop it if it does
@@ -394,8 +410,8 @@ const DriverDailyReport = async () => {
     }
 
     // Always create fresh view with today's data
-    await db.createCollection("driverDailyView", {
-      viewOn: "requests",
+    await db.createCollection('driverDailyView', {
+      viewOn: 'requests',
       pipeline: [
         {
           $match: {
@@ -407,51 +423,47 @@ const DriverDailyReport = async () => {
         },
         {
           $lookup: {
-            from: "requestbills",
-            localField: "_id",
-            foreignField: "requestId",
-            as: "billing",
+            from: 'requestbills',
+            localField: '_id',
+            foreignField: 'requestId',
+            as: 'billing',
           },
         },
         {
-          $unwind: { path: "$billing", preserveNullAndEmptyArrays: true },
+          $unwind: { path: '$billing', preserveNullAndEmptyArrays: true },
         },
         {
           $project: {
             driverId: 1,
             isCompleted: 1,
             isCancelled: 1,
-            billing: { $ifNull: ["$billing", { totalAmount: 0 }] }
-          }
+            billing: { $ifNull: ['$billing', { totalAmount: 0 }] },
+          },
         },
         {
           $group: {
-            _id: "$driverId",
-            todayCompleted: { $sum: { $cond: ["$isCompleted", 1, 0] } },
-            todayCancelled: { $sum: { $cond: ["$isCancelled", 1, 0] } },
-            totalAmount: { $sum: "$billing.totalAmount" },
+            _id: '$driverId',
+            todayCompleted: { $sum: { $cond: ['$isCompleted', 1, 0] } },
+            todayCancelled: { $sum: { $cond: ['$isCancelled', 1, 0] } },
+            totalAmount: { $sum: '$billing.totalAmount' },
             totalAssigned: {
               $sum: {
-                $cond: [
-                  { $and: [{ $eq: ["$isCompleted", false] }, { $eq: ["$isCancelled", false] }] },
-                  1,
-                  0,
-                ],
+                $cond: [{ $and: [{ $eq: ['$isCompleted', false] }, { $eq: ['$isCancelled', false] }] }, 1, 0],
               },
             },
           },
         },
         {
           $project: {
-            driverId: "$_id",
+            driverId: '$_id',
             todayCompleted: 1,
             todayCancelled: 1,
             totalAmount: 1,
             totalAssigned: 1,
             _id: 0,
-          }
-        }
-      ]
+          },
+        },
+      ],
     });
   } catch (error) {
     console.error('Error in DriverDailyReport:', error);
@@ -472,8 +484,7 @@ const driverNotAcceptedTrips = async () => {
 
     if (requests.length > 0) {
       for (const request of requests) {
-        // const tripStartTime = new Date(request.tripStartTime).getTime();
-        const tripStartTime = request.isLater === false ? new Date(request.tripStartTime).getTime() : request.tripTime;
+        const tripStartTime = new Date(request.tripStartTime).getTime();
         const tenMinutesLater = tripStartTime + 10 * 60 * 1000;
 
         if (now > tenMinutesLater) {
@@ -485,29 +496,28 @@ const driverNotAcceptedTrips = async () => {
                 $set: {
                   cancelledAt: moment(),
                   isCancelled: true,
-                  cancelMethod: 'Automatic'
-                }
-              }
+                  cancelMethod: 'Automatic',
+                },
+              },
             );
-
 
             // Notify the user
             await sendPushNotification(request.userId.toString(), {
-              title: "Trip Cancelled",
-              message: "Driver not accepted the trip, so the trip was cancelled",
+              title: 'Trip Cancelled',
+              message: 'Driver not accepted the trip, so the trip was cancelled',
             });
 
-            let userTopic = mqttConfig.USER_REQUEST + "" + request.userId.toString();
+            const userTopic = `${mqttConfig.USER_REQUEST}${request.userId.toString()}`;
             const responseData = await getRequestListData(request._id);
 
-            // Publish MQTT message 
+            // Publish MQTT message
             await MqttService.publishMessage(
               userTopic,
               JSON.stringify({
-                title: "Trip Cancelled",
-                message: "Driver not accepted the trip, so the trip was cancelled",
+                title: 'Trip Cancelled',
+                message: 'Driver not accepted the trip, so the trip was cancelled',
                 trip: responseData[0],
-              })
+              }),
             );
           } catch (updateError) {
             console.error(`Error updating request ${request._id}:`, updateError);
@@ -527,8 +537,7 @@ const driverNotAcceptedTrips = async () => {
 const driverNotArrivedTrips = async () => {
   const now = Date.now();
 
-  try
-  {
+  try {
     const requests = await Request.find({
       isDriverStarted: true,
       isDriverArrived: false,
@@ -537,20 +546,17 @@ const driverNotArrivedTrips = async () => {
 
     if (requests.length > 0) {
       for (const request of requests) {
-        // const tripStartTime = new Date(request.tripStartTime).getTime();
-        const tripStartTime = request.isLater === false ? new Date(request.tripStartTime).getTime() : request.tripTime;
+        const tripStartTime = new Date(request.tripStartTime).getTime();
         const threeHoursLater = tripStartTime + 3 * 60 * 60 * 1000;
 
-        if(now >= threeHoursLater)
-        {
+        if (now >= threeHoursLater) {
           request.cancelledAt = moment();
           request.isCancelled = true;
           request.cancelMethod = 'Automatic';
           await request.save();
 
-          const driverLocation = await DriverLocation.findOne({driverId: new ObjectId(request.driverId)});
-          if(driverLocation)
-          {
+          const driverLocation = await DriverLocation.findOne({ driverId: new ObjectId(request.driverId) });
+          if (driverLocation) {
             driverLocation.isAvailable = true;
             await driverLocation.save();
           }
@@ -559,31 +565,31 @@ const driverNotArrivedTrips = async () => {
 
           // Notify the driver
           await sendPushNotification(request.driverId.toString(), {
-            title: "Trip Cancelled",
-            message: "Driver not arrived,so the trip cancelled",
+            title: 'Trip Cancelled',
+            message: 'Driver not arrived,so the trip cancelled',
           });
 
-          let driverTopic = mqttConfig.DRIVER_REQUEST+""+request.driverId.toString();
+          const driverTopic = `${mqttConfig.DRIVER_REQUEST}${request.driverId.toString()}`;
 
+          // let driverTopic = "driver/request/" + request.driverId.toString();
 
           // Publish MQTT message
           await MqttService.publishMessage(
             driverTopic,
             JSON.stringify({
-              title: "Trip Cancelled",
-              message: "Driver not arrived,so the trip cancelled",
+              title: 'Trip Cancelled',
+              message: 'Driver not arrived,so the trip cancelled',
               trip: responseData[0],
-            })
+            }),
           );
 
           // Notify the user
           await sendPushNotification(request.userId.toString(), {
-            title: "Trip Cancelled",
-            message: "Driver not arrived,so the trip cancelled",
+            title: 'Trip Cancelled',
+            message: 'Driver not arrived,so the trip cancelled',
           });
 
-          let userTopic = mqttConfig.USER_REQUEST+""+request.userId.toString();
-
+          const userTopic = `${mqttConfig.USER_REQUEST}${request.userId.toString()}`;
 
           // let userTopic = "user/request/" + request.userId.toString();
 
@@ -591,90 +597,38 @@ const driverNotArrivedTrips = async () => {
           await MqttService.publishMessage(
             userTopic,
             JSON.stringify({
-              title: "Trip Cancelled",
-              message: "Driver not arrived,so the trip cancelled",
+              title: 'Trip Cancelled',
+              message: 'Driver not arrived,so the trip cancelled',
               trip: responseData[0],
-            })
+            }),
           );
         }
       }
-    }
-    else {
+    } else {
       console.log('No requests to process:driver not arrived.');
     }
-  }
-  catch (error) {
+  } catch (error) {
     console.error('Error processing requests:', error);
   }
 };
 
-const removeNotAcceptedTrips = async () => {
-  const now = Date.now();
-
-  try
-  {
-    const requests = await Request.find({
-      isDriverStarted: false,
-      isDriverArrived: false,
-      isCancelled: true,
-      driverId: null
-    });
-
-    if (requests.length > 0) {
-      for (const request of requests) {
-        try {
-          const requestPlace = await RequestPlace.findOne({ requestId: new ObjectId(request._id) });
-    
-          
-          // Skip if requestPlace is null
-          if (!requestPlace) {
-            continue;
-          }
-    
-          await NoDriverTrips.create({
-            userId: request.userId,
-            pickUp: requestPlace.pickAddress ? requestPlace.pickAddress : "",
-            drop: requestPlace.dropAddress ? requestPlace.dropAddress : "",
-            dateTime: moment(),
-            tripType: request.tripType
-          });
-    
-          await Request.deleteOne({ _id: request._id }); // Fixed from request.id to request._id
-        } catch (error) {
-          console.error(`Error processing request ${request._id}:`, error);
-          // Continue with next request even if this one fails
-        }
-      }
-    } else {
-      console.log('No requests to process: cancelled trip remove.');
-    }
-  }
-  catch (error) {
-    console.error('Error processing requests:', error);
-  }
-};
 
 const changeDriverAvailability = async () => {
-  try
-  {
+  try {
     const nowInMicroseconds = Date.now() * 1000;
-    const thirtyMinutesAgo = nowInMicroseconds - (30 * 60 * 1000 * 1000);
+    const thirtyMinutesAgo = nowInMicroseconds - 30 * 60 * 1000 * 1000;
 
-    const driver = await DriverLocation.find({ lastUpdated: { $lt: thirtyMinutesAgo },isAvailable: true});
+    const driver = await DriverLocation.find({ lastUpdated: { $lt: thirtyMinutesAgo }, isAvailable: true });
 
-    if(driver.length > 0)
-    {
-        await DriverLocation.updateMany(
-        { _id: { $in: driver.map(record => record._id) } },
-        { $set: { isAvailable: false } }
+    if (driver.length > 0) {
+      await DriverLocation.updateMany(
+        { _id: { $in: driver.map((record) => record._id) } },
+        { $set: { isAvailable: false } },
       );
-    }
-    else
-    {
+    } else {
       console.log('no driver available');
     }
-  }
-  catch (error) {
+  } catch (error) {
     console.error('Error getting drivers:', error);
   }
 };

@@ -16,4 +16,5 @@ export type UsersType = {
   country: string
   language: string
   active: boolean
+  employeeId?: string
 }

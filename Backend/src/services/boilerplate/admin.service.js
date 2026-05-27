@@ -1,6 +1,7 @@
-const httpStatus = require('http-status');
-const { Users,Role,Country,Language,Zone } = require('../../models');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
+const { Users, Role, Country, Language, Zone } = require('../../models');
 const ApiError = require('../../utils/ApiError');
+const { ObjectId } = require('mongoose').Types;
 
 /**
  * Create a admin
@@ -54,16 +55,14 @@ const getAdminByEmail = async (email) => {
   return Users.findOne({ email });
 };
 
-
 /**
  * Post admin by RoleId
  * @param {ObjectId} roleIds
  * @returns {Promise<Users>}
  */
 const getAdminByRoleId = async (roleIds) => {
-  return Users.find({ 'roleIds': { $in: roleIds } });
+  return Users.find({ roleIds: { $in: roleIds } });
 };
-
 
 /**
  * Update admin by id
@@ -95,34 +94,107 @@ const deleteAdminById = async (adminId) => {
     throw new ApiError(httpStatus.NOT_FOUND, 'Admin not found');
   }
   await user.deleteOne();
-  return {msg:"data Deleted Successfully" };
+  return { msg: 'data Deleted Successfully' };
 };
 
 /**
  * Get roles
-  * @param {ObjectId} clientId
+ * @param {ObjectId} clientId
  * @returns {Promise<Role>}
  */
-const getDropDowns = async (clientId) => {
 
-  const roleData = await Role.find({ clientId: clientId });
+const getDropDowns = async (clientId, zoneId, req, isSuperAdmin) => {
+  const filterLanguageIds = [];
+  const filterCountryIds = [];
+  const filterZoneIds = [];
 
-  const countryData = await Country.find({ clientId: clientId, status: true });
+  const roleData = await Role.find({ clientId });
 
-  const languageData = await Language.find({status: true, clientId: clientId});
+  const countryData = await Country.find({
+    clientId,
+    status: true,
+    ...(filterCountryIds.length > 0 && { _id: { $in: filterCountryIds } }),
+  });
 
-  const primaryZoneData = await Zone.find({status: true,clientId: clientId,zoneLevel:'PRIMARY'}).select('id zoneName');
+  const languageData = await Language.find({
+    clientId,
+    status: true,
+    ...(filterLanguageIds.length > 0 && { _id: { $in: filterLanguageIds } }),
+  }).sort({createdAt:1});
+
+  if (isSuperAdmin) {
+    primaryZoneData = await Zone.find({
+      clientId: new ObjectId(clientId),
+      zoneLevel: 'PRIMARY',
+      ...(filterZoneIds.length > 0 && { _id: { $in: filterZoneIds.map((id) => new ObjectId(id)) } }),
+    }).select('id zoneName');
+  } else {
+    primaryZoneData = await Zone.find({
+      clientId: new ObjectId(clientId),
+      zoneLevel: 'PRIMARY',
+      ...(zoneId ? { _id: new ObjectId(zoneId) } : {}),
+      ...(filterZoneIds.length > 0 && { _id: { $in: filterZoneIds.map((id) => new ObjectId(id)) } }),
+    }).select('id zoneName');
+  }
 
   const data = {
     role: roleData,
     country: countryData,
     language: languageData,
-    primaryZone: primaryZoneData
-  }
+    primaryZone: primaryZoneData,
+  };
 
   return data;
 };
 
+
+const getAllAdminsOnly = async (zoneId, AdminUserId) => {
+  return Users.aggregate([
+    {
+      $lookup: {
+        from: 'roles',
+        localField: 'roleIds',
+        foreignField: '_id',
+        as: 'roles',
+      },
+    },
+    { $unwind: '$roles' },
+    {
+      $match: {
+        $or: [
+          { 'roles.role': { $in: ['Client'] } },
+          { 'roles.role': { $in: ['Admin'] }, zoneId: new ObjectId(zoneId) },
+        ],
+      },
+    },
+    {
+      $project: {
+        _id: 1,
+        fullName: {
+          $concat: [
+            {
+              $cond: {
+                if: {
+                  $and: [
+                    { $in: ['$roles.role', ['Client']] },
+                    { $eq: ['$_id', new ObjectId(AdminUserId)] },
+                  ],
+                },
+                then: '[me] ',
+                else: '',
+              },
+            },
+            '$firstName',
+            ' ',
+            '$lastName',
+          ],
+        },
+        email: 1,
+        phoneNumber: 1,
+      },
+    },
+  ]);
+};
 module.exports = {
   createAdmin,
   getAllAdmin,
@@ -132,5 +204,6 @@ module.exports = {
   getAdminByEmail,
   updateAdminById,
   deleteAdminById,
-  getDropDowns
+  getDropDowns,
+  getAllAdminsOnly,
 };

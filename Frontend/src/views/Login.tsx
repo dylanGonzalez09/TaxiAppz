@@ -1,11 +1,14 @@
 'use client'
 
 // React Imports
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
 // Next Imports
+
 import Link from 'next/link'
-import { useParams, useRouter, useSearchParams } from 'next/navigation'
+
+import { useParams, useRouter } from 'next/navigation'
+
 
 // MUI Imports
 import useMediaQuery from '@mui/material/useMediaQuery'
@@ -21,6 +24,8 @@ import FormControlLabel from '@mui/material/FormControlLabel'
 
 import { toast } from 'react-toastify';
 
+
+
 // Third-party Imports
 import { signIn } from 'next-auth/react'
 import { Controller, useForm } from 'react-hook-form'
@@ -29,6 +34,8 @@ import { email, object, minLength, string, pipe, nonEmpty } from 'valibot'
 import type { SubmitHandler } from 'react-hook-form'
 import type { InferInput } from 'valibot'
 import classnames from 'classnames'
+
+import { usePrivilegeStore } from '@/store/privilegeStore';
 
 // Type Imports
 import type { SystemMode } from '@core/types'
@@ -50,6 +57,7 @@ import { getLocalizedUrl } from '@/utils/i18n'
 import { fetchUserByEmail } from '@/app/api/apps/taxi/user'
 
 import { getByLanguageId } from '@/app/api/apps/taxi/language'
+import { primaryZoneMenuList } from '@/app/api/apps/taxi/zone'  // make sure you import your zones API here
 
 // Styled Custom Components
 const LoginIllustration = styled('img')(({ theme }) => ({
@@ -93,10 +101,15 @@ const schema = object({
 const Login = ({ mode }: { mode: SystemMode }) => {
   // States
   const [isPasswordShown, setIsPasswordShown] = useState(false)
+
   const [errorState, setErrorState] = useState<ErrorType | null>(null)
+
   const [loading, setLoading] = useState(false) // Track loading state
 
+  const submitLockRef = useRef(false)
+
   // Vars
+
   const darkImg = '/images/pages/auth-mask-dark.png'
   const lightImg = '/images/pages/auth-mask-light.png'
   const darkIllustration ='/images/illustrations/characters/7.png'
@@ -106,12 +119,16 @@ const Login = ({ mode }: { mode: SystemMode }) => {
 
   // Hooks
   const router = useRouter()
-  const searchParams = useSearchParams()
+
+  // const searchParams = useSearchParams()
+
   const { lang: locale } = useParams()
   const { settings } = useSettings()
   const theme = useTheme()
   const hidden = useMediaQuery(theme.breakpoints.down('md'))
   const authBackground = useImageVariant(mode, lightImg, darkImg)
+
+  const fetchPrivilege = usePrivilegeStore((s) => s.fetchPrivilege);
 
   const {
     control,
@@ -139,95 +156,113 @@ const Login = ({ mode }: { mode: SystemMode }) => {
 
   const handleClickShowPassword = () => setIsPasswordShown(show => !show)
 
-  const onSubmit: SubmitHandler<FormData> = async (data: FormData) => {
-    setLoading(true) // Set loading to true when login starts
-  
+
+const onSubmit: SubmitHandler<FormData> = async (data: FormData) => {
+  if (submitLockRef.current) return
+  submitLockRef.current = true
+  setLoading(true)
+  let shouldUnlock = true
+
+  try {
     const res = await signIn('credentials', {
       email: data.email,
       password: data.password,
       redirect: false
     })
-  
-    const body = {
-      email: data.email
-    }
 
-
-    console
-      .log('res', res);
-  
     if (res && res.ok && !res.error) {
-      const data = await fetchUserByEmail(body)
-  
+      const userData = await fetchUserByEmail({ email: data.email })
+
+      if (!userData) throw new Error('Login succeeded, but failed to load user profile.')
+
+      try {
+        await fetchPrivilege()
+      }
+
+      catch (err) {
+        console.error('Privilege fetch failed:', err)
+      }
+
+
+      localStorage.setItem('isDemoUser', userData?.roles === 'Demo' ? 'true' : 'false')
+      if (userData?.roles) localStorage.setItem('userRole', userData.roles)
       let language = 'en'
-  
 
-        if (data?.roles === 'Demo') {
-          localStorage.setItem('isDemoUser', 'true'); 
-        } else {
-          localStorage.setItem('isDemoUser', 'false'); 
+      if (userData?.language) {
+        const languageData = await getByLanguageId(userData.language)
+
+        if (languageData?.code) language = languageData.code
+      }
+
+
+      const zones = await primaryZoneMenuList()
+      const defaultZoneId = Array.isArray(zones) && zones.length > 0 ? zones[0]?._id || '' : ''
+
+      if (!defaultZoneId) {
+        throw new Error('No zones available for this account. Please create/assign a zone and try again.')
+      }
+
+      localStorage.setItem('defaultZoneId', defaultZoneId)
+
+      // const redirectURL = searchParams.get('redirectTo') ?? '/'
+
+      const finalRedirect = `/${language}/${defaultZoneId}/dashboards/client`
+
+      shouldUnlock = false
+
+      router.replace(getLocalizedUrl(finalRedirect, language))
+
+      return
+    }
+
+    let errorMessage = 'Login failed. Please try again.'
+
+    if (res?.error) {
+
+      try {
+        const errStr = typeof res.error === 'string' ? res.error : String(res.error)
+        const trimmed = errStr.trim()
+
+        if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']')))
+          {
+          const parsedError = JSON.parse(trimmed)
+
+          errorMessage = Array.isArray(parsedError?.message) ? parsedError.message[0] : parsedError?.message || parsedError?.error || errStr
         }
 
-
-      if (data != null) {
-        const languageData = await getByLanguageId(data?.language)
-
-        language = languageData.code
-      }
-  
-      if (data?.roles === 'Company') {
-        router.replace(getLocalizedUrl('/apps/taxi/driver/list', language));
-        
-return;
-      }
-
-      if (data?.roles === 'Corporate companies') {
-        router.replace(getLocalizedUrl('/apps/taxi/user/list', language));
-        
-return;
-      }
-
-
-      
-      // Vars
-      
-      const redirectURL = searchParams.get('redirectTo') ?? '/'
-  
-      router.replace(getLocalizedUrl(redirectURL, language))
-    } else {
-      if (res?.error) {
-        setLoading(false) 
-        let errorMessage = ''
-        
-        try {
-
-          
-          const parsedError = JSON.parse(res.error) // assuming it's a JSON string
-      
-          if (parsedError?.message) {
-            errorMessage = Array.isArray(parsedError.message)
-              ? parsedError.message[0] // Grab the first error message
-              : parsedError.message
-         
-            } 
-          else {
-            errorMessage = 'An unexpected error occurred.' // Default error message
-          }
-          
-          if (errorMessage.includes('AxiosError')) {
-            errorMessage = errorMessage.split('AxiosError')[0].trim()
-          }
-  
-          toast.error(errorMessage);
-          setErrorState({ message: [errorMessage] })
-        } catch (err) {
-          console.error('Error parsing the error message:', err)
-          setErrorState({ message: ['An unexpected error occurred. Please try again.'] })
+        else {
+          errorMessage = errStr
         }
       }
+
+      catch {
+        errorMessage = 'An unexpected error occurred. Please try again.'
+      }
     }
+
+    toast.error(errorMessage)
+    setErrorState({ message: [errorMessage] })
+  }
+
+  catch (err: any)
+   {
+    const msg = err?.message || 'An unexpected error occurred. Please try again.'
+
+    toast.error(msg)
+
+    setErrorState({ message: [msg] })
+
+  }
+
+   finally {
+    if (shouldUnlock) {
+      setLoading(false)
+      submitLockRef.current = false
     }
-  
+  }
+}
+
+
   return (
     <div className='flex bs-full justify-center'>
       <div
@@ -343,3 +378,4 @@ return;
 }
 
 export default Login
+

@@ -1,14 +1,13 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const ApiError = require('../../../utils/ApiError');
 const { Sos } = require('../../../models');
-const ObjectId = require('mongoose').Types.ObjectId
+const { ObjectId } = require('mongoose').Types;
 
 /**
   from the mobile side they need to send Client Id and Code (Version code)
-  1. Check the Version Available or not if not redirect to update screen 
-  2. check the avaliable languages for client send the avaliable languages 
+  1. Check the Version Available or not if not redirect to update screen
+  2. check the avaliable languages for client send the avaliable languages
  */
-
 
 /**
  * Create a wallet
@@ -16,7 +15,7 @@ const ObjectId = require('mongoose').Types.ObjectId
  * @returns {Promise<Sos>}
  */
 const createSos = async (req) => {
-    return Sos.create(req.body);
+  return Sos.create(req.body);
 };
 
 /**
@@ -30,21 +29,17 @@ const createSos = async (req) => {
  * @returns {Promise<QueryResult>}
  */
 const querySoss = async (filter, options, req) => {
-
-    const sos = await Sos.paginate(filter, options);
-    return sos;
-
+  const sos = await Sos.paginate(filter, options);
+  return sos;
 };
-
 
 /**
  * Get wallets
  * @returns {Promise<Sos>}
  */
 const getSoss = async (req) => {
-    return Sos.find();
+  return Sos.find();
 };
-
 
 /**
  * Get wallet by id
@@ -52,15 +47,13 @@ const getSoss = async (req) => {
  * @returns {Promise<Sos>}
  */
 const getSosById = async (id) => {
-    return Sos.findById(id);
+  return Sos.findById(id);
 };
 
 const querySos = async (filter, options) => {
-    const sos = await Sos.paginate(filter, options);
-    return sos;
+  const sos = await Sos.paginate(filter, options);
+  return sos;
 };
-
-
 
 /**
  * Update Sos by id
@@ -69,15 +62,14 @@ const querySos = async (filter, options) => {
  * @returns {Promise<Sos>}
  */
 const updateSosById = async (sosId, updateBody) => {
-    const sos = await getSosById(sosId);
-    if (!sos) {
-        throw new ApiError(httpStatus.NOT_FOUND, 'Sos not found');
-    }
-    Object.assign(sos, updateBody);
-    await sos.save();
-    return sos;
+  const sos = await getSosById(sosId);
+  if (!sos) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Sos not found');
+  }
+  Object.assign(sos, updateBody);
+  await sos.save();
+  return sos;
 };
-
 
 /**
  * Delete sos by id
@@ -85,20 +77,20 @@ const updateSosById = async (sosId, updateBody) => {
  * @returns {Object}
  */
 const deleteSosById = async (sosId) => {
-    const sos = await getSosById(sosId);
-    if (!sos) {
-        throw new ApiError(httpStatus.NOT_FOUND, 'Sos not found');
-    }
-    await sos.deleteOne();
-    return { status: "success", msg: "Sos deleted successfully" };
+  const sos = await getSosById(sosId);
+  if (!sos) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Sos not found');
+  }
+  await sos.deleteOne();
+  return { status: 'success', msg: 'Sos deleted successfully' };
 };
 
 module.exports = {
-    createSos,
-    querySoss,
-    getSosById,
-    getSoss,
-    querySos,
-    updateSosById,
-    deleteSosById,
+  createSos,
+  querySoss,
+  getSosById,
+  getSoss,
+  querySos,
+  updateSosById,
+  deleteSosById,
 };

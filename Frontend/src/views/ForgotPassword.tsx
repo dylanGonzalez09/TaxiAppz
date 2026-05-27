@@ -90,7 +90,6 @@ const ForgotPassword = ({ mode }: { mode: SystemMode }) => {
         email: email,
       });
 
-
       if (response.status) {
         setSnackbar({ open: true, message: 'Reset link sent successfully!', severity: 'success' })
       } else {

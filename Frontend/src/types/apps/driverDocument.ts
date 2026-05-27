@@ -10,6 +10,9 @@ export interface DriverDocumentType {
   clientId: string; // ID of the client associated with the document
   categoryName: string; // Name of the category (e.g., "AadharCard")
   documentImage: string; // URL of the document image
+  driverVehicleId? :any;
+  isUploaded?: any;
+  driverDocumentId? :any;
   expriyReason: string; // Reason for expiry or if not uploaded
   expiryStatus?: boolean; // Status of expiry (true if expired)
   documentStatus: string; // Status of the document (e.g., "APPROVED", "DENIED")

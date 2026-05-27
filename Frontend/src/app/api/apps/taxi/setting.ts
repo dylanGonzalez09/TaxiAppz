@@ -12,7 +12,13 @@ export const fetchSettings = async () => {
       return []
     }
   } catch (error) {
-    console.error('Error fetching setting:', error)
+    // On unauth pages (e.g. login), clientId may be unavailable.
+    // In that case, silently fallback to defaults instead of noisy logs.
+    const message = error instanceof Error ? error.message : String(error)
+
+    if (!message.includes('ClientID not found')) {
+      console.error('Error fetching setting:', error)
+    }
 
     return []
   }
@@ -112,6 +118,22 @@ export const getDefaultLanguage = async () => {
       return response.data
     } else {
       return []
+    }
+  } catch (error) {
+    console.error('Error fetching setting:', error)
+
+    return []
+  }
+}
+
+export const getmoduleSetting = async () => {
+  try {
+    const response = await get(ENDPOINTS.setting.getmoduleSettings)
+
+    if (response.success) {
+      return response.data
+    } else {
+      return {}
     }
   } catch (error) {
     console.error('Error fetching setting:', error)

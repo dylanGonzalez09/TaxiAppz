@@ -5,31 +5,30 @@ const walletTransactionSchema = mongoose.Schema(
   {
     amount: {
       type: Number,
-      default: false,
-      set: val => Math.round(val * 100) / 100
+      default: 0,
     },
     purpose: {
       type: String,
       default: null,
     },
     requestId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref:'Request',
-        required: false,
-      },
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Request',
+      required: false,
+    },
     type: {
-        type: String,
-        enum: ['Earned', 'Spent'],
-        required: true,
-      },
+      type: String,
+      enum: ['Earned', 'Spent'],
+      required: true,
+    },
     walletId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref:'Wallet',
-        required: true,
-      },
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Wallet',
+      required: true,
+    },
     userId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref:'User',
+      ref: 'User',
       required: true,
     },
     clientId: {
@@ -39,12 +38,15 @@ const walletTransactionSchema = mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // Add plugin that converts mongoose to json
 walletTransactionSchema.plugin(toJSON);
 walletTransactionSchema.plugin(paginate);
+
+walletTransactionSchema.index({ userId: 1, createdAt: -1 }, { background: true });
+walletTransactionSchema.index({ requestId: 1 }, { background: true });
 
 /**
  * @typedef WalletTransaction

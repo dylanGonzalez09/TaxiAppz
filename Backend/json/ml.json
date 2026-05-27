@@ -1,0 +1,8 @@
+{
+  "navigation": {
+    "Confirmpasswordwasnotmatched": "പാസ്‌വേഡ് അല്ലായിരുന്നെന്ന് സ്ഥിരീകരിക്കുക",
+    "passwordChangedSuccessfully": "passwordChangedSuccessfully",
+    "newAddressRequired": "newAddressRequired",
+    "ReferralPhoneNumber": "PhoneNumber"
+  }
+}

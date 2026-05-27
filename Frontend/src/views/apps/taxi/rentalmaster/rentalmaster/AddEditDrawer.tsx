@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable import/no-unresolved */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import type { ChangeEvent} from 'react';
@@ -30,7 +29,7 @@ import { toast } from 'react-toastify';
 
 import { getSession } from 'next-auth/react';
 
-import { useIsDemoUser } from '@/utils/demoUser' 
+import { useIsDemoUser } from '@/utils/demoUser'
 
 
 import CustomTextField from '@core/components/mui/TextField';
@@ -115,7 +114,7 @@ const AddRentalDialog: React.FC<AddRentalDialogProps> = ({
       hour: 0,
       km: '',
       countryId: '',
-      zoneId: '',
+      zoneId: zoneId,
       vehiclePrices: vehicles.map(() => ({
         price: '',
         graceTime:'',
@@ -136,7 +135,7 @@ const AddRentalDialog: React.FC<AddRentalDialogProps> = ({
           price: priceData.price,
           graceTime: priceData.graceTime,
           extraKmPrice: priceData.extraKmPrice,
-        })), 
+        })),
       });
       setCurrency(editData.currency);
     } else {
@@ -153,17 +152,16 @@ const AddRentalDialog: React.FC<AddRentalDialogProps> = ({
       });
       setCurrency(null);
     }
-  }, [editData, vehicles, reset]);
-  
+  }, [editData, vehicles, reset , zoneId]);
+
   const getClientId = async () => {
 
 
     const session = await getSession();
 
     const clientId = session?.user?.image?.clientId; // Access clientId
-    const companyId = session?.user?.image?.companyId; // Access companyId
 
-    return { clientId, companyId };
+    return { clientId };
   };
 
   useEffect(() => {
@@ -184,31 +182,33 @@ const AddRentalDialog: React.FC<AddRentalDialogProps> = ({
         if (zoneId) {
           const filteredZone = data.data.zone.filter((zone:any) => zone._id === zoneId);
 
+
           if (filteredZone.length > 0) {
             setZones(filteredZone);
             setValue('zoneId', filteredZone[0]._id);
             setZoneUnit(filteredZone[0].unit || 'KM');
-            
-            const matchingCountry = data.data.country.find((country:any) => 
-              country.id === filteredZone[0].country
-            );
+
+            const matchingCountry = data.data.country.find((country:any) =>
+  country._id === filteredZone[0].country
+);
+
 
             if (matchingCountry) {
               setCountries([matchingCountry]);
-              setValue('countryId', matchingCountry.id);
+              setValue('countryId', matchingCountry._id);
               setCurrency(matchingCountry.currency_symbol);
             }
           }
         } else {
           setZones(data.data.zone);
           setCountries(data.data.country);
-          
+
           // Set default country and currency for new records
           if (data.data.country.length > 0) {
             const defaultCountry = data.data.country[0];
 
             setCountries([defaultCountry]);
-            setValue('countryId', defaultCountry.id, { shouldValidate: true }); // Add shouldValidate
+            setValue('countryId', defaultCountry._id, { shouldValidate: true }); // Add shouldValidate
             setCurrency(defaultCountry.currency_symbol);
           }
         }
@@ -221,7 +221,7 @@ const AddRentalDialog: React.FC<AddRentalDialogProps> = ({
     if (open) {
       fetchData();
     }
-  }, [zoneId, setValue, open]);
+  }, [zoneId, setValue, open,dictionary]);
 
   // Reset form with default values when dialog opens
   useEffect(() => {
@@ -229,7 +229,7 @@ const AddRentalDialog: React.FC<AddRentalDialogProps> = ({
       reset({
         hour: 0,
         km: '',
-        countryId: countries[0]?.id || '',
+        countryId: countries[0]?._id || '',
         zoneId: '',
         vehiclePrices: vehicles.map(() => ({
           price: '',
@@ -241,13 +241,13 @@ const AddRentalDialog: React.FC<AddRentalDialogProps> = ({
   }, [open, editData, countries, vehicles, reset]);
 
   const hourValue = watch("hour", documentCount);
- 
+
   useEffect(() => {
     const fetchCount = async () => {
       try {
         const response = await fetchDocumentCount();
 
-    
+
         if (response?.count !== undefined) {  // ✅ Extract count properly
           // setDocumentCount(response.count + 1);
           // setValue("hour", response.count + 1);
@@ -256,7 +256,7 @@ const AddRentalDialog: React.FC<AddRentalDialogProps> = ({
         console.error("Error fetching document count:", error);
       }
     };
-    
+
     fetchCount();
   }, [setValue]);
 
@@ -281,19 +281,19 @@ const AddRentalDialog: React.FC<AddRentalDialogProps> = ({
     }
 
     setCurrency(null);
-    
+
     // Close dialog
     handleClose();
   };
 
   const handleCountryChange = (countryId: string) => {
-    const selectedCountry = countries.find(c => c.id === countryId);
+    const selectedCountry = countries.find(c => c._id === countryId);
 
     if (selectedCountry) {
       setCurrency(selectedCountry.currency_symbol);
     }
   };
-  
+
   const handlePageChangeForAddRecord = (count: number, rowsPerPage: number, onPageChange: (event: ChangeEvent<unknown>, page: number) => void) => {
     const newPage = Math.floor(count / rowsPerPage);
 
@@ -319,7 +319,7 @@ const AddRentalDialog: React.FC<AddRentalDialogProps> = ({
   try {
     const vehiclePrices = Array.isArray(data.vehiclePrices)
       ? data.vehiclePrices.map((priceData: any, index: number) => ({
-          vehicleId: vehicles[index]?.id,
+          vehicleId: vehicles[index]?._id,
           price: parseFloat(priceData.price) || 0,
           graceTime: parseFloat(priceData.graceTime) || 0,
           extraKmPrice: parseFloat(priceData.extraKmPrice) || 0,
@@ -334,53 +334,43 @@ const AddRentalDialog: React.FC<AddRentalDialogProps> = ({
       vehiclePrices,
     };
 
+const response = editData
+  ? await updateRental(editData._id, newItem)
+  : await createRental(newItem);
 
-    const response = editData
-      ? await updateRental(editData._id, newItem)
-      : await createRental(newItem);
+if (!response?.success) {
+  toast.error(response?.message || "Failed to save rental");
 
+return;
+}
 
+const updatedRentalData = editData
+  ? rentalData.map(item => (item._id === editData._id ? response.data : item))
+  : [response.data, ...rentalData];
 
-      
-      // if (!response.success) {
-      //   toast.error(response.message)
-      //   return
-      // }
+setData(updatedRentalData);
 
-    if (response) {
-      const updatedRentalData = editData
-        ? rentalData.map(item => (item.id === editData.id ? response : item))
-        : [response, ...rentalData];
+handlePageChangeForAddRecord(count, rowsPerPage, onPageChange);
 
-      setData(updatedRentalData);
-      handlePageChangeForAddRecord(count, rowsPerPage, onPageChange);
+toast.success(
+  editData
+    ? dictionary['navigation'].Rentalupdatedsuccessfully
+    : dictionary['navigation'].Rentalcreatedsuccessfully
+);
 
-      toast.success(
-        editData
-          ? dictionary['navigation'].Rentalupdatedsuccessfully
-          : dictionary['navigation'].Rentalcreatedsuccessfully
-      );
-
-      reset();
-      handleDrawerClose();
-    }
+reset();
+handleDrawerClose();
   } catch (error: any) {
-    console.error('Error submitting rental:', error?.response?.data || error.message);
+  console.error('Error submitting rental:', error?.response?.data || error.message);
 
-    const backendMessage: string = error?.response?.data?.message;
+  const backendMessage: string = error?.response?.data?.message;
 
-    if (backendMessage?.includes('already exists')) {
-      const zoneObj = zones.find(z => z._id === data.zoneId);
-      
-      const zoneName = zoneObj?.zoneName || 'this zone';
-      
-      toast.error(
-        `Rental already exists for zone km and  hour(s).`
-      );
-    } else {
-      toast.error(backendMessage || 'Error saving rental. Please try again.');
-    }
-  } finally {
+  if (backendMessage?.toLowerCase().includes('already exist')) {
+    toast.error(backendMessage); // show backend message
+  } else {
+    toast.error(backendMessage || 'Error saving rental. Please try again.');
+  }
+}finally {
     setLoading(false);
   }
 };
@@ -416,7 +406,7 @@ const AddRentalDialog: React.FC<AddRentalDialogProps> = ({
 
     const unit = (zoneUnit as ZoneUnit) in messages ? (zoneUnit as ZoneUnit) : 'KM';
 
-    
+
 return messages[unit][type];
   };
 
@@ -438,7 +428,7 @@ return messages[unit][type];
       <form onSubmit={handleSubmit(handleFormSubmit)}>
         <DialogContent>
           <Grid container spacing={4}>
-        
+
           <Grid item xs={6}>
             <Controller
               name="hour"
@@ -463,12 +453,14 @@ return messages[unit][type];
             <Controller
               name="km"
               control={control}
-              rules={{ required: getUnitSpecificMessage('error') }}
+              rules={{ required: getUnitSpecificMessage('error'),
+               }}
               render={({ field }) => (
                 <CustomTextField
                   {...field}
                   fullWidth
                   label={`${getUnitSpecificMessage('label')} *`}
+                  type='number'
                   placeholder={`Enter ${getUnitSpecificMessage('label').toLowerCase()}`}
                   error={!!errors.km}
                   helperText={errors.km?.message}
@@ -476,7 +468,7 @@ return messages[unit][type];
               )}
             />
           </Grid>
-        
+
 
               <Grid item xs={6}>
             <Controller
@@ -491,13 +483,13 @@ return messages[unit][type];
                   error={!!errors.countryId}
                    helperText={errors.countryId?.message}
                    disabled
-                   value={countries.length === 1 ? countries[0].name : 
-                          countries.find(country => country.id === field.value)?.name || ''}
+                   value={countries.length === 1 ? countries[0].name :
+                          countries.find(country => country._id === field.value)?.name || ''}
                 />
               )}
             />
           </Grid>
-
+{/*
                <Grid item xs={6}>
             <Controller
               name="zoneId"
@@ -515,7 +507,7 @@ return messages[unit][type];
                 />
               )}
             />
-          </Grid>
+          </Grid> */}
 
 
             <Grid item xs={12}>
@@ -579,27 +571,51 @@ return messages[unit][type];
                           />
                         </TableCell>
                         <TableCell>
-                          <Controller
-                            name={`vehiclePrices.${index}.extraKmPrice`}
-                            control={control}
-                            rules={{ required: dictionary['navigation'].ExtraKMPriceisrequired }}
-                            render={({ field }) => (
-                              <CustomTextField
-                                {...field}
-                                fullWidth
-                                placeholder={`Enter ${getUnitSpecificMessage('extraPrice')}`}
-                                error={!!errors.vehiclePrices?.[index]?.extraKmPrice}
-                                helperText={errors.vehiclePrices?.[index]?.extraKmPrice?.message}
-                                InputProps={{
-                                  startAdornment: (
-                                    <InputAdornment position="start">
-                                      {selectedCurrency || ''}
-                                    </InputAdornment>
-                                  )
-                                }}
-                              />
-                            )}
-                          />
+                         <Controller
+  name={`vehiclePrices.${index}.extraKmPrice`}
+  control={control}
+  rules={{
+    required: dictionary['navigation'].ExtraKMPriceisrequired,
+    pattern: {
+      value: /^[0-9]+$/,
+      message: 'Only numbers are allowed'
+    }
+  }}
+  render={({ field }) => (
+    <CustomTextField
+      {...field}
+      fullWidth
+      placeholder={`Enter ${getUnitSpecificMessage('extraPrice')}`}
+      error={!!errors.vehiclePrices?.[index]?.extraKmPrice}
+      helperText={errors.vehiclePrices?.[index]?.extraKmPrice?.message}
+
+      onChange={(e) => {
+        const value = e.target.value.replace(/[^0-9]/g, ''); // remove non-numbers
+
+        field.onChange(value);
+      }}
+
+      inputProps={{
+        inputMode: 'numeric',
+        pattern: '[0-9]*'
+      }}
+
+      onKeyDown={(e) => {
+        if (['e', 'E', '+', '-', '.'].includes(e.key)) {
+          e.preventDefault();
+        }
+      }}
+
+      InputProps={{
+        startAdornment: (
+          <InputAdornment position="start">
+            {selectedCurrency || ''}
+          </InputAdornment>
+        )
+      }}
+    />
+  )}
+/>
                         </TableCell>
                       </TableRow>
                     ))}

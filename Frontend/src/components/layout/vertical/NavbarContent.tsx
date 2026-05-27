@@ -10,12 +10,12 @@ import LanguageDropdown from '@components/layout/shared/LanguageDropdown'
 import ModeDropdown from '@components/layout/shared/ModeDropdown'
 import NotificationsDropdown from '@components/layout/shared/NotificationsDropdown'
 import UserDropdown from '@components/layout/shared/UserDropdown'
-import SupademoButton from '@components/layout/shared/SupademoButton'
+import ZoneDropdown from '../shared/ZoneDropdown'
 
 // Util Imports
 import { verticalLayoutClasses } from '@layouts/utils/layoutClasses'
 import { fetchExpiryDocument } from '@/app/api/apps/taxi/driverDocument'
-import { fetchPromoExpiry } from '@/app/api/apps/taxi/promoCode'
+import { primaryZoneMenuList } from '@/app/api/apps/taxi/zone'
 
 // Vars
 // const shortcuts: ShortcutsType[] = [
@@ -106,60 +106,21 @@ import { fetchPromoExpiry } from '@/app/api/apps/taxi/promoCode'
 // ]
 
 const NavbarContent = async () => {
-const notificationPromo = await fetchPromoExpiry();
- 
-
-const notifications = notificationPromo.results.map((doc: {
-  promoCode: string;
-  id: string;
-  toDate: string; 
-}) => {
-  const toDate = new Date(doc.toDate);
-  const now = new Date();
-  const isExpired = toDate < now;
-
-  
-return {
-    title: `Promo Code ${isExpired ? 'Expired' : 'Active'}`,
-    subtitle: `Promo Code: ${doc.promoCode}`,
-    time: toDate.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    }) + ' ' + toDate.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit'
-    }),
-    read: !isExpired
-  };
-});
-
-  // const notificationData = await fetchExpiryDocument("", 1, 10);
 
 
-  // const notifications = notificationData.results.map((doc: { expiryDate: string | number | Date; documentId: any }) => {
+  const zoneData = await primaryZoneMenuList();
 
-  //   const isExpired = new Date(doc.expiryDate) < new Date();
-
-  //   return {
-  //     title: `Document ${isExpired ? 'Expired' : 'Active'}`,
-  //     subtitle: `Document ID: ${doc.documentId}`,
-  //     time: new Date(doc.expiryDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) + ' ' +
-  //       new Date(doc.expiryDate).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-  //     read: !isExpired
-  //   };
-  // });
 
   return (
     <div className={classnames(verticalLayoutClasses.navbarContent, 'flex items-center justify-between gap-4 is-full')}>
       <div className='flex items-center gap-4'>
         <NavToggle />
-        <SupademoButton />
       </div>
       <div className='flex items-center'>
+       <ZoneDropdown zoneData={zoneData} />
         <LanguageDropdown />
         <ModeDropdown />
-                <NotificationsDropdown notifications={notifications} />
+                <NotificationsDropdown />
 
         <UserDropdown />
       </div>

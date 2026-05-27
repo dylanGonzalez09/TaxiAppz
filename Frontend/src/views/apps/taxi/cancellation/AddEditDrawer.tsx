@@ -1,86 +1,77 @@
 /* eslint-disable import/no-unresolved */
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import type { ChangeEvent } from 'react';
-import React, { useEffect, useState } from 'react';
+import type { ChangeEvent } from 'react'
+import React, { useEffect, useState } from 'react'
 
-import {
-  IconButton,
-  Divider,
-  Button,
-  Drawer,
-  Typography,
-  Grid,
-  MenuItem,
-} from '@mui/material';
+import { IconButton, Divider, Button, Drawer, Typography, Grid, MenuItem } from '@mui/material'
 
-import CircularProgress from '@mui/material/CircularProgress';
+import CircularProgress from '@mui/material/CircularProgress'
 
-import { useForm, Controller } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form'
 
-import { toast } from 'react-toastify';
-import { getSession } from 'next-auth/react';  // For client-side
+import { toast } from 'react-toastify'
+import { getSession } from 'next-auth/react'
 
-import { ENDPOINTS } from '@apis/endpoint';
+import { getDropDownList } from '@apis/user'
 
-import CustomTextField from '@core/components/mui/TextField';
+import CustomTextField from '@core/components/mui/TextField'
 
-// Import your API functions for creating and updating cancellations
-
-import { createCancellation, updateCancellation } from '@apis/cancellationReason';
-import { useIsDemoUser } from '@/utils/demoUser'
+import { createCancellation, updateCancellation } from '@apis/cancellationReason'
 
 interface CancellationDataType {
-  id: string;
-  reason: string;
-  userType: string;
-  tripStatus: string;
-  payStatus: string;
-  status: boolean;
-  language:string
+  id: string
+  reason: string
+  userType: string
+  tripStatus: string
+  payStatus: string
+  status: boolean
+  language: string
+  zoneId: string
+  amount:number
 }
+
 interface AddCancellationDrawerProps {
-  open: boolean;
-  handleClose: () => void;
-  cancellationData: any;
-  editData?: any;
-  dictionary?: any;
-  setData: (data: CancellationDataType[]) => void;
-  count: number;
-  page: number;
+  open: boolean
+  handleClose: () => void
+  cancellationData: any
+  editData?: CancellationDataType | null
+  dictionary?: any
+  setData: (data: CancellationDataType[]) => void
+  count: number
+  page: number
+  setTotalResults: React.Dispatch<React.SetStateAction<number>>
   onPageChange: (event: React.ChangeEvent<unknown>, newPage: number) => void
-  rowsPerPage: number;
-  langId:string
+  rowsPerPage: number
+  langId: string
+  clientId: string
+  zoneId: string,
 }
 
 interface FormValues {
-  userType: string;
-  reason: string;
-  tripStatus: string;
-  payStatus: string;
-  status: boolean;
-  zoneId: string;
-  amount?: string;
-    language: string;
-
+  userType: string
+  reason: string
+  tripStatus: string
+  payStatus: string
+  status: boolean
+  amount?: number
+  language:string
 }
 
-// Static options for selects
 const REASON_TYPES = [
   { id: '1', name: 'User' },
   { id: '2', name: 'Driver' },
-  { id: '3', name: 'Both' },
-];
+  { id: '3', name: 'Both' }
+]
 
 const TRIP_STATUSES = [
-  // { id: '1', name: 'Before Accept' },
   { id: '1', name: 'Before Arrive' },
-  { id: '2', name: 'After Arrived' },
-];
+  { id: '2', name: 'After Arrived' }
+]
 
 const PAY_STATUSES = [
   { id: 'Free', name: 'Free' },
-  { id: 'Pay', name: 'Pay' },
-];
+  { id: 'Pay', name: 'Pay' }
+]
 
 const AddCancellationDrawer: React.FC<AddCancellationDrawerProps> = ({
   open,
@@ -91,204 +82,156 @@ const AddCancellationDrawer: React.FC<AddCancellationDrawerProps> = ({
   dictionary,
   count,
   page,
+  setTotalResults,
   onPageChange,
   rowsPerPage,
-  langId
+  langId,
+  clientId,
+  zoneId,
 }) => {
-  const [loading, setLoading] = useState(false);
-  const { checkDemoStatus } = useIsDemoUser();
-  const [zones, setZones] = useState<any[]>([]); // State for storing zones
-  const [showAmount, setShowAmount] = useState(false);
-  const [currencySymbol, setCurrencySymbol] = useState('');
+  const [loading, setLoading] = useState(false)
+  const [showAmount, setShowAmount] = useState(false)
 
-  const getClientId = async () => {
-
-
-    const session = await getSession();
-
-    const clientId = session?.user?.image?.clientId; // Access clientId
-    const companyId = session?.user?.image?.companyId; // Access companyId
-
-    return { clientId, companyId };
-  };
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-
-        const DataKey = getClientId();
-
-        const clientId = (await DataKey).clientId;
-
-        if (clientId === undefined) {
-
-          throw new Error("ClientId is undefined");
-
-        }
-
-        const dropDownData = await fetch(ENDPOINTS.zone.dropDownList(clientId));
-
-        const data = await dropDownData.json();
-
-        setZones(data.data.zone);
-
-      } catch (error) {
-        toast.error('Failed to fetch data');
-      }
-    };
-
-    const timer = setTimeout(() => {
-      fetchData();
-    }, 4000);
-
-    return () => clearTimeout(timer);
-  }, []);
-
-
-  const { handleSubmit, control, reset, setValue, formState: { errors } } = useForm<FormValues>({
+  const {
+    handleSubmit,
+    control,
+    reset,
+    setValue,
+    formState: { errors }
+  } = useForm<FormValues>({
     mode: 'all',
     defaultValues: {
-      userType: '',
+      userType: 'User',
       reason: '',
-      tripStatus: '',
-      payStatus: '',
-      amount: '',
-      zoneId: '',
+      tripStatus: TRIP_STATUSES[0].name,
+      payStatus: 'Free',
+      amount: 0,
       status: true,
-        language: ''
-    },
-  });
+      language:''
+    }
+  })
+
+  useEffect(() => {
+      if (!open) {
+        reset({
+      userType: 'User',
+      reason: '',
+      tripStatus: TRIP_STATUSES[0].name,
+      payStatus: 'Free',
+      amount: 0,
+      status: true,
+      language:langId
+    })
+        setShowAmount(false)
+      }
+    }, [open, reset])
 
   useEffect(() => {
     if (editData) {
-      setValue('userType', editData.userType);
-      setValue('reason', editData.reason);
-      setValue('tripStatus', editData.tripStatus);
-      setValue('payStatus', editData.payStatus);
-      setValue('zoneId', editData.zoneId);
-      setValue('amount', editData.amount ?? '');
-            setValue('language', editData.language);
-
-      setShowAmount(editData.payStatus === 'Pay');
-
-    } else {
-      if(langId)
-      {
+      setValue('userType', editData.userType)
+      setValue('reason', editData.reason)
+      setValue('tripStatus', editData.tripStatus)
+      setValue('payStatus', editData.payStatus)
+      setValue('amount', editData.amount ?? 0)
+      setValue('language', editData.language)
+      setShowAmount(editData.payStatus === 'Pay')
+    }else {
+      if (langId) {
         reset({
-          reason: '',
           userType: 'User',
-          payStatus: '',
-          language: langId,
-        });
+          reason: '',
+          tripStatus: '',
+          payStatus:'Free',
+          amount:0,
+          language: langId
+        })
       }
-      
-      // reset();
-   
     }
-
-  }, [editData, langId,setValue, reset]);
+  }, [editData, langId, setValue,reset])
 
   const handleFormSubmit = async (data: FormValues) => {
-    setLoading(true);
+    setLoading(true)
 
     try {
-      let response;
+      let response
 
-      const payload = {
+      const NewData = {
         ...data,
-        status: editData ? editData.status : true,
-      };
+        language:langId,
+        zoneId,
+        amount: data.payStatus === 'Pay' ? data.amount : 0
+      }
 
       if (editData) {
-        response = await updateCancellation(editData.id, payload);
+        response = await updateCancellation(editData.id, NewData)
       } else {
-        response = await createCancellation(payload);
-
+        response = await createCancellation(NewData)
       }
 
       const newItem = {
         id: response.id,
-        userType: payload.userType,
-        reason: payload.reason,
-        tripStatus: payload.tripStatus,
-        payStatus: payload.payStatus,
-        zoneId: payload.zoneId,
-        amount: payload.amount,
-        status: payload.status,
-      };
+        ...NewData,
+        status: editData ? editData.status : true
+      }
 
+      // Update Local State
       const updatedCancellationData = editData
-        ? cancellationData.map((item: { id: string }) => (item.id === newItem.id ? newItem : item))
-        : [newItem, ...cancellationData];
+        ? cancellationData.map((item: CancellationDataType) => (item.id === newItem.id ? newItem : item))
+        : [newItem, ...cancellationData]
 
-      setData(updatedCancellationData);
+      setData(updatedCancellationData)
 
-      handlePageChangeForAddRecord(count, rowsPerPage, onPageChange);
+      if (!editData) {
+        // 1. Update Total Count
+        setTotalResults((prev: number) => prev + 1)
+      
+        onPageChange({} as ChangeEvent<unknown>, 1)
+      }
 
+      toast.success(
+        editData
+          ? dictionary['navigation'].Cancellationupdatedsuccessfully
+          : dictionary['navigation'].Cancellationcreatedsuccessfully
+      )
 
-      // if (rowsPerPage != cancellationData.length) {
-      //   const updatedCancellationData = editData
-      //     ? cancellationData.map((item: { id: string }) => (item.id === newItem.id ? newItem : item))
-      //     : [...cancellationData, newItem];
-
-      //   setData(updatedCancellationData);
-      // } else {
-      //   handlePageChangeForAddRecord(count, rowsPerPage, onPageChange);
-
-      // }
-      //
-
-      toast.success(editData ? dictionary['navigation'].Cancellationupdatedsuccessfully : dictionary['navigation'].Cancellationcreatedsuccessfully);
-      reset();
-      handleClose();
+      reset({
+        payStatus:'Free'
+      })
+      handleClose()
     } catch (error) {
-      toast.error(dictionary['navigation'].ErrorsavingcancellationPleasetryagain);
+      toast.error(dictionary['navigation'].ErrorsavingcancellationPleasetryagain)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
-  // Helper function to handle page change logic
-  const handlePageChangeForAddRecord = (count: number, rowsPerPage: number, onPageChange: (event: ChangeEvent<unknown>, page: number) => void) => {
-    const newPage = Math.floor(count / rowsPerPage);
-
-    // Create a dummy event object
-    const dummyEvent = {
-      target: {
-        value: newPage,
-      },
-      currentTarget: {
-        value: newPage,
-      },
-      nativeEvent: {} as Event,
-      bubbles: false,
-    } as unknown as ChangeEvent<unknown>;
-
-    // Trigger onPageChange with the new page
-    onPageChange(dummyEvent, 1);
-  };
-
-  const isSubmitDisabled = checkDemoStatus() || loading;
+  const isSubmitDisabled = loading
 
   return (
     <Drawer
       open={open}
       anchor='right'
       onClose={() => {
-        handleClose();
-        reset();
+        handleClose()
+        reset({
+        payStatus:'Free'
+      })
       }}
       variant='temporary'
       ModalProps={{ keepMounted: true }}
       sx={{ '& .MuiDrawer-paper': { width: { xs: 300, sm: 400 }, padding: 2 } }}
     >
       <div className='flex items-center justify-between mb-4'>
-        <Typography variant='h5'>{editData ? dictionary['navigation'].EditCancellation : dictionary['navigation'].AddCancellation}</Typography>
+        <Typography variant='h5'>
+          {editData ? dictionary['navigation'].EditCancellation : dictionary['navigation'].AddCancellation}
+        </Typography>
         <IconButton
           size='small'
           onClick={() => {
-            handleClose();
-            reset();
+            handleClose()
+            reset({
+        payStatus:'Free'
+      })
           }}
         >
           <i className='tabler-x text-textSecondary text-2xl' />
@@ -312,41 +255,9 @@ const AddCancellationDrawer: React.FC<AddCancellationDrawerProps> = ({
                     error={!!errors.userType}
                     helperText={errors.userType?.message}
                   >
-                    {REASON_TYPES.map((reason) => (
+                    {REASON_TYPES.map(reason => (
                       <MenuItem key={reason.id} value={reason.name}>
-                        {reason.name}
-                      </MenuItem>
-                    ))}
-                  </CustomTextField>
-                )}
-              />
-            </Grid>
-            <Grid item xs={12}>
-
-              <Controller
-                name="zoneId"
-                control={control}
-                rules={{ required: dictionary['navigation'].ZoneTypeisrequired }}
-                render={({ field }) => (
-                  <CustomTextField
-                    select
-                    fullWidth
-                    label={dictionary['navigation'].Zone}
-                    {...field}
-                    error={!!errors.zoneId}
-                    helperText={errors.zoneId?.message}
-                    onChange={(e) => {
-                      field.onChange(e);
-                      const selectedZone = zones.find((zone) => zone.id === e.target.value);
-
-                      const symbol = selectedZone?.currency_symbol;
-
-                      setCurrencySymbol(symbol);
-                    }}
-                  >
-                    {zones.map((zone) => (
-                      <MenuItem key={zone.id} value={zone.id}>
-                        {zone.zoneName}
+                        {dictionary['navigation'][reason.name]}
                       </MenuItem>
                     ))}
                   </CustomTextField>
@@ -371,6 +282,7 @@ const AddCancellationDrawer: React.FC<AddCancellationDrawerProps> = ({
                 )}
               />
             </Grid>
+
             <Grid item xs={12}>
               <Controller
                 name='tripStatus'
@@ -385,7 +297,7 @@ const AddCancellationDrawer: React.FC<AddCancellationDrawerProps> = ({
                     error={!!errors.tripStatus}
                     helperText={errors.tripStatus?.message}
                   >
-                    {TRIP_STATUSES.map((status) => (
+                    {TRIP_STATUSES.map(status => (
                       <MenuItem key={status.id} value={status.name}>
                         {status.name}
                       </MenuItem>
@@ -394,6 +306,7 @@ const AddCancellationDrawer: React.FC<AddCancellationDrawerProps> = ({
                 )}
               />
             </Grid>
+
             <Grid item xs={12}>
               <Controller
                 name='payStatus'
@@ -407,81 +320,78 @@ const AddCancellationDrawer: React.FC<AddCancellationDrawerProps> = ({
                     label={dictionary['navigation'].PayStatus}
                     error={!!errors.payStatus}
                     helperText={errors.payStatus?.message}
-                    onChange={(e) => {
-                      field.onChange(e);
-                      const value = e.target.value;
+                    onChange={e => {
+                      field.onChange(e)
+                      const value = e.target.value
 
-                      setShowAmount(value === 'Pay'); // Show amount only when Pay selected
+                      setShowAmount(value === 'Pay') // Show amount only when Pay selected
 
                       if (value !== 'Pay') {
-                        setValue('amount', undefined); // Clear amount if not Pay
+                        setValue('amount', undefined) // Clear amount if not Pay
                       }
                     }}
                   >
-                    {PAY_STATUSES.map((status) => (
+                    {PAY_STATUSES.map(status => (
                       <MenuItem key={status.id} value={status.id}>
-                        {status.name}
+                       {dictionary['navigation'][status.name]||status.name}
                       </MenuItem>
                     ))}
                   </CustomTextField>
                 )}
               />
             </Grid>
+
             {showAmount && (
               <Grid item xs={12}>
                 <Controller
-                  name="amount"
+                  name='amount'
                   control={control}
                   rules={{
                     required: dictionary['navigation'].AmountisrequiredwhenpaystatusisPay,
                     pattern: {
                       value: /^[0-9]*$/,
-                      message: dictionary['navigation'].AmountMustBeANumber,
-                    },
-                    validate: (value) => {
-                      if (typeof value === 'string' && value.length > 4) {
-                        return dictionary['navigation'].AmountCannotExceed4Digits;
-                      }
-
-
-                      return true; // Validation passed
-                    },
+                      message: dictionary['navigation'].AmountMustBeANumber
+                    }
                   }}
                   render={({ field }) => (
                     <CustomTextField
                       {...field}
                       fullWidth
-                      label={`${dictionary['navigation'].Amount} ${currencySymbol ? `(${currencySymbol})` : ''}`}
+                      label={dictionary['navigation'].Amount}
                       error={!!errors.amount}
                       helperText={errors.amount?.message}
-
                     />
                   )}
                 />
               </Grid>
-
-
             )}
-
           </Grid>
 
-          <div className='flex justify-end mt-4'>
+          <div className='flex justify-end mt-4 gap-5'>
             <Button
               type='submit'
               variant='contained'
               color='primary'
               disabled={isSubmitDisabled}
-              endIcon={loading && <CircularProgress size={20} color="inherit" />}
+              endIcon={loading && <CircularProgress size={20} color='inherit' />}
             >
-              {editData ? (loading ? dictionary['navigation'].Updating : dictionary['navigation'].Update) : (loading ? dictionary['navigation'].Creating : dictionary['navigation'].Create)}
+              {editData
+                ? loading
+                  ? dictionary['navigation'].Updating
+                  : dictionary['navigation'].Update
+                : loading
+                  ? dictionary['navigation'].Creating
+                  : dictionary['navigation'].Create}
             </Button>
             <Button
               onClick={() => {
-                handleClose();
-                reset();
+                handleClose()
+                reset({
+        payStatus:'Free'
+      })
               }}
               variant='outlined'
-              color='secondary'
+              color='error'
               style={{ marginLeft: '10px' }}
             >
               {dictionary['navigation'].Cancel}
@@ -490,7 +400,7 @@ const AddCancellationDrawer: React.FC<AddCancellationDrawerProps> = ({
         </form>
       </div>
     </Drawer>
-  );
-};
+  )
+}
 
-export default AddCancellationDrawer;
+export default AddCancellationDrawer

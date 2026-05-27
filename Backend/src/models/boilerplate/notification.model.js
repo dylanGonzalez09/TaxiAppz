@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
-const { toJSON, paginate } = require('./../plugins');
 const { required } = require('joi');
+const { toJSON, paginate } = require('../plugins');
 
 const notificationSchema = mongoose.Schema(
   {
@@ -10,21 +10,21 @@ const notificationSchema = mongoose.Schema(
       default: null,
     },
     zoneIds: {
-      type: [String], 
+      type: [String],
       default: null,
     },
     userIds: {
-      type: [String], 
-      required:false,
+      type: [String],
+      required: false,
       default: null,
     },
     userId: {
-      type: String, 
-      required:false,
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
       default: null,
     },
     driverIds: {
-      type: [String], 
+      type: [String],
       default: null,
     },
     subTitle: {
@@ -53,7 +53,7 @@ const notificationSchema = mongoose.Schema(
     },
     notificationType: {
       type: String,
-      enum: ['GENERAL', 'TRIP'],
+      enum: ['GENERAL', 'TRIP', 'EMAIL'],
       default: 'GENERAL',
     },
     sourceType: {
@@ -62,7 +62,7 @@ const notificationSchema = mongoose.Schema(
       default: 'Mobile',
     },
     createdBy: {
-      type: mongoose.SchemaTypes.ObjectId,
+      type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       default: null,
     },
@@ -70,15 +70,10 @@ const notificationSchema = mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Client',
     },
-    companyId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref:'Company',
-      default: null,
-    },
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // Plugins for schema (toJSON, paginate, etc.)

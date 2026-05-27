@@ -12,7 +12,7 @@ export const fetchClient = async () => {
       return []
     }
   } catch (error) {
-    console.error('Error fetching client:', error)
+    
 
     return []
   }
@@ -102,7 +102,7 @@ export const updateClientStatus = async (id: string, client: any) => {
       return null;
     }
   } catch (error) {
-    console.error('Error updating role:', error);
+    ;
 
     return null;
   }

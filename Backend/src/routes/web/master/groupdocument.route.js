@@ -6,14 +6,41 @@ const groupDocumentController = require('../../../controllers/web/master/groupdo
 
 const router = express.Router();
 
-router.route('/create').post(auth('GroupDocument'),validate(groupDocumentValidation.createGroupDocument), groupDocumentController.createGroupDocument);
+router
+  .route('/create')
+  .post(
+    auth('GroupDocument'),
+    validate(groupDocumentValidation.createGroupDocument),
+    groupDocumentController.createGroupDocument,
+  );
 router.route('/getGroupDocumentsWithPagination').get(auth('GroupDocument'), groupDocumentController.getGroupDocuments);
-router.route('/getGroupDocuments/:groupDocumentId').get(auth('GroupDocument'),validate(groupDocumentValidation.getGroupDocument), groupDocumentController.getGroupDocument);
-router.route('/getGroupDocument/list').get(auth('GroupDocument'),groupDocumentController.getGroupDocumentWithOutPagination);
-router.route('/updateGroupDocuments/:groupDocumentId').patch(auth('GroupDocument'),validate(groupDocumentValidation.updateGroupDocument), groupDocumentController.updateGroupDocument);
-router.route('/deleteGroupDocuments/:groupDocumentId').delete(auth('GroupDocument'),validate(groupDocumentValidation.deleteGroupDocument), groupDocumentController.deleteGroupDocument);
-router.patch('/updateGroupDocumentStatus/:groupDocumentId', auth('GroupDocument'), validate(groupDocumentValidation.updateGroupDocumentStatus), groupDocumentController.updateGrouoDocumentStatus);
-
+router
+  .route('/getActiveGroupDocumentsWithPagination')
+  .get(auth('GroupDocument'), groupDocumentController.getActiveGroupDocuments);
+router
+  .route('/getGroupDocuments/:groupDocumentId')
+  .get(auth('GroupDocument'), validate(groupDocumentValidation.getGroupDocument), groupDocumentController.getGroupDocument);
+router.route('/getGroupDocument/list').get(auth('GroupDocument'), groupDocumentController.getGroupDocumentWithOutPagination);
+router
+  .route('/updateGroupDocuments/:groupDocumentId')
+  .patch(
+    auth('GroupDocument'),
+    validate(groupDocumentValidation.updateGroupDocument),
+    groupDocumentController.updateGroupDocument,
+  );
+router
+  .route('/deleteGroupDocuments/:groupDocumentId')
+  .delete(
+    auth('GroupDocument'),
+    validate(groupDocumentValidation.deleteGroupDocument),
+    groupDocumentController.deleteGroupDocument,
+  );
+router.patch(
+  '/updateGroupDocumentStatus/:groupDocumentId',
+  auth('GroupDocument'),
+  validate(groupDocumentValidation.updateGroupDocumentStatus),
+  groupDocumentController.updateGrouoDocumentStatus,
+);
 
 module.exports = router;
 
@@ -375,4 +402,3 @@ module.exports = router;
  *       "404":
  *         description: Not Found, group document with specified ID does not exist
  */
-

@@ -8,18 +8,45 @@ const { vehicleUpload } = require('../../../middlewares/upload');
 const router = express.Router();
 
 // Routes with authentication and validation
-router.post('/create', auth('Vehicle'), validate(vehicleValidation.createVehicle), vehicleUpload.fields([{ name: 'image', maxCount: 1 }, { name: 'highlightImage', maxCount: 1 }]), vehicleController.createVehicle);
+router.post(
+  '/create',
+  auth('Vehicle'),
+  validate(vehicleValidation.createVehicle),
+  vehicleUpload.fields([
+    { name: 'image', maxCount: 1 },
+    { name: 'highlightImage', maxCount: 1 },
+  ]),
+  vehicleController.createVehicle,
+);
 router.get('/getVehiclesWithPagination', auth('Vehicle'), vehicleController.getVehicles);
+router.get('/getActiveVehiclesWithPagination', auth('Vehicle'), vehicleController.getActiveVehicles);
 router.get('/getVehicles/:vehicleId', auth('Vehicle'), validate(vehicleValidation.getVehicle), vehicleController.getVehicle);
 router.get('/getVehicle/list', auth('Vehicle'), vehicleController.getVehiclesWithoutPagination);
-router.patch('/updateVehicles/:vehicleId', auth('Vehicle'), validate(vehicleValidation.updateVehicle), vehicleUpload.fields([{ name: 'image', maxCount: 1 }, { name: 'highlightImage', maxCount: 1 }]), vehicleController.updateVehicle);
-router.delete('/deleteVehicles/:vehicleId', auth('Vehicle'), validate(vehicleValidation.deleteVehicle), vehicleController.deleteVehicle);
-router.patch('/updateVehicleStatus/:vehicleId', auth('Vehicle'), validate(vehicleValidation.updateVehicleStatus), vehicleController.updateVehicleStatus);
+router.patch(
+  '/updateVehicles/:vehicleId',
+  auth('Vehicle'),
+  validate(vehicleValidation.updateVehicle),
+  vehicleUpload.fields([
+    { name: 'image', maxCount: 1 },
+    { name: 'highlightImage', maxCount: 1 },
+  ]),
+  vehicleController.updateVehicle,
+);
+router.delete(
+  '/deleteVehicles/:vehicleId',
+  auth('Vehicle'),
+  validate(vehicleValidation.deleteVehicle),
+  vehicleController.deleteVehicle,
+);
+router.patch(
+  '/updateVehicleStatus/:vehicleId',
+  auth('Vehicle'),
+  validate(vehicleValidation.updateVehicleStatus),
+  vehicleController.updateVehicleStatus,
+);
 router.route('/getDropDown/list/:clientId').get(vehicleController.getDropDownList);
 
 module.exports = router;
-
-
 
 /**
  * @swagger

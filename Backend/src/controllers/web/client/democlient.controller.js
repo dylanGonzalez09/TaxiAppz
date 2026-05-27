@@ -1,4 +1,4 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const pick = require('../../../utils/pick');
 const ApiError = require('../../../utils/ApiError');
 const { handleMongoError } = require('../../../utils/errorHandler');
@@ -23,6 +23,7 @@ const createClient = catchAsync(async (req, res, next) => {
       language: req.body.languageId || '',
       isDemo: true,
       demo_key: req.body.demoKey || '',
+      zoneId: req.headers.zoneid || '',
     };
 
     if (!req.headers.clientid) {
@@ -30,14 +31,6 @@ const createClient = catchAsync(async (req, res, next) => {
     } else {
       userData.clientId = req.headers.clientid;
     }
-    if (req.body.demoKey) {
-      const existingDemo = await demoClientService.getClientByDemoKey(req.body.demoKey);
-
-      if (existingDemo) {
-        throw new ApiError(httpStatus.BAD_REQUEST, 'Demo key already exists');
-      }
-    }
-
     const user = await userService.createUser(userData);
 
     const clientData = {
@@ -54,7 +47,7 @@ const createClient = catchAsync(async (req, res, next) => {
     };
     const client = await demoClientService.createClient(clientData);
 
-    let createData = client.toObject ? client.toObject() : { ...client };
+    const createData = client.toObject ? client.toObject() : { ...client };
 
     // Now update the fields properly
     createData.firstName = req.body.firstName || '';
@@ -176,15 +169,12 @@ const updateActiveStatus = catchAsync(async (req, res) => {
   if (typeof status !== 'boolean') {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Active status must be a boolean');
   }
-  // Update the company's status by ID
   const client = await demoClientService.updateClientById(clientId, { status });
 
-  // Check if the company was found and updated
   if (!client) {
     throw new ApiError(httpStatus.NOT_FOUND, 'client not found');
   }
 
-  // Update the user's active status based on the company's userId
   const user = await userService.updateUserById(client.userId, { active: status });
 
   // Create a response indicating success and return it to the client

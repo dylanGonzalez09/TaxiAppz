@@ -2,14 +2,14 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 
-import {
-  createColumnHelper,
-  flexRender,
-  useReactTable,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getSortedRowModel,
-  getPaginationRowModel
+import { 
+  createColumnHelper, 
+  flexRender, 
+  useReactTable, 
+  getCoreRowModel, 
+  getFilteredRowModel, 
+  getSortedRowModel, 
+  getPaginationRowModel 
 } from '@tanstack/react-table';
 
 import type { ColumnDef } from '@tanstack/react-table';
@@ -106,7 +106,7 @@ const TripReportsTable = ({ dictionary,data }: { dictionary: any, data:TripRepor
       ],
     },
   ], [dictionary]);
-
+  
 
   const table = useReactTable({
     data,
@@ -119,6 +119,9 @@ const TripReportsTable = ({ dictionary,data }: { dictionary: any, data:TripRepor
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     initialState: { pagination: { pageSize: 25 } },
+    filterFns: {
+      fuzzy: () => true,
+    }
   });
 
   return (

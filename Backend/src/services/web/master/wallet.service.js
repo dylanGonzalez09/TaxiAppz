@@ -1,4 +1,4 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const ApiError = require('../../../utils/ApiError');
 const { Wallet, WalletTransaction } = require('../../../models');
 
@@ -10,7 +10,6 @@ const { Wallet, WalletTransaction } = require('../../../models');
 const createWallet = async (walletBody, options = {}) => {
   return Wallet.create([walletBody], options);
 };
-
 
 /**
  * Query for wallets
@@ -26,7 +25,6 @@ const queryWallets = async (filter, options) => {
   return wallets;
 };
 
-
 /**
  * Get wallets
  * @returns {Promise<Wallet>}
@@ -34,7 +32,6 @@ const queryWallets = async (filter, options) => {
 const getWallets = async () => {
   return Wallet.find();
 };
-
 
 /**
  * Get wallet by id
@@ -64,7 +61,6 @@ const getWalletByUserId = async (userId) => {
 
   return wallet;
 };
-
 
 /**
  * Update wallet by id
@@ -99,10 +95,8 @@ const deleteWalletById = async (walletId) => {
     throw new ApiError(httpStatus.NOT_FOUND, 'Wallet not found');
   }
   await wallet.deleteOne();
-  return { status: "success", msg: "data Deleted Successfully" };
+  return { status: 'success', msg: 'data Deleted Successfully' };
 };
-
-
 
 const getWalletTransactionsByUserId = async (userId) => {
   if (!userId) {
@@ -110,16 +104,17 @@ const getWalletTransactionsByUserId = async (userId) => {
   }
 
   // Find transactions by userId
-  const walletTransactions = await WalletTransaction.find({ userId });
+  const walletTransactions = await WalletTransaction.find({ userId,amount:{ $ne: 0 }});
 
   // Return an empty array if no transactions found
   if (!walletTransactions || walletTransactions.length === 0) {
     return [];
   }
 
+
   return walletTransactions;
 };
- 
+
 module.exports = {
   createWallet,
   queryWallets,
@@ -129,5 +124,4 @@ module.exports = {
   getWalletByUserId,
   updateWalletById,
   deleteWalletById,
- 
 };

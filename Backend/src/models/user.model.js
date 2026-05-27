@@ -2,7 +2,6 @@ const mongoose = require('mongoose');
 const validator = require('validator');
 const bcrypt = require('bcryptjs');
 const { toJSON, paginate } = require('./plugins');
-const { required } = require('joi');
 
 const userSchema = mongoose.Schema(
   {
@@ -30,7 +29,6 @@ const userSchema = mongoose.Schema(
     phoneNumber: {
       type: String,
       required: true,
-      unique: false
     },
     gender: {
       type: String,
@@ -55,9 +53,9 @@ const userSchema = mongoose.Schema(
       },
     ],
     country: {
-      type: String,
-      trim: true,
-      default: null,
+      type: mongoose.SchemaTypes.ObjectId,
+      ref: 'Country',
+      required: false,
     },
     deviceInfoHash: {
       type: String,
@@ -125,6 +123,7 @@ const userSchema = mongoose.Schema(
     referralCode: {
       type: String,
       trim: true,
+      default: null,
     },
     onlineBy: {
       type: Number,
@@ -138,7 +137,7 @@ const userSchema = mongoose.Schema(
     language: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'language',
-      required:false
+      required: false,
     },
     address: {
       type: String,
@@ -189,29 +188,39 @@ const userSchema = mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    regDate: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+    regTime: {
+      type: String,
+      trim: true,
+      default: null,
+    },
     clientId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Client',
     },
-    companyId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref:'Company',
-      default: null,
-    },
-    zoneId:{
+    zoneId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Zone',
-      default: null
-    }
+      default: null,
+    },
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // add plugin that converts mongoose to json
 userSchema.plugin(toJSON);
 userSchema.plugin(paginate);
+
+// Indexes for auth and lookups (findOne by phone, referrals). email index from schema (unique: true)
+userSchema.index({ phoneNumber: 1 }, { background: true });
+userSchema.index({ referralCode: 1 }, { sparse: true, background: true });
+userSchema.index({ roleIds: 1 }, { background: true });
 
 /**
  * Check if email is taken
@@ -235,7 +244,6 @@ userSchema.statics.isPhoneNoTaken = async function (phoneNumber, excludeUserId) 
   return !!user;
 };
 
-
 /**
  * Check if password matches the user's password
  * @param {string} password
@@ -246,12 +254,11 @@ userSchema.methods.isPasswordMatch = async function (password) {
   return bcrypt.compare(password, user.password);
 };
 
-userSchema.pre('save', async function (next) {
+userSchema.pre('save', async function () {
   const user = this;
   if (user.isModified('password')) {
     user.password = await bcrypt.hash(user.password, 8);
   }
-  next();
 });
 
 /**

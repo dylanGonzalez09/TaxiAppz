@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 'use client'
 
 import React, { useState, useMemo } from 'react'
@@ -116,7 +115,7 @@ const WalletTable = (dictionary: any) => {
         cell: ({ row }) => row.original.requestId,
       }),
     ],
-    []
+    [dictionary]
   )
 
   const table = useReactTable({
@@ -125,6 +124,9 @@ const WalletTable = (dictionary: any) => {
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    filterFns: {
+      fuzzy: () => true,
+    }
   })
 
   const handleAddAmount = (newAmount: number) => {
@@ -165,7 +167,7 @@ const WalletTable = (dictionary: any) => {
       <div className='mb-1'>
         <WalletDetails />
       </div>
-      <div className='overflow-x-auto'>
+      <div className='overflow-x-auto' id="table-container">
         <table className={tableStyles.table}>
           <thead>
             {table.getHeaderGroups().map(headerGroup => (

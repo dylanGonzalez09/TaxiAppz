@@ -7,14 +7,43 @@ const zoneSurgePriceController = require('../../../controllers/web/zone/zonesurg
 
 const router = express.Router();
 
-router.route('/create').post(auth('ZoneSurgePrice'), validate(zoneSurgePriceValidation.createZoneSurgePrice), zoneSurgePriceController.createZoneSurgePrice);
-router.route('/getZoneSurgePrices').get(auth('ZoneSurgePrice'), validate(zoneSurgePriceValidation.getZoneSurgePrices), zoneSurgePriceController.getZoneSurgePrices);
-router.route('/getZoneSurgePrice/:zoneSurgePriceId').get(auth('ZoneSurgePrice'), validate(zoneSurgePriceValidation.getZoneSurgePrice), zoneSurgePriceController.getZoneSurgePrice);
-router.route('/updateZoneSurgePrice/:zoneSurgePriceId').patch(auth('ZoneSurgePrice'), validate(zoneSurgePriceValidation.updateZoneSurgePrice), zoneSurgePriceController.updateZoneSurgePrice);
-router.route('/deleteZoneSurgePrice/:zoneSurgePriceId').delete(auth('ZoneSurgePrice'), validate(zoneSurgePriceValidation.deleteZoneSurgePrice), zoneSurgePriceController.deleteZoneSurgePrice);
+router
+  .route('/create')
+  .post(
+    auth('ZoneSurgePrice'),
+    validate(zoneSurgePriceValidation.createZoneSurgePrice),
+    zoneSurgePriceController.createZoneSurgePrice,
+  );
+router
+  .route('/getZoneSurgePrices')
+  .get(
+    auth('ZoneSurgePrice'),
+    validate(zoneSurgePriceValidation.getZoneSurgePrices),
+    zoneSurgePriceController.getZoneSurgePrices,
+  );
+router
+  .route('/getZoneSurgePrice/:zoneSurgePriceId')
+  .get(
+    auth('ZoneSurgePrice'),
+    validate(zoneSurgePriceValidation.getZoneSurgePrice),
+    zoneSurgePriceController.getZoneSurgePrice,
+  );
+router
+  .route('/updateZoneSurgePrice/:zoneSurgePriceId')
+  .patch(
+    auth('ZoneSurgePrice'),
+    validate(zoneSurgePriceValidation.updateZoneSurgePrice),
+    zoneSurgePriceController.updateZoneSurgePrice,
+  );
+router
+  .route('/deleteZoneSurgePrice/:zoneSurgePriceId')
+  .delete(
+    auth('ZoneSurgePrice'),
+    validate(zoneSurgePriceValidation.deleteZoneSurgePrice),
+    zoneSurgePriceController.deleteZoneSurgePrice,
+  );
 
 module.exports = router;
-
 
 /**
  * @swagger

@@ -2,7 +2,10 @@
 
 // React Imports
 import { useState } from 'react'
+
 import type { SyntheticEvent, ReactElement } from 'react'
+
+import {useRouter} from 'next/navigation'
 
 // MUI Imports
 import Grid from '@mui/material/Grid'
@@ -16,9 +19,11 @@ import CustomTabList from '@core/components/mui/TabList'
 const Requestmanagement = ({ tabContentList, dictionary }: { tabContentList: { [key: string]: ReactElement };dictionary: any }) => {
   // States
   const [activeTab, setActiveTab] = useState('completed')
+  const router = useRouter()
 
   const handleChange = (event: SyntheticEvent, value: string) => {
     setActiveTab(value)
+    router.push(`?tab=${value}`)
   }
 
   return (

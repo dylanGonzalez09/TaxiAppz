@@ -7,8 +7,9 @@ const promocodeController = require('../../../controllers/api/auth/promocode.con
 const router = express.Router();
 
 router.route('/list').get(auth('PromoCode'), promocodeController.getPromocodeWithOutPagination);
-router.route('/apply').post(auth('PromoCode'), validate(promoValidation.promovalidate), promocodeController.getPromocodeApply);
-
+router
+  .route('/apply')
+  .post(auth('PromoCode'), validate(promoValidation.promovalidate), promocodeController.getPromocodeApply);
 
 module.exports = router;
 
@@ -234,4 +235,3 @@ module.exports = router;
  *       404:
  *         description: SOS request not found
  */
-

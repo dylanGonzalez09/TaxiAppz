@@ -1,38 +1,38 @@
 const mongoose = require('mongoose');
-const { toJSON, paginate } = require('./../plugins');
+const { toJSON, paginate } = require('../plugins');
 
 const favouritePlaceSchema = mongoose.Schema(
-    {
-        userId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'User',
-            required: true,
-        },
-        type: {
-            type: String,
-            enum: ['HOME','WORK','OTHERS'],
-            default: 'ANDROID',
-        },
-        latitude: {
-            type: Number,
-            default: null,
-        },
-        longitude: {
-            type: Number,
-            default: null,
-        },
-        address: {
-            type: String,
-            required: true,
-        },
-        status: {
-            type: Boolean,
-            default: true
-        }
+  {
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
     },
-    {
-        timestamps: true,
-    }
+    type: {
+      type: String,
+      enum: ['HOME', 'WORK', 'OTHERS'],
+      default: 'ANDROID',
+    },
+    latitude: {
+      type: Number,
+      default: null,
+    },
+    longitude: {
+      type: Number,
+      default: null,
+    },
+    address: {
+      type: String,
+      required: true,
+    },
+    status: {
+      type: Boolean,
+      default: true,
+    },
+  },
+  {
+    timestamps: true,
+  },
 );
 
 favouritePlaceSchema.plugin(toJSON);

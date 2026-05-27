@@ -8,8 +8,12 @@ import { getSession } from 'next-auth/react';
 
 import CustomTextField from '@core/components/mui/TextField'; // Adjust based on your actual component path
 import DialogCloseButton from '@/components/dialogs/DialogCloseButton';
-import { ENDPOINTS } from '@/app/api/apps/taxi/endpoint';
+
+// import { ENDPOINTS } from '@/app/api/apps/taxi/endpoint';
+
 import { updateProfile } from '@/app/api/apps/taxi/user';
+
+import {dropDownListForAdmin } from '@apis/zone';
 
 
 
@@ -20,6 +24,7 @@ type Props = {
   profileData: any;
   dictionary: any;
   setData: (updatedProfileData: any) => void;
+  zoneId: any
 };
 
 type FormValues = {
@@ -34,7 +39,7 @@ type FormValues = {
   country: string;
 };
 
-const EditProfileDrawer = ({ open, handleClose, profileData, setData , dictionary }: Props) => {
+const EditProfileDrawer = ({ zoneId,open, handleClose, profileData, setData , dictionary }: Props) => {
   const { control, handleSubmit, reset } = useForm<FormValues>();
   const [loading, setLoading] = useState(false);
   const [languages, setLanguages] = useState<{ id: string, name: string }[]>([]);
@@ -55,18 +60,17 @@ const EditProfileDrawer = ({ open, handleClose, profileData, setData , dictionar
 
         if (!clientId) throw new Error("ClientId is undefined");
 
-        const dropDownData = await fetch(ENDPOINTS.user.dropDownList(clientId));
-        const data = await dropDownData.json();
+        const dropDownData = await dropDownListForAdmin(clientId,zoneId);
 
-        setLanguages(data.data.language);
-        setCountries(data.data.country);
+        setLanguages(dropDownData.data.language);
+        setCountries(dropDownData.data.country);
       } catch (error) {
         console.error('Error fetching data:', error);
       }
     };
 
     fetchData();
-  }, []);
+  }, [zoneId]);
 
   useEffect(() => {
     reset(profileData);

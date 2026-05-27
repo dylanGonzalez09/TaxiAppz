@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable import/no-unresolved */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
@@ -60,16 +59,15 @@ const fuzzyFilter = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value);
 
   addMeta({ itemRank });
-  
+
 return itemRank.passed;
 };
 
 // Column Definitions
 const columnHelper = createColumnHelper();
 
-const LastRequestTable = ({lastRequests,dictionary}) => {
+const LastRequestTable = ({lastRequests,dictionary,zoneId}) => {
   const [vehicleData, setVehicleData] = useState(lastRequests);
-
 
   const [rowSelection, setRowSelection] = useState({});
 
@@ -78,32 +76,50 @@ const LastRequestTable = ({lastRequests,dictionary}) => {
 
   const columns = useMemo(
     () => [
-    
+
       columnHelper.accessor("_id", {
-        header: dictionary['navigation'].Location,
-        cell: ({ row }) => (
+        header: dictionary['navigation'].requestNumber,
+        cell: ({ row }) => {
+          const Status = row.original.status
+
+          return (
           <div className="flex items-center gap-4">
             <CustomAvatar skin="light" color="secondary">
               <i className="tabler-car text-[28px]" />
             </CustomAvatar>
-            <Typography
-          component={Link}
-          href={getLocalizedUrl(`/apps/taxi/request/requestView/${row.original._id}`, locale)}
-          className="font-medium hover:text-primary"
-          color="text.primary"
+          <Typography
+            component={Link}
+            href={getLocalizedUrl(`${zoneId}/apps/taxi/request/requestView/${row.original._id}`, locale)}
+            className="font-medium"
+
+          // color="text.primary"
+
+          color={
+                Status === "completed"
+                  ? "#00c867"
+                  : Status === "Trip Started"
+                  ? "primary"
+                  : Status === "arrived"
+                  ? "warning"
+                  : Status === "cancelled"
+                  ? "error"
+                  : Status === "oil leakage"
+                  ? "info"
+                  : "default" // Default color if no match
+              }
         >
-              
+
               {row.original.requestNumber}
             </Typography>
           </div>
-        ),
+        )},
       }),
       columnHelper.accessor("pickupAddress", {
         header: dictionary['navigation'].StartingRoute,
          cell: ({ row }) => {
               const address = row.original.pickupAddress != 'N/A' ? row.original.pickupAddress : '';
               const truncatedAddress = address.length > 25 ? address.substring(0, 25) + '...' : address;
-          
+
               return (
                 <Tooltip title={address} arrow>
                   <Typography>{truncatedAddress}</Typography>
@@ -116,7 +132,7 @@ const LastRequestTable = ({lastRequests,dictionary}) => {
       cell: ({ row }) => {
              const address = row.original.dropAddress != 'N/A' ? row.original.dropAddress : '';
              const truncatedAddress = address.length > 25 ? address.substring(0, 25) + '...' : address;
-         
+
              return (
                <Tooltip title={address} arrow>
                  <Typography>{truncatedAddress}</Typography>
@@ -124,12 +140,13 @@ const LastRequestTable = ({lastRequests,dictionary}) => {
              );
            }
          }),
+
       columnHelper.accessor("status", {
         header: dictionary['navigation'].Status,
         cell: ({ row }) => {
           const status = row.original.status;
 
-          
+
 return (
             <Chip
               label={row.original.status}
@@ -151,10 +168,10 @@ return (
           );
         },
       }),
-      
-    
+
+
     ],
-    [locale]
+    [locale,dictionary,zoneId]
   );
 
   const table = useReactTable({
@@ -176,7 +193,7 @@ return (
   return (
     <Card>
       <CardHeader title={dictionary['navigation'].Last5Requests} />
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto" id="table-container">
         <table className={tableStyles.table}>
           <thead>
             {table.getHeaderGroups().map((headerGroup) => (

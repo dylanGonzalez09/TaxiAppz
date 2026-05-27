@@ -1,46 +1,13 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const ApiError = require('../../../utils/ApiError');
-const { DriverDocument, Document, Driver} = require('../../../models');
+const { DriverDocument, Document, Driver, User, Request } = require('../../../models');
 const ObjectId = require('mongoose').Types.ObjectId
 const pick = require('../../../utils/pick');
 const { tokenService } = require('../../../services');
-const { sendNotification } = require('../../../utils/commonFunction');
+const { sendNotification ,getClientId,getZoneId} = require('../../../utils/commonFunction');
 const mqttService = require('../../../services/mqtt/mqtt.service');
-const { mqttConfig } = require('../../../config/string');
-const moment = require('moment');
+const { mqttConfig } = require('../../../config/string')
 
-const getClientId = async (req) => {
-  clientId = '';
-  if (!req.headers.clientid) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
-  } else {
-    clientId = req.headers.clientid;
-  }
-  return clientId;
-}
-
-
-
-
-const getUserId = async (req) => {
-
-  let userId = '';
-
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    res.status(httpStatus.UNAUTHORIZED).send({ message: 'Authorization header is missing or invalid' });
-    return;
-  }
-  // Remove the 'Bearer ' prefix and get the token
-  const token = authHeader.substring(7);
-
-  const user = await tokenService.verifyTokenAndGetUser(token);
-
-  userId = user.id
-
-  return userId;
-}
 
 /**
  * Create a DriverDocument
@@ -82,13 +49,13 @@ const queryDriverDocument = async (filter, options) => {
  */
 const getDriverDocument = async (driverId, clientId) => {
   try {
-
-
-
     let clientObjectId = new ObjectId(clientId);
     let driverObjectId = new ObjectId(driverId);
 
+    const driverRow = await Driver.findOne({ _id: driverObjectId }).select('serviceLocation carNumber carColour').lean();
+    const zoneObjectId = new ObjectId(driverRow.serviceLocation);
 
+    // Get documents separated by type
     const documentResults = await Document.aggregate([
       {
         $match: {
@@ -111,50 +78,63 @@ const getDriverDocument = async (driverId, clientId) => {
         }
       },
       {
-        $project: {
-          _id: 1,
-          documentName: 1,
-          required: 1,
-          identifier: 1,
-          expiryDate: 1,
-          issueDate: 1,
-          documentId: 1,
-          status: 1,
-          clientId: 1,
-          'groupDocumentDetails.name': 1
+        $match: {
+          'groupDocumentDetails.zoneId': zoneObjectId,
+          'groupDocumentDetails.type': { $in: ['driver', 'vehicle'] }
         }
       },
       {
-        $replaceRoot: {
-          newRoot: {
-            $mergeObjects: [
-              '$$ROOT',
-              {
-                categoryName: '$groupDocumentDetails.name'
+        $facet: {
+          driverDocuments: [
+            { $match: { 'groupDocumentDetails.type': 'driver' } },
+            {
+              $project: {
+                _id: 1,
+                documentName: 1,
+                required: 1,
+                identifier: 1,
+                expiryDate: 1,
+                issueDate: 1,
+                documentId: 1,
+                status: 1,
+                clientId: 1,
+                'groupDocumentDetails.name': 1
               }
-            ]
-          }
-        }
-      },
-      {
-        $project: {
-          groupDocumentDetails: 0
+            }
+          ],
+          vehicleDocuments: [
+            { $match: { 'groupDocumentDetails.type': 'vehicle' } },
+            {
+              $project: {
+                _id: 1,
+                documentName: 1,
+                required: 1,
+                identifier: 1,
+                expiryDate: 1,
+                issueDate: 1,
+                documentId: 1,
+                status: 1,
+                clientId: 1,
+                'groupDocumentDetails.name': 1
+              }
+            }
+          ]
         }
       }
     ]);
 
-
+    // Fetch all driver documents
     const driverDocuments = await DriverDocument.find({
       driverId: driverObjectId,
       clientId: clientObjectId
-    }).exec();
+    }).lean();
 
-
+    // Create a map: key = documentId + driverVehicleId, value = driverDocument
     const driverDocumentsMap = driverDocuments.reduce((map, doc) => {
-      map[doc.documentId.toString()] = doc;
+      const key = `${doc.documentId.toString()}_${doc.driverVehicleId ? doc.driverVehicleId.toString() : 'null'}`;
+      map[key] = doc;
       return map;
     }, {});
-
 
     const formatDate = (date) => {
       if (!date) return '';
@@ -162,45 +142,100 @@ const getDriverDocument = async (driverId, clientId) => {
       return new Date(date).toLocaleDateString(undefined, options);
     };
 
-    const mergedResults = documentResults.map(doc => {
-      const driverDoc = driverDocumentsMap[doc._id.toString()] || {};
-
-      let driverDocumentImg;
-      let driverExpStatus;
-
-      if (driverDoc.documentImage) {
-        driverDocumentImg = `/uploads/documentImage/${driverDoc.documentImage}` || '';
-      }
-
+    // Process driver documents
+    const processedDriverDocuments = (documentResults[0]?.driverDocuments || []).map(doc => {
+      // For driver documents, key without vehicleId
+      const driverDoc = driverDocuments.find(dd => 
+        dd.documentId.toString() === doc._id.toString() && !dd.driverVehicleId
+      ) || {};
+      
       return {
-        _id: doc._id || null,
+        _id: doc._id,
         documentName: doc.documentName || '',
         required: doc.required,
         identifier: doc.identifier,
         expiryDate: doc.expiryDate,
         issueDate: doc.issueDate,
-        documentId: doc.documentId || '',
-        status: doc.status || false,
-        clientId: doc.clientId || '',
-        categoryName: doc.categoryName || '',
-        documentImage: driverDocumentImg,
-        expiryReason: driverDoc.expiryReason || '',
-        expiryStatus: driverDoc.expriyStatus || false,
+        documentId: doc.documentId,
+        status: doc.status,
+        categoryName: doc.groupDocumentDetails?.name || '',
+        documentImage: driverDoc.documentImage ? `/uploads/documentImage/${driverDoc.documentImage}` : '',
         documentStatus: driverDoc.documentStatus || '',
-        driverDocStatus: driverDoc.status || false,
         issueDateValue: formatDate(driverDoc.issueDate),
         expiryDateValue: formatDate(driverDoc.expiryDate),
         identifierValue: driverDoc.identifier || '',
-        driverDocmentId: driverDoc._id || ''
+        driverDocumentId: driverDoc._id || '',
+        isUploaded: !!driverDoc._id
       };
     });
 
-    return mergedResults;
+    // Get all vehicle document templates
+    const vehicleDocumentTemplates = documentResults[0]?.vehicleDocuments || [];
+
+    const docKeyForTemplate = (doc) => (doc.documentId ? doc.documentId.toString() : doc._id.toString());
+
+    const vehicleDocuments = vehicleDocumentTemplates.map((doc) => {
+      const dk = docKeyForTemplate(doc);
+      const keyNull = `${dk}_null`;
+      const driverDoc =
+        driverDocumentsMap[keyNull] ||
+        driverDocuments.find(
+          (dd) =>
+            dd.documentId.toString() === dk &&
+            (dd.driverVehicleId === null || dd.driverVehicleId === undefined),
+        ) ||
+        driverDocuments.find((dd) => dd.documentId.toString() === dk) ||
+        {};
+
+      return {
+        _id: doc._id,
+        documentName: doc.documentName || '',
+        required: doc.required,
+        identifier: doc.identifier,
+        expiryDate: doc.expiryDate,
+        issueDate: doc.issueDate,
+        documentId: doc.documentId,
+        status: doc.status,
+        categoryName: doc.groupDocumentDetails?.name || '',
+        documentImage: driverDoc.documentImage ? `/uploads/documentImage/${driverDoc.documentImage}` : '',
+        documentStatus: driverDoc.documentStatus || '',
+        issueDateValue: formatDate(driverDoc.issueDate),
+        expiryDateValue: formatDate(driverDoc.expiryDate),
+        identifierValue: driverDoc.identifier || '',
+        driverDocumentId: driverDoc._id || '',
+        driverVehicleId: driverDoc.driverVehicleId || null,
+        isUploaded: !!driverDoc._id,
+      };
+    });
+
+    const vehicleDocumentsByVehicle = [
+      {
+        vehicleInfo: {
+          driverVehicleId: null,
+          vehicleMake: '',
+          vehicleModelName: '',
+          licensePlateNumber: driverRow?.carNumber || '',
+          manufactureYear: null,
+          vehicleColor: driverRow?.carColour || '',
+          passengerCapacity: null,
+        },
+        documents: vehicleDocuments,
+      },
+    ];
+
+    return {
+      driver: processedDriverDocuments,
+      vehicles: vehicleDocumentsByVehicle,
+    };
+
   } catch (error) {
     console.error('Error in aggregation or fetching driver documents:', error);
     throw error;
   }
 };
+
+
+
 
 /**
  * @param {ObjectId} clientId
@@ -364,72 +399,163 @@ const getDriverDocumentByDriver = async (driverId, clientId) => {
  * @param {Object} options - Options for the update operation (e.g., `{ new: true }`)
  * @returns {Promise<Object>} - The updated driver document
  */
+// const update = async (req, id, updateData, options = {}) => {
+
+//   try {
+//     let clientId = await getClientId(req);
+
+//     const updatedDriverDocument = await DriverDocument.findByIdAndUpdate(
+//       id,
+//       updateData,
+//       { new: true, ...options }
+//     );
+
+//     if (!updatedDriverDocument) {
+//       throw new Error('Driver document not found');
+//     }
+
+//     let userDetails = await Driver.findById(updatedDriverDocument.driverId)
+//     let inProgress = await getRequest(clientId, userDetails.userId);
+//     // const topic = `driver/detail/` + updatedDriverDocument.driverId;
+
+//     const topic = mqttConfig.DRIVER_DETAIL+""+updatedDriverDocument.driverId;
+
+
+//     let documentDetails = await Document.find({ _id: updatedDriverDocument.documentId })
+
+//     if (documentDetails != null && Array.isArray(documentDetails)) {
+//       documentDetails = documentDetails[0];
+//     }
+
+//     if (inProgress != null && Array.isArray(inProgress)) {
+//       inProgress = inProgress[0];
+//       inProgress.documentStatus = inProgress.blockReason;
+//     }
+
+
+
+//     await mqttService.publishMessage(topic, inProgress).then((successMessage) => {
+//     })
+//     .catch((errorMessage) => {
+//       console.error(errorMessage); // Will print error message if publishing fails
+//     });
+
+//     // Prepare notification data
+
+//     if (inProgress.documentStatus === 'APPROVED') {
+//       userDetails.isApprove = true;
+//       userDetails.status = true; 
+//     } else {
+//       userDetails.isApprove = false;
+//       userDetails.status = false;
+//     }
+
+//     await userDetails.save();
+
+
+//     const userIds = [userDetails.userId]; 
+    
+//     const messageData = {
+//       title: "Document Updated",
+//       message: `Your document with ${documentDetails.documentName} has been ${updateData.documentStatus}.`,
+//       imageName: "", // Add an optional image URL if required
+//     };
+
+//     // Send notification
+//     await sendNotification(req, userIds, messageData);
+
+//     return updatedDriverDocument;
+//   } catch (error) {
+//     console.error('Error updating driver document:', error);
+//     throw error;
+//   }
+// };
+
+
+
 const update = async (req, id, updateData, options = {}) => {
   try {
     let clientId = await getClientId(req);
 
-    const updatedDriverDocument = await DriverDocument.findByIdAndUpdate(
-      id,
-      updateData,
-      { new: true, ...options }
-    );
-
-    if (!updatedDriverDocument) {
+    // Fetch document BEFORE update to check conditions
+    const existingDriverDocument = await DriverDocument.findById(id);
+    if (!existingDriverDocument) {
       throw new Error('Driver document not found');
     }
 
-    let userDetails = await Driver.findById(updatedDriverDocument.driverId)
-    let inProgress = await getRequest(clientId, userDetails.userId);
-
-    // const topic = `driver/detail/` + updatedDriverDocument.driverId;
-
-    const topic = mqttConfig.DRIVER_DETAIL+""+updatedDriverDocument.driverId;
-
-
-    let documentDetails = await Document.find({ _id: updatedDriverDocument.documentId })
-
-    if (documentDetails != null && Array.isArray(documentDetails)) {
-      documentDetails = documentDetails[0];
+    // Fetch user details based on driver linked to document
+    const userDetails = await Driver.findById(existingDriverDocument.driverId);
+    if (!userDetails) {
+      throw new Error('Driver not found');
     }
 
-    if (inProgress != null && Array.isArray(inProgress)) {
+    const userId = userDetails.userId;
+    if (!userId) {
+      throw new Error('User ID not associated with driver');
+    }
+
+    const userData = await User.findById(userId).lean();
+    if (!userData) {
+      throw new Error('User details not found');
+    }
+
+      const activeRequest = await Request.findOne({
+      driverId: existingDriverDocument.driverId,
+      ...(existingDriverDocument.driverVehicleId && { driverVehicleId: existingDriverDocument.driverVehicleId }),
+      isCancelled: false,
+      isCompleted: false
+    });
+
+
+    if (activeRequest) {
+      throw new Error('This driver is currently on a trip, cannot update documents.');
+    }
+
+
+    // if (userData.onlineBy === 1) {
+    //   throw new Error('This driver is currently online, cannot update documents.');
+    // }
+
+    // Proceed with update now that checks passed
+    const updatedDriverDocument = await DriverDocument.findByIdAndUpdate(
+      id,
+      updateData,
+      { returnDocument: 'after', ...options }
+    );
+
+    // Confirm update success
+    if (!updatedDriverDocument) {
+      throw new Error('Driver document update failed');
+    }
+
+    // Vehicle-based validation is disabled; only driver-document rules apply.
+    await handleDriverDocumentUpdate(updatedDriverDocument, userData, clientId);
+
+    // Prepare MQTT message and send if needed
+    let inProgress = await getRequest(clientId, userDetails.userId);
+    const topic = mqttConfig.DRIVER_DETAIL + updatedDriverDocument.driverId;
+
+    let documentDetails = await Document.findById(updatedDriverDocument.documentId);
+
+    if (inProgress && Array.isArray(inProgress)) {
       inProgress = inProgress[0];
       inProgress.documentStatus = inProgress.blockReason;
     }
 
+    await mqttService.publishMessage(topic, inProgress).catch(console.error);
 
-
-    await mqttService.publishMessage(topic, inProgress).then((successMessage) => {
-    })
-    .catch((errorMessage) => {
-      console.error(errorMessage); // Will print error message if publishing fails
-    });
-
-    // Prepare notification data
-
-    if (inProgress.documentStatus === 'APPROVED') {
-      userDetails.isApprove = true;
-      userDetails.status = true; 
-    } else {
-      userDetails.isApprove = false;
-      userDetails.status = false;
-    }
-
-    await userDetails.save();
-
-
-    const userIds = [userDetails.userId]; 
-    
+    // Send notification to user
+    const userIds = [userDetails.userId];
     const messageData = {
       title: "Document Updated",
-      message: `Your document with ${documentDetails.documentName} has been ${inProgress.documentStatus}.`,
-      imageName: "", // Add an optional image URL if required
+      message: `Your document ${documentDetails?.documentName} has been ${updateData.documentStatus}.`,
+      imageName: "",
     };
 
-    // Send notification
     await sendNotification(req, userIds, messageData);
 
     return updatedDriverDocument;
+
   } catch (error) {
     console.error('Error updating driver document:', error);
     throw error;
@@ -437,24 +563,93 @@ const update = async (req, id, updateData, options = {}) => {
 };
 
 
+// Handle driver document status update (existing logic)
+const handleDriverDocumentUpdate = async (updatedDriverDocument, userDetails, clientId) => {
+  const { driverId } = updatedDriverDocument;
+
+  // Get all required driver documents
+  const driver = await Driver.findById(driverId);
+  const zoneObjectId = new ObjectId(driver.serviceLocation);
+
+  const requiredDriverDocuments = await Document.aggregate([
+    {
+      $lookup: {
+        from: 'groupdocuments',
+        localField: 'documentId',
+        foreignField: '_id',
+        as: 'groupDoc'
+      }
+    },
+    { $unwind: '$groupDoc' },
+    {
+      $match: {
+        'groupDoc.zoneId': zoneObjectId,
+        'groupDoc.type': 'driver',
+        'groupDoc.status': true,
+        required: true,
+        status: true,
+        clientId: new ObjectId(clientId)
+      }
+    },
+    { $project: { _id: 1 } }
+  ]);
+
+  const requiredDocIds = requiredDriverDocuments.map(doc => doc._id);
+
+  // Get all uploaded driver documents (without driverVehicleId)
+ const uploadedDriverDocuments = await DriverDocument.find({
+    driverId: new ObjectId(driverId),
+    $or: [
+      { driverVehicleId: null },
+      { driverVehicleId: { $exists: false } }
+    ],
+    documentId: { $in: requiredDocIds },
+    clientId: new ObjectId(clientId)
+  });
+
+  // Check if all driver documents are approved
+  const allDriverDocsApproved = requiredDocIds.length > 0 &&
+    uploadedDriverDocuments.length === requiredDocIds.length &&
+    uploadedDriverDocuments.every(doc => doc.documentStatus === 'APPROVED');
+
+    const userData = await User.findById(userDetails._id)
+
+  if (allDriverDocsApproved) {
+    userData.isApprove = true;
+    userData.active = true;
+    driver.isApprove = true;
+    driver.status = true;
+  } else {
+    userData.isApprove = false;
+    userData.active = false;
+    driver.isApprove = false;
+    driver.status = false;
+  }
+
+  await driver.save();
+  await userData.save();
+};
+
+
 const getExpiredDocuments = async (req) => {
+
   try {
+
     const filter = pick(req.query, ['firstName', 'phoneNumber']);
     const options = pick(req.query, ['sortBy', 'limit', 'page']);
-    
 
     const clientId = await getClientId(req);
-    const driverId = req.params.driverId;
+    const zoneId = await getZoneId(req);
     const limit = parseInt(options.limit, 10) || 10;
-    const page = parseInt(options.page, 10) || 1;
+    const page = parseInt(options.page) || 1;
+    const today = new Date();
 
     const matchStage = {
-      driverId: new ObjectId(driverId),
-      expiryDate: { $ne: null },
-      clientId: new ObjectId(clientId),
+      expiryDate: { $ne: null, $lt: today },
+      clientId: new ObjectId(clientId)
     };
 
-    const pipeline = [
+    const basePipeline = [
       { $match: matchStage },
       {
         $lookup: {
@@ -464,33 +659,16 @@ const getExpiredDocuments = async (req) => {
           as: 'driverInfo',
         },
       },
+      { $unwind: { path: '$driverInfo', preserveNullAndEmptyArrays: true } },
       {
         $lookup: {
           from: 'documents',
           localField: 'documentId',
           foreignField: '_id',
           as: 'documentInfo',
-          pipeline: [
-            {
-              $match: {
-                expiryDate: true,
-              },
-            },
-          ],
         },
       },
-      {
-        $unwind: {
-          path: '$driverInfo',
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      {
-        $unwind: {
-          path: '$documentInfo',
-          preserveNullAndEmptyArrays: true,
-        },
-      },
+      { $unwind: { path: '$documentInfo', preserveNullAndEmptyArrays: true } },
       {
         $lookup: {
           from: 'users',
@@ -499,53 +677,272 @@ const getExpiredDocuments = async (req) => {
           as: 'driverPersonalDetails',
         },
       },
-      {
-        $unwind: {
-          path: '$driverPersonalDetails',
-        },
-      },
+      { $unwind: { path: '$driverPersonalDetails', preserveNullAndEmptyArrays: true } },
     ];
 
-    // Add search filtering if applicable
-    if (req.query.search) {
-      pipeline.push({
+    // Optional filter by zoneId (assuming it's stored in driverInfo or driverPersonalDetails)
+    // if (zoneId) {
+      basePipeline.push({
+        $match: {
+          'driverInfo.serviceLocation': new ObjectId(zoneId), // 👈 Adjust this path if zoneId is somewhere else
+        },
+      });
+    // }
+
+    if(req.query.search)
+    {
+      basePipeline.push({
         $match: {
           $or: [
             { 'driverPersonalDetails.firstName': { $regex: `^${req.query.search}`, $options: 'i' } },
-            { 'driverPersonalDetails.phoneNumber': { $regex: `^${req.query.search}`, $options: 'i' } },
+            { 'driverPersonalDetails.phoneNumber': { $regex: `^${req.query.search}`, $options: 'i' } }, // 👈 ensure the correct field name
           ],
         },
       });
     }
 
-    pipeline.push({
-      $project: {
-        _id: 1,
-        driverId: 1,
-        documentId: 1,
-        documentName: '$documentInfo.documentName',
-        driverName: '$driverPersonalDetails.firstName',
-        phoneNumber: '$driverPersonalDetails.phoneNumber',
-        userId: '$driverPersonalDetails._id',
-        expiryDate: 1,
-        documentStatus: 1,
+    const countPipeline = [...basePipeline, { $count: 'total' }];
+    const countResult = await DriverDocument.aggregate(countPipeline);
+    const totalResults = countResult[0]?.total || 0;
+
+    const dataPipeline = [
+      ...basePipeline,
+      {
+        $project: {
+          _id: 1,
+          driverId: 1,
+          documentId: 1,
+          documentName: '$documentInfo.documentName',
+          driverName: {
+            $concat: [
+              { $ifNull: ['$driverPersonalDetails.firstName', ''] },
+              ' ',
+              { $ifNull: ['$driverPersonalDetails.lastName', ''] },
+            ],
+          },
+          phoneNumber: '$driverPersonalDetails.phoneNumber',
+          userId: '$driverPersonalDetails._id',
+          expiryDate: 1,
+          documentStatus: 1,
+        },
       },
-    });
-
-    // Get total count first (without pagination)
-    const fullResults = await DriverDocument.aggregate([...pipeline]);
-    const totalResults = fullResults.length;
-
-    // Add sorting, skip, and limit for paginated data
-    const paginatedPipeline = [
-      ...pipeline,
       { $sort: options.sortBy || { _id: 1 } },
       { $skip: (page - 1) * limit },
       { $limit: limit },
     ];
 
-    const expiredDocuments = await DriverDocument.aggregate(paginatedPipeline);
+    const expiredDocuments = await DriverDocument.aggregate(dataPipeline);
+    const totalPages = Math.ceil(totalResults / limit);
 
+    return {
+      results: expiredDocuments,
+      page,
+      limit,
+      totalPages,
+      totalResults,
+    };
+
+    // const totalResults = await DriverDocument.countDocuments({
+    //   expiryDate:{ $ne: null},
+    //   clientId: new ObjectId(clientId),
+    // });
+
+    // const expiredDocuments = await DriverDocument.aggregate([
+    //   {
+    //     $match: { 
+    //       expiryDate:{ $ne: null},
+    //       clientId: new ObjectId(clientId)
+    //     }
+    //   },
+    //   {
+    //     $lookup: {
+    //       from: 'drivers',
+    //       localField: 'driverId',
+    //       foreignField: '_id',
+    //       as: 'driverInfo',
+    //     },
+    //   },
+    //   {
+    //     $lookup: {
+    //       from: 'documents',
+    //       localField: 'documentId',
+    //       foreignField: '_id',
+    //       as: 'documentInfo',
+    //       pipeline:[
+    //         {
+    //           $match: {
+    //             expiryDate: true
+    //           }
+    //         }
+    //       ]
+    //     },
+    //   },
+    //   {
+    //     $unwind: {
+    //       path: '$driverInfo',
+    //       preserveNullAndEmptyArrays: true,
+    //     },
+    //   },
+    //   {
+    //     $unwind: {
+    //       path: '$documentInfo',
+    //       preserveNullAndEmptyArrays: true,
+    //     },
+    //   },
+    //   {
+    //     $lookup: {
+    //       from: 'users',
+    //       localField: 'driverInfo.userId',
+    //       foreignField: '_id',
+    //       as: 'driverPersonalDetails',
+    //     },
+    //   },
+    //   {
+    //     $unwind: {
+    //       path: '$driverPersonalDetails',
+    //       preserveNullAndEmptyArrays: true,
+    //     },
+    //   },
+    //   ...(req.query.search
+    //     ? [
+    //         {
+    //           $match: {
+    //             $or: [
+    //               { 'driverPersonalDetails.firstName': { $regex: `^${req.query.search}`, $options: 'i' } },
+    //               { 'driverPersonalDetails.phoneNumber': { $regex: `^${req.query.search}`, $options: 'i' } },
+    //             ],
+    //           },
+    //         },
+    //       ]
+    //     : []),
+    //   {
+    //     $project: {
+    //       _id: 1,
+    //       driverId: 1,
+    //       documentId: 1,
+    //       documentName: '$documentInfo.documentName',
+    //       driverName: '$driverPersonalDetails.firstName',
+    //       phoneNumber: '$driverPersonalDetails.phoneNumber',
+    //       userId : '$driverPersonalDetails._id',
+    //       expiryDate: 1,
+    //       documentStatus: 1,
+    //     },
+    //   },
+    // ]).sort(options.sortBy || { _id: 1 })
+    //   .skip((page - 1) * limit)
+    //   .limit(limit);
+
+    // const totalPages = Math.ceil(totalResults / limit);
+
+    // return {
+    //   results: expiredDocuments,
+    //   page,
+    //   limit,
+    //   totalPages,
+    //   totalResults,
+    // };
+
+  } catch (error) {
+    console.error('Error fetching expired documents:', error);
+    return error
+  }
+};
+const getSuperAdminExpiredDocuments = async (req) => {
+  try {
+    // const { zoneId } = req.query; 
+    const zoneId = await getZoneId(req);
+    const options = pick(req.query, ['sortBy', 'limit', 'page']);
+    const limit = parseInt(options.limit, 10) || 10;
+    const page = parseInt(options.page, 10) || 1;
+    const today = new Date();
+
+    const matchStage = {
+      expiryDate: { $ne: null, $lt: today }
+    };
+
+    const basePipeline = [
+      { $match: matchStage },
+      {
+        $lookup: {
+          from: 'drivers',
+          localField: 'driverId',
+          foreignField: '_id',
+          as: 'driverInfo',
+        },
+      },
+      { $unwind: { path: '$driverInfo', preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: 'documents',
+          localField: 'documentId',
+          foreignField: '_id',
+          as: 'documentInfo',
+        },
+      },
+      { $unwind: { path: '$documentInfo', preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'driverInfo.userId',
+          foreignField: '_id',
+          as: 'driverPersonalDetails',
+        },
+      },
+      { $unwind: { path: '$driverPersonalDetails', preserveNullAndEmptyArrays: true } },
+    ];
+
+    // Optional filter by zoneId (assuming it's stored in driverInfo or driverPersonalDetails)
+    // if (zoneId) {
+      basePipeline.push({
+        $match: {
+          'driverInfo.serviceLocation': new ObjectId(zoneId), // 👈 Adjust this path if zoneId is somewhere else
+        },
+      });
+    // }
+
+    if(req.query.search)
+    {
+      basePipeline.push({
+        $match: {
+          $or: [
+            { 'driverPersonalDetails.firstName': { $regex: `^${req.query.search}`, $options: 'i' } },
+            { 'driverPersonalDetails.phoneNumber': { $regex: `^${req.query.search}`, $options: 'i' } }, // 👈 ensure the correct field name
+          ],
+        },
+      });
+    }
+
+    const countPipeline = [...basePipeline, { $count: 'total' }];
+    const countResult = await DriverDocument.aggregate(countPipeline);
+    const totalResults = countResult[0]?.total || 0;
+
+    const dataPipeline = [
+      ...basePipeline,
+      {
+        $project: {
+          _id: 1,
+          driverId: 1,
+          documentId: 1,
+          documentName: '$documentInfo.documentName',
+          driverName: {
+            $concat: [
+              { $ifNull: ['$driverPersonalDetails.firstName', ''] },
+              ' ',
+              { $ifNull: ['$driverPersonalDetails.lastName', ''] },
+            ],
+          },
+          phoneNumber: '$driverPersonalDetails.phoneNumber',
+          userId: '$driverPersonalDetails._id',
+          expiryDate: 1,
+          documentStatus: 1,
+        },
+      },
+      { $sort: options.sortBy || { _id: 1 } },
+      { $skip: (page - 1) * limit },
+      { $limit: limit },
+    ];
+
+    const expiredDocuments = await DriverDocument.aggregate(dataPipeline);
     const totalPages = Math.ceil(totalResults / limit);
 
     return {
@@ -562,124 +959,7 @@ const getExpiredDocuments = async (req) => {
 };
 
 
-const getSuperAdminExpiredDocuments = async (req) => {
-
-  try {
-
-    const filter = pick(req.query, ['name', 'role']);
-    const options = pick(req.query, ['sortBy', 'limit', 'page']);
-    const driverId = req.params.driverId;
-
-    const limit = parseInt(options.limit, 10) || 10;
-    const page = parseInt(options.page) || 1;
-
-    const tenDaysFromNow = moment.utc().add(10, 'days').startOf('day');
-
-    const totalResults = await DriverDocument.countDocuments({
-      driverId: new ObjectId(driverId),
-      expiryDate:{ $ne: null}
-    });
-
-    const expiredDocuments = await DriverDocument.aggregate([
-      {
-        $match:{
-          driverId: new ObjectId(driverId),
-          expiryDate:{ $ne: null}
-        }
-      },
-      {
-        $lookup: {
-          from: 'drivers',
-          localField: 'driverId',
-          foreignField: '_id',
-          as: 'driverInfo',
-        },
-      },
-      {
-        $lookup: {
-          from: 'documents',
-          localField: 'documentId',
-          foreignField: '_id',
-          as: 'documentInfo',
-          pipeline:[
-            {
-              $match: {
-                expiryDate: true
-              }
-            }
-          ]
-        },
-      },
-      {
-        $unwind: {
-          path: '$driverInfo',
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      {
-        $unwind: {
-          path: '$documentInfo',
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      {
-        $lookup: {
-          from: 'users',
-          localField: 'driverInfo.userId',
-          foreignField: '_id',
-          as: 'driverPersonalDetails',
-        },
-      },
-      {
-        $unwind: {
-          path: '$driverPersonalDetails',
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      {
-        $project: {
-          _id: 1,
-          driverId: 1,
-          documentId: 1,
-          documentName: '$documentInfo.documentName',
-          driverName: {
-            $concat: [
-              { $ifNull: ['$driverPersonalDetails.firstName', ''] },
-              ' ',
-              { $ifNull: ['$driverPersonalDetails.lastName', ''] },
-            ],
-          },
-          expiryDate: 1,
-          documentStatus: 1,
-        },
-      },
-    ]).sort(options.sortBy || { _id: 1 })
-      .skip((page - 1) * limit)
-      .limit(limit);
-
-    const totalPages = Math.ceil(totalResults / limit);
-
-    return {
-      results: expiredDocuments,
-      page,
-      limit,
-      totalPages,
-      totalResults,
-    };
-
-  } catch (error) {
-    console.error('Error fetching expired documents:', error);
-    return error
-  }
-};
-
-
 const getRequest = async (clientId, userId) => {
-
-
-  const document = await Document.find({ clientId: clientId,status:true });
-
-
   const getRequest = Driver.aggregate([
     {
       $match: {
@@ -687,14 +967,86 @@ const getRequest = async (clientId, userId) => {
         userId: new ObjectId(userId)
       }
     },
+    // Lookup filtered driver group documents
+    {
+      $lookup: {
+        from: 'groupdocuments',
+        let: { driverZoneId: '$serviceLocation' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ['$zoneId', '$$driverZoneId'] },
+                  { $eq: ['$type', 'driver'] },
+                  { $eq: ['$status', true] },
+                  { $eq: ['$clientId', new ObjectId(clientId)] }
+                ]
+              }
+            }
+          }
+        ],
+        as: 'driverGroupDocuments'
+      }
+    },
+    // Lookup filtered driver documents based on groupdocuments
+    {
+      $lookup: {
+        from: 'documents',
+        let: { 
+          groupDocIds: {
+            $map: {
+              input: '$driverGroupDocuments',
+              as: 'groupDoc',
+              in: '$$groupDoc._id'
+            }
+          }
+        },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $in: ['$documentId', '$$groupDocIds'] },
+                  { $eq: ['$status', true] },
+                  { $eq: ['$clientId', new ObjectId(clientId)] }
+                ]
+              }
+            }
+          }
+        ],
+        as: 'filteredDocuments'
+      }
+    },
+    // Lookup all driver documents
     {
       $lookup: {
         from: 'driverdocuments',
         localField: '_id',
         foreignField: 'driverId',
-        as: 'driverDocumentDetails'
+        as: 'allDriverDocuments'
       }
     },
+    // Add fields to separate driver and vehicle documents
+    {
+      $addFields: {
+        driverDocumentDetails: {
+          $filter: {
+            input: '$allDriverDocuments',
+            as: 'doc',
+            cond: { $eq: [{ $ifNull: ['$$doc.driverVehicleId', null] }, null] }
+          }
+        },
+        vehicleDocumentDetails: {
+          $filter: {
+            input: '$allDriverDocuments',
+            as: 'doc',
+            cond: { $ne: [{ $ifNull: ['$$doc.driverVehicleId', null] }, null] }
+          }
+        }
+      }
+    },
+    // Other lookups remain the same...
     {
       $lookup: {
         from: 'requests',
@@ -801,13 +1153,25 @@ const getRequest = async (clientId, userId) => {
         preserveNullAndEmptyArrays: true,
       }
     },
+    // Vehicle counts from Driver document (no drivervehicles collection)
+    {
+      $addFields: {
+        totalVehicleCount: {
+          $cond: [{ $ne: [{ $ifNull: ['$type', null] }, null] }, 1, 0],
+        },
+        activeVehicleCount: {
+          $cond: [{ $eq: ['$isApprove', true] }, 1, 0],
+        },
+      },
+    },
+    // Calculate active and blockReason based on DRIVER documents only
     {
       $addFields: {
         active: {
           $cond: [
             {
               $or: [
-                { $eq: [{ $size: '$driverDocumentDetails' }, 0] }, // No documents
+                { $eq: [{ $size: '$driverDocumentDetails' }, 0] },
                 {
                   $gt: [
                     {
@@ -817,11 +1181,11 @@ const getRequest = async (clientId, userId) => {
                           as: 'doc',
                           cond: {
                             $or: [
-                              { $eq: ['$$doc.documentStatus', 'DENIED'] }, // Denied documents
+                              { $eq: ['$$doc.documentStatus', 'DENIED'] },
                               {
                                 $and: [
-                                  { $ifNull: ['$$doc.expiryDate', false] }, // expiryDate exists
-                                  { $lt: ['$$doc.expiryDate', new Date()] } // expiryDate < today
+                                  { $ifNull: ['$$doc.expiryDate', false] },
+                                  { $lt: ['$$doc.expiryDate', new Date()] }
                                 ]
                               }
                             ]
@@ -832,7 +1196,45 @@ const getRequest = async (clientId, userId) => {
                     0
                   ]
                 },
-                { $ne: [{ $size: '$driverDocumentDetails' }, document.length] }, // Document count not equal to expected count
+                // Check if all required driver documents are uploaded
+                {
+                  $ne: [
+                    {
+                      $size: {
+                        $filter: {
+                          input: '$filteredDocuments',
+                          as: "doc",
+                          cond: { $eq: ["$$doc.required", true] }
+                        }
+                      }
+                    },
+                    {
+                      $size: {
+                        $filter: {
+                          input: '$filteredDocuments',
+                          as: "doc",
+                          cond: {
+                            $and: [
+                              { $eq: ["$$doc.required", true] },
+                              {
+                                $in: [
+                                  "$$doc._id",
+                                  {
+                                    $map: {
+                                      input: "$driverDocumentDetails",
+                                      as: "driverDoc",
+                                      in: "$$driverDoc.documentId"
+                                    }
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
                 {
                   $gt: [
                     {
@@ -840,66 +1242,103 @@ const getRequest = async (clientId, userId) => {
                         $filter: {
                           input: '$driverDocumentDetails',
                           as: 'doc',
-                          cond: { $ne: ['$$doc.documentStatus', 'APPROVED'] } // Not approved documents
+                          cond: { $ne: ['$$doc.documentStatus', 'APPROVED'] }
                         }
                       }
                     },
                     0
                   ]
-                } // Any document is not approved
+                }
               ]
             },
-            false, // Inactive
-            true // Active
+            false,
+            true
           ]
         },
         blockReason: {
           $cond: {
             if: {
-              $gt: [
+              $ne: [
                 {
                   $size: {
                     $filter: {
-                      input: '$driverDocumentDetails',
-                      as: 'doc',
-                      cond: { $eq: ['$$doc.documentStatus', 'WAITINGFORAPPROVAL'] } // Check for WAITINGFORAPPROVAL
+                      input: '$filteredDocuments',
+                      as: "doc",
+                      cond: { $eq: ["$$doc.required", true] }
                     }
                   }
                 },
-                0
+                {
+                  $size: {
+                    $filter: {
+                      input: '$filteredDocuments',
+                      as: "doc",
+                      cond: {
+                        $and: [
+                          { $eq: ["$$doc.required", true] },
+                          {
+                            $in: [
+                              "$$doc._id",
+                              {
+                                $map: {
+                                  input: "$driverDocumentDetails",
+                                  as: "driverDoc",
+                                  in: "$$driverDoc.documentId"
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
               ]
             },
-            then: 'WAITINGFORAPPROVAL', // If any document is WAITINGFORAPPROVAL
+            then: "DOCUMENT_NOT_UPLOADED",
             else: {
               $cond: {
-                if: { $eq: [{ $size: '$driverDocumentDetails' }, 0] }, // No documents
-                then: 'DOCUMENT_NOT_UPLOADED',
+                if: {
+                  $gt: [
+                    {
+                      $size: {
+                        $filter: {
+                          input: '$driverDocumentDetails',
+                          as: 'doc',
+                          cond: { $eq: ['$$doc.documentStatus', 'WAITINGFORAPPROVAL'] }
+                        }
+                      }
+                    },
+                    0
+                  ]
+                },
+                then: 'WAITINGFORAPPROVAL',
                 else: {
                   $cond: {
-                    if: {
-                      $gt: [
-                        {
-                          $size: {
-                            $filter: {
-                              input: '$driverDocumentDetails',
-                              as: 'doc',
-                              cond: {
-                                $and: [
-                                  { $ifNull: ['$$doc.expiryDate', false] }, // expiryDate exists
-                                  { $lt: ['$$doc.expiryDate', new Date()] } // expiryDate is in the past
-                                ]
-                              }
-                            }
-                          }
-                        },
-                        0
-                      ]
-                    },
-                    then: 'EXPIRED',
+                    if: { $eq: [{ $size: '$driverDocumentDetails' }, 0] },
+                    then: 'DOCUMENT_NOT_UPLOADED',
                     else: {
                       $cond: {
-                        if: { $ne: [{ $size: '$driverDocumentDetails' }, document.length] }, // Document count does not match driver document count
-                        then: 'DOCUMENT_NOT_UPLOADED', // Document and driver document counts do not match
+                        if: {
+                          $gt: [
+                            {
+                              $size: {
+                                $filter: {
+                                  input: '$driverDocumentDetails',
+                                  as: 'doc',
+                                  cond: {
+                                    $and: [
+                                      { $ifNull: ['$$doc.expiryDate', false] },
+                                      { $lt: ['$$doc.expiryDate', new Date()] }
+                                    ]
+                                  }
+                                }
+                              }
+                            },
+                            0
+                          ]
+                        },
+                        then: 'EXPIRED',
                         else: {
                           $cond: {
                             if: {
@@ -909,17 +1348,17 @@ const getRequest = async (clientId, userId) => {
                                     $filter: {
                                       input: '$driverDocumentDetails',
                                       as: 'doc',
-                                      cond: { $ne: ['$$doc.documentStatus', 'APPROVED'] } // Any document not approved
+                                      cond: { $ne: ['$$doc.documentStatus', 'APPROVED'] }
                                     }
                                   }
                                 },
                                 0
                               ]
-                            }, // All documents are approved
+                            },
                             then: 'APPROVED',
-                            else: 'DENIED' // Not all documents are approved
+                            else: 'DENIED'
                           }
-                        },
+                        }
                       }
                     }
                   }
@@ -939,7 +1378,6 @@ const getRequest = async (clientId, userId) => {
     },
     {
       $project: {
-        _id: { $ifNull: ['$_id', null] },
         _id: { $ifNull: ['$_id', null] },
         blockReason: { $ifNull: ['$blockReason', null] },
         onlineBy: { $ifNull: ['$onlineBy', null] },
@@ -962,12 +1400,15 @@ const getRequest = async (clientId, userId) => {
         'user.gender': { $ifNull: ['$user.gender', null] },
         'user.country': { $ifNull: ['$user.country', null] },
         'user.profilePic': { $ifNull: ['$user.profilePic', null] },
+        totalVehicleCount: { $ifNull: ['$totalVehicleCount', 0] },
+        activeVehicleCount: { $ifNull: ['$activeVehicleCount', 0] },
       }
     }
   ]);
 
   return getRequest;
 };
+
 
 
 

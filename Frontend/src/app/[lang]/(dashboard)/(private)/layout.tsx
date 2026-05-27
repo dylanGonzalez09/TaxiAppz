@@ -1,7 +1,10 @@
 // MUI Imports
+import dynamic from 'next/dynamic'
+import { unstable_noStore as noStore } from 'next/cache'
+
 import Button from '@mui/material/Button'
 
-// Auth Imports
+// Third-party Imports
 import { getServerSession } from 'next-auth'
 
 // Type Imports
@@ -14,11 +17,14 @@ import VerticalLayout from '@layouts/VerticalLayout'
 
 // Component Imports
 import Providers from '@components/Providers'
+import IdleLogoutProvider from '@components/IdleLogoutProvider'
 import Navigation from '@components/layout/vertical/Navigation'
 import Navbar from '@components/layout/vertical/Navbar'
 import VerticalFooter from '@components/layout/vertical/Footer'
 import ScrollToTop from '@core/components/scroll-to-top'
 import AuthGuard from '@/hocs/AuthGuard'
+import TranslationUpdateSync from '@/components/TranslationUpdateSync'
+import RouteRefreshOnNavigation from '@/components/RouteRefreshOnNavigation'
 
 // Config Imports
 import { i18n } from '@configs/i18n'
@@ -26,26 +32,30 @@ import { i18n } from '@configs/i18n'
 // Util Imports
 import { getDictionary } from '@/utils/getDictionary'
 import { getMode, getSystemMode } from '@core/utils/serverHelpers'
-import { getPrivillageData } from '@/utils/privillage'
-import { SCREEN_NAMES } from '@/utils/screenNames'
+
+const MqttProvider = dynamic(() => import('@/components/MqttProvider'), { ssr: false })
 
 const Layout = async ({ children, params }: ChildrenType & { params: { lang: Locale } }) => {
-  // Vars
+  noStore()
+
   const direction = i18n.langDirection[params.lang]
   const dictionary = await getDictionary(params.lang)
   const mode = getMode()
   const systemMode = getSystemMode()
   const session = await getServerSession()
-  const privillageData = await getPrivillageData(SCREEN_NAMES.Sidemnu);
 
   return (
     <Providers direction={direction}>
+      <IdleLogoutProvider timeout={60 * 60 * 1000} />
+      <MqttProvider />
       <AuthGuard locale={params.lang}>
+        <TranslationUpdateSync />
+        <RouteRefreshOnNavigation />
         <LayoutWrapper
           systemMode={systemMode}
           verticalLayout={
             <VerticalLayout
-              navigation={<Navigation dictionary={dictionary} mode={mode} systemMode={systemMode} privillageData={privillageData} session={session} />}
+              navigation={<Navigation dictionary={dictionary} mode={mode} systemMode={systemMode} session={session} />}
               navbar={<Navbar />}
               footer={<VerticalFooter />}
             >
@@ -54,10 +64,7 @@ const Layout = async ({ children, params }: ChildrenType & { params: { lang: Loc
           }
         />
         <ScrollToTop className='mui-fixed'>
-          <Button
-            variant='contained'
-            className='is-10 bs-10 rounded-full p-0 min-is-0 flex items-center justify-center'
-          >
+          <Button variant='contained' className='is-10 bs-10 rounded-full p-0 min-is-0 flex items-center justify-center'>
             <i className='tabler-arrow-up' />
           </Button>
         </ScrollToTop>
@@ -67,3 +74,4 @@ const Layout = async ({ children, params }: ChildrenType & { params: { lang: Loc
 }
 
 export default Layout
+

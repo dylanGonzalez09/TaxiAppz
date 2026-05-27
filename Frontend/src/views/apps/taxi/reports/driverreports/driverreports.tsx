@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable import/no-unresolved */
 'use client';
 import React, { useState, useMemo, useEffect } from 'react';
@@ -99,28 +98,29 @@ const DriverReportsTable = ({ staticGroup, dictionary }: { staticGroup: any[], d
     columnHelper.accessor('driverName', {
       header: dictionary['navigation'].driverName,
       cell: ({ row }) => {
-        const isDriverActive = row.original.driverStatus === 'active';
-        const isCurrentOnline = row.original.currentStatus === 'online';
+        const isDriverActive = row.original.driverStatus;
+        const isCurrentOnline = row.original.currentStatus;
 
         return (
           <div>
-            <Typography className='font-medium'>{row.original.driverName}</Typography>
-            <Typography className='font-medium' color='text.primary'>
+            <Typography className='font-medium' color='text.primary'>{row.original.driverName}</Typography>
+            <Typography className='font-normal' color='text.secondary'>
               {row.original.phoneNumber}
             </Typography>
             <Typography
               variant='body2'
               className='text-wrap'
-              style={{ color: isCurrentOnline ? 'green' : 'red' }} // Corrected color assignment
+              style={{ color: isCurrentOnline === 'Online' ? 'green' : 'red' }} // Corrected color assignment
             >
-              {row.original.currentStatus}
+             {dictionary['navigation'][row.original.currentStatus]}
             </Typography>
             <Typography
               variant='body2'
               className='text-wrap'
-              style={{ color: isDriverActive ? 'green' : 'red' }} // Corrected color assignment
+              style={{ color: isDriverActive === 'Active'? 'green' : 'red' }} // Corrected color assignment
             >
-              {row.original.driverStatus}
+           {dictionary['navigation'][row.original.driverStatus]}
+              {/* {row.original.driverStatus} */}
             </Typography>
           </div>
         );
@@ -135,10 +135,10 @@ const DriverReportsTable = ({ staticGroup, dictionary }: { staticGroup: any[], d
       cell: ({ row }) => (
         <div>
           <Typography className='font-medium' style={{ color: 'green' }}>
-            Completed - {row.original.tripCompleted}
+           {`${dictionary['navigation'].Completed || 'Completed' } `}- {row.original.tripCompleted}
           </Typography>
           <Typography className='font-medium' style={{ color: 'red' }}>
-            Cancelled - {row.original.tripCancelled}
+           {`${dictionary['navigation'].Cancelled || 'Cancelled'} `}- {row.original.tripCancelled}
           </Typography>
         </div>
       ),

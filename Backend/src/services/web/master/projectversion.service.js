@@ -1,4 +1,4 @@
-const httpStatus = require('http-status');
+const httpStatus = require('../../../config/httpStatus');
 const ApiError = require('../../../utils/ApiError');
 const { ProjectVersion } = require('../../../models');
 
@@ -35,7 +35,6 @@ const getVersions = async () => {
   return ProjectVersion.find();
 };
 
-
 /**
  * Get version by versionId
  * @param {ObjectId} versionId
@@ -51,13 +50,11 @@ const getVersionsById = async (versionId) => {
  * @returns {Promise<ProjectVersion>}
  */
 const getVersionsByCode = async (versionCode) => {
-  return ProjectVersion.find({
-    versionCode: versionCode,
-    status: true
-});
+  return ProjectVersion.findOne({
+    versionCode,
+    status: true,
+  });
 };
-
-
 
 /**
  * Update version by versionId
@@ -86,7 +83,7 @@ const deleteVersionById = async (versionId) => {
     throw new ApiError(httpStatus.NOT_FOUND, 'Version not found');
   }
   await version.deleteOne();
-  return { status: "success",   msg:"data Deleted Successfully" };
+  return { status: 'success', msg: 'data Deleted Successfully' };
 };
 
 module.exports = {

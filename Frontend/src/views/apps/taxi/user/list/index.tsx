@@ -5,13 +5,13 @@ import Grid from '@mui/material/Grid'
 import UserListTable from './UserListTable'
 
 // Updated Component with `showAddButton` prop
-const UserList = ({ userData, dictionary, showAddButton, showActionButton }: { userData?: any[], dictionary: any, showAddButton: boolean, showActionButton: boolean }) => {
+const UserList = ({ userData, dictionary, showAddButton, showActionButton,zoneId }: { userData?: any[], dictionary: any, showAddButton: boolean, showActionButton: boolean,zoneId:any }) => {
 
   return (
     <Grid container spacing={6}>
       <Grid item xs={12}>
-       
-        <UserListTable tableData={userData} dictionary={dictionary} showAddButton={showAddButton} showActionButton={showActionButton}/>
+
+        <UserListTable tableData={userData} dictionary={dictionary} showAddButton={showAddButton} showActionButton={showActionButton} zoneId={zoneId}/>
       </Grid>
     </Grid>
   );

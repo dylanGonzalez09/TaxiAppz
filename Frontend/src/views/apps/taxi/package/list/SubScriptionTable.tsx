@@ -48,7 +48,7 @@ import OptionMenu from '@core/components/option-menu';
 import type { Locale } from '@configs/i18n';
 
 // Component Imports
-import { useIsDemoUser } from '@/utils/demoUser'
+import { useIsDemoUser } from '@/utils/demoUser' 
 
 import CustomTextField from '@core/components/mui/TextField';
 
@@ -166,7 +166,7 @@ const SubScriptionTable = ({ subScriptionData, dictionary }: { subScriptionData:
   const handleDeleteClick = (original: subscriptionType) => {
     if (checkDemoStatus()) {
      toast.error(dictionary['navigation'].deleteError);
-
+      
       return;
       }
 
@@ -177,8 +177,8 @@ const SubScriptionTable = ({ subScriptionData, dictionary }: { subScriptionData:
   const handleStatusToggle = async (subscription: subscriptionType) => {
     if (checkDemoStatus()) {
       toast.error(dictionary['navigation'].editError);
-
-    return;
+      
+    return;  
       }
 
     setstatusSubScription(subscription);
@@ -197,7 +197,7 @@ const SubScriptionTable = ({ subScriptionData, dictionary }: { subScriptionData:
         nativeEvent: {} as Event,
         bubbles: false,
       } as unknown as ChangeEvent<unknown>;
-
+  
       // Trigger onPageChange with the new page
       handlePageChange(dummyEvent, pageIndex - 1);
     };
@@ -214,12 +214,12 @@ const SubScriptionTable = ({ subScriptionData, dictionary }: { subScriptionData:
         nativeEvent: {} as Event,
         bubbles: false,
       } as unknown as ChangeEvent<unknown>;
-
+  
       // Trigger onPageChange with the new page
       handlePageChange(dummyEvent, pageIndex);
     };
-
-
+  
+  
 
   const formatValidityPeriod = (value: string) => {
     switch (value) {
@@ -341,13 +341,15 @@ const SubScriptionTable = ({ subScriptionData, dictionary }: { subScriptionData:
                 className: 'flex items-center is-full plb-2 pli-4 gap-2 text-textSecondary',
               },
             },
-                 {
-                  text: dictionary['navigation'].Delete,
-                  icon: 'tabler-trash',
-                  menuItemProps: {
-                    onClick: () => handleDeleteClick(row.original),
-                  },
-                }
+
+            //  {
+            //   text: dictionary['navigation'].Delete,
+            //   icon: 'tabler-trash',
+            //   menuItemProps: {
+            //     onClick: () => handleDeleteClick(row.original),
+            //   },
+            // }
+
               ].filter(option => option.text && option.icon)}
               />
           </div>
@@ -390,7 +392,7 @@ const SubScriptionTable = ({ subScriptionData, dictionary }: { subScriptionData:
   const handleEditClick = (rowData: subscriptionType) => {
     if (checkDemoStatus()) {
      toast.error(dictionary['navigation'].editError);
-
+      
       return;
       }
 

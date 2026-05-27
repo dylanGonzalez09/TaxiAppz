@@ -9,12 +9,7 @@ const router = express.Router();
 router.get('/driver/list', introController.getdriverIntrosWithoutPagination);
 router.get('/user/list', introController.getUserIntrosWithoutPagination);
 
-
-
 module.exports = router;
-
-
-
 
 /**
  * @swagger

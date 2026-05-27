@@ -9,7 +9,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { toast } from 'react-toastify';
 import CircularProgress from '@mui/material/CircularProgress';
 
-import { validateTextOnly } from '@/utils/validation';
+import { validateRoleName } from '@/utils/validation';
 
 import CustomTextField from '@core/components/mui/TextField';
 import { updateRole } from '@apis/role';
@@ -42,9 +42,11 @@ const EditRoleDrawer = (props: Props) => {
     control,
     reset,
     handleSubmit,
+    trigger,
     formState: { errors }
   } = useForm<FormValues>({
-    mode:'all',
+    mode:'onChange',
+    reValidateMode: 'onChange',
     defaultValues: initialData || {
       role: ''
     }
@@ -88,7 +90,7 @@ const EditRoleDrawer = (props: Props) => {
     } catch (error) {
       // Show error message if the update fails
       toast.error(dictionary['navigation'].Errorupdatingrole);
-      console.error('Error updating role:', error);
+      ;
     } finally {
       setLoading(false); // Start loading
       handleReset();
@@ -132,11 +134,15 @@ const EditRoleDrawer = (props: Props) => {
           <Controller
             name='role'
             control={control}
-            rules={{ required: dictionary['navigation'].rolerequired ,validate:validateTextOnly}}
+            rules={{ required: dictionary['navigation'].rolerequired, validate: value => validateRoleName(value, dictionary) }}
 
             render={({ field }) => (
               <CustomTextField
                 {...field}
+                onChange={async e => {
+                  field.onChange(e);
+                  await trigger('role');
+                }}
                 fullWidth
                 label={dictionary['navigation'].role}
                 placeholder={dictionary['navigation'].enterrole}

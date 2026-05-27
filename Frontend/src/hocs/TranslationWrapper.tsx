@@ -15,12 +15,14 @@ import { i18n } from '@configs/i18n'
 const invalidLangs = ['_next']
 
 const TranslationWrapper = (params: { headersList: ReturnType<typeof headers>; lang: Locale } & ChildrenType) => {
-  const doesLangExist = i18n.locales.includes(params.lang)
+  const normalizedLang = String(params.lang || '').toLowerCase()
+  const doesLangExist = i18n.locales.includes(normalizedLang as any)
+  const isDynamicLangCode = /^[a-z]{2,5}$/i.test(normalizedLang)
 
   // ℹ️ This doesn't mean MISSING, it means INVALID
   const isInvalidLang = invalidLangs.includes(params.lang)
 
-  return doesLangExist || isInvalidLang ? params.children : <LangRedirect />
+  return doesLangExist || isDynamicLangCode || isInvalidLang ? params.children : <LangRedirect />
 }
 
 export default TranslationWrapper

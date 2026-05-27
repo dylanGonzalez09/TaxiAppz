@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { toJSON, paginate } = require('./../plugins');
+const { toJSON, paginate } = require('../plugins');
 
 const demoSchema = mongoose.Schema(
   {
@@ -10,20 +10,20 @@ const demoSchema = mongoose.Schema(
     },
     Name: {
       type: String,
-      required: true
+      required: true,
     },
     subScriptionId: {
-      type: mongoose.Schema.Types.Mixed, 
+      type: mongoose.Schema.Types.Mixed,
       ref: 'SubScription',
       required: false,
     },
     demoCode: {
       type: String,
-      required: false
+      required: false,
     },
     demoKey: {
       type: String,
-      required: false
+      required: false,
     },
     demo: {
       type: Boolean,
@@ -31,42 +31,42 @@ const demoSchema = mongoose.Schema(
     },
     Startdate: {
       type: Date,
-      required: true
+      required: true,
     },
     Enddate: {
       type: Date,
-      required: true
+      required: true,
     },
     noOfDrivers: {
       type: Number,
-      required: false
+      required: false,
     },
     noOfUsers: {
       type: Number,
-      required: false
+      required: false,
     },
     features: {
       type: String,
-      required: false
+      required: false,
     },
     taxiModules: {
       type: String,
-      required: false
+      required: false,
     },
 
     status: {
       type: Boolean,
       required: true,
-      default: true
+      default: true,
     },
     clientId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Client',
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Client',
     },
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 demoSchema.plugin(toJSON);

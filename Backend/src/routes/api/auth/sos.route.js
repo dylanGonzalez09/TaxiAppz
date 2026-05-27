@@ -6,12 +6,12 @@ const sosController = require('../../../controllers/api/auth/sos.controller');
 
 const router = express.Router();
 
-router.route('/create').post(auth('Sos'),validate(sosValidation.createSOS), sosController.createSos);
-router.route('/getSoss').get(auth('Sos'),validate(sosValidation.getSOSs), sosController.getSoss);
-router.route('/getSoss/:sosId').get(auth('Sos'),validate(sosValidation.getSOS), sosController.getSos);
-router.route('/getSos/list').get(auth('Sos'),sosController.getSosWithOutPagination);
-router.route('/updateSos/:sosId').patch(auth('Sos'),validate(sosValidation.updateSOS), sosController.updateSos);
-router.route('/deleteSos/:sosId').delete(auth('Sos'),validate(sosValidation.deleteSOS), sosController.deleteSos);
+router.route('/create').post(auth('Sos'), validate(sosValidation.createSOS), sosController.createSos);
+router.route('/getSoss').get(auth('Sos'), validate(sosValidation.getSOSs), sosController.getSoss);
+router.route('/getSoss/:sosId').get(auth('Sos'), validate(sosValidation.getSOS), sosController.getSos);
+router.route('/getSos/list').get(auth('Sos'), sosController.getSosWithOutPagination);
+router.route('/updateSos/:sosId').patch(auth('Sos'), validate(sosValidation.updateSOS), sosController.updateSos);
+router.route('/deleteSos/:sosId').delete(auth('Sos'), validate(sosValidation.deleteSOS), sosController.deleteSos);
 
 module.exports = router;
 
@@ -237,4 +237,3 @@ module.exports = router;
  *       404:
  *         description: SOS request not found
  */
-

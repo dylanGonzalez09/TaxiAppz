@@ -6,15 +6,16 @@ const ReferralAmountSchema = mongoose.Schema(
     referalUserId: {
       type: mongoose.Schema.Types.ObjectId,
       required: true,
+      unique: true,
     },
     amount: {
-     type: Number,
-     required: true,
-    }
+      type: Number,
+      required: true,
+    },
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 ReferralAmountSchema.plugin(toJSON);

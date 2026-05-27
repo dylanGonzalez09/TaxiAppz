@@ -8,24 +8,42 @@ const { userUpload } = require('../../middlewares/upload');
 const router = express.Router();
 
 // Routes with authentication and validation
-router.route('/create').post(auth('Driver'), validate(driverValidation.createDriver), userUpload.single('profilePic'), driverController.createDriver);
+router
+  .route('/create')
+  .post(
+    auth('Driver'),
+    validate(driverValidation.createDriver),
+    userUpload.single('profilePic'),
+    driverController.createDriver,
+  );
 router.route('/getDrivers').get(auth('Driver'), validate(driverValidation.getDrivers), driverController.getDrivers);
 router.route('/getDrivers/:driverId').get(auth('Driver'), validate(driverValidation.getDriver), driverController.getDriver);
 router.route('/getDriver/list').get(auth('Driver'), driverController.getDriverWithoutPagination);
-router.route('/updateDrivers/:driverId').patch(auth('Driver'), validate(driverValidation.updateDriver), userUpload.single('profilePic'), driverController.updateDriver);
-router.route('/deleteDrivers/:driverId').delete(auth('Driver'), validate(driverValidation.deleteDriver), driverController.deleteDriver);
+router
+  .route('/updateDrivers/:driverId')
+  .patch(
+    auth('Driver'),
+    validate(driverValidation.updateDriver),
+    userUpload.single('profilePic'),
+    driverController.updateDriver,
+  );
+router
+  .route('/deleteDrivers/:driverId')
+  .delete(auth('Driver'), validate(driverValidation.deleteDriver), driverController.deleteDriver);
 router.route('/getDriver/aggregation').get(auth('Driver'), driverController.aggregateDrivers);
-router.get('/getVehicle/:zoneId',driverController.getVehiclesByZoneWithoutPagination);
 
-router.route('/updateActiveStatus/:id').patch(auth('Driver'),validate(driverValidation.updateActiveStatus), driverController.updateActiveStatus);
+router.get('/getVehicle/:zoneId', driverController.getVehiclesByZoneWithoutPagination);
+
+router
+  .route('/updateActiveStatus/:id')
+  .patch(auth('Driver'), validate(driverValidation.updateActiveStatus), driverController.updateActiveStatus);
 router.route('/getDropDown/list/:clientId').get(driverController.getDropDownList);
 router.route('/getDriverWalletReport').get(driverController.getDriverWallet);
 router.route('/getDriverReport').get(driverController.getDriverReport);
 router.route('/getZones').get(auth('Driver'), driverController.getZones);
-router.route('/getDriverByZone/:zoneId').get( driverController.getDriverByZone);
-// auth('Driver'),
-module.exports = router;
+router.route('/getDriverByZone/:zoneId').get(driverController.getDriverByZone);
 
+module.exports = router;
 
 /**
  * @swagger

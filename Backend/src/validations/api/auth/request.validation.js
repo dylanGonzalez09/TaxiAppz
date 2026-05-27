@@ -1,19 +1,16 @@
 const Joi = require('joi');
-const { objectId } = require('../../custom.validation');
 const FormData = require('form-data');
+const { objectId } = require('../../custom.validation');
 
+const getRequest = {};
 
-const getRequest = {
-  };
+const getRequestById = {
+  params: Joi.object({
+    requestId: Joi.string().required(),
+  }),
+};
 
-  const getRequestById = {
-    params: Joi.object({
-      requestId: Joi.string().required(),
-    }),
-  };
-
-  module.exports = {
-    getRequest,
-    getRequestById
-  };
-  
+module.exports = {
+  getRequest,
+  getRequestById,
+};

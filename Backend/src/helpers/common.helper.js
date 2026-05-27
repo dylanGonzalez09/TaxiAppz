@@ -1,4 +1,4 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const ApiError = require('../utils/ApiError');
 const { Role } = require('../models');
 
@@ -12,5 +12,5 @@ const getZone = async (roleBody) => {
 };
 
 module.exports = {
-    getZone
+  getZone,
 };

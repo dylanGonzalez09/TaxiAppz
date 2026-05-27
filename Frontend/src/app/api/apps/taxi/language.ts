@@ -111,7 +111,23 @@ export const getLanguageByPagination = async (searchTerm: string, page: number, 
       return null
     }
   } catch (error) {
-   
+
+
+    return null
+  }
+}
+
+export const getActiveLanguageByPagination = async (searchTerm: string, page: number, limit: number,id : string) => {
+  try {
+    const response = await get(ENDPOINTS.language.getActiveByPagination(searchTerm, page, limit,id))
+
+    if (response.success) {
+      return response.data
+    } else {
+      return null
+    }
+  } catch (error) {
+
 
     return null
   }

@@ -35,7 +35,6 @@ interface FormData {
   email: string
   phoneNumber: string
   country: string
-  gender: string
   city: string
   state: string
   pincode: string
@@ -45,7 +44,6 @@ interface FormData {
   serviceLocation: string
   address: string
   notes: string
-  serviceCategory: string
   referralCode: string
   profilePic: File | null
   profilePicUrl: string // Field for the current image URL
@@ -152,7 +150,6 @@ const EditDriverForm: React.FC<EditDriverFormProps> = ({ initialData, lang }: { 
     formData.append('phoneNumber', data.phoneNumber);
     formData.append('roleIds', filteredIds.join(','));
     formData.append('countryCode', data.country);
-    formData.append('gender', data.gender);
     formData.append('city', data.city);
     formData.append('state', data.state);
     formData.append('pincode', data.pincode);
@@ -162,7 +159,7 @@ const EditDriverForm: React.FC<EditDriverFormProps> = ({ initialData, lang }: { 
     formData.append('address', data.address)
     formData.append('serviceLocation', data.serviceLocation);
     formData.append('notes', data.notes);
-    formData.append('serviceCategory', data.serviceCategory);
+    formData.append('serviceCategory', 'individual');
     formData.append('referralCode', data.referralCode);
 
     if (data.profilePic) {
@@ -281,27 +278,6 @@ const EditDriverForm: React.FC<EditDriverFormProps> = ({ initialData, lang }: { 
                       {countries.map((country) => (
                         <MenuItem key={country.id} value={country.id}>{country.name}</MenuItem>
                       ))}
-                    </CustomTextField>
-                  </>
-                )}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <Controller
-                name="gender"
-                control={control}
-                render={({ field }) => (
-                  <>
-                    <CustomTextField
-                      select
-                      fullWidth
-                      label={dictionary['navigation'].gender}
-                      {...field}
-                      error={!!errors.gender}
-                    >
-                      <MenuItem value="male">{dictionary['navigation'].male}</MenuItem>
-                      <MenuItem value="female">{dictionary['navigation'].female}</MenuItem>
-                      <MenuItem value="other">{dictionary['navigation'].other}</MenuItem>
                     </CustomTextField>
                   </>
                 )}
@@ -489,24 +465,6 @@ const EditDriverForm: React.FC<EditDriverFormProps> = ({ initialData, lang }: { 
                       {...field}
                       error={!!errors.notes}
                     />
-                  </>
-                )}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <Controller
-                name="serviceCategory"
-                control={control}
-                rules={{ required: dictionary['navigation'].ServiceCategoryisrequired }}
-
-                render={({ field }) => (
-                  <>
-                    <CustomTextField
-                      fullWidth
-                      label={dictionary['navigation'].serviceCategory}
-                      {...field}
-                      error={!!errors.serviceCategory}
-                      helperText={errors.serviceCategory?.message} />
                   </>
                 )}
               />

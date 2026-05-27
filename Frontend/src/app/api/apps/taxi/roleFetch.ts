@@ -78,7 +78,7 @@ export const updateRole = async (id: string, role: any) => {
       return null
     }
   } catch (error) {
-    console.error('Error updating role:', error)
+    
 
     return null
   }
@@ -102,16 +102,25 @@ export const getByRoleId = async (id: string) => {
 
 export const deleteByRoleId = async (id: string) => {
   try {
-    const response = await del(ENDPOINTS.roles.deleteById(id))
+    const response = await del(ENDPOINTS.roles.deleteById(id));
+    
+    console.error('deleteByRoleId', response);
 
-    if (response.success) {
-      return response.data
+    if (response.success && response.data?.status !== 403) {
+      return { success: true, message: 'Deleted successfully' };
     } else {
-      return null
+      return {
+        success: false,
+        message: response.data?.msg || 'Unable to delete role',
+      };
     }
   } catch (error) {
-    console.error('Error deleting role by ID:', error)
-
-    return null
+    
+    console.error('Error deleting role by ID:', error);
+    
+    return {
+      success: false,
+      message: 'Something went wrong while deleting the role.',
+    };
   }
-}
+};

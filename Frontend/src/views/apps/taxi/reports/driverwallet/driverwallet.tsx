@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/ban-types */
 'use client';
 
@@ -25,6 +24,7 @@ type DriverWalletType = {
   phoneNumber: string;
   walletBalance: Number;
   driverId: string;
+  userId?:string;
 };
 
 const fuzzyFilter: FilterFn<DriverWalletType> = (row, columnId, filterValue) => {
@@ -64,7 +64,8 @@ const columnHelper = createColumnHelper<DriverWalletType>();
 
 const DriverWalletTable = ({ staticGroup, dictionary }: { staticGroup: DriverWalletType[], dictionary: any }) => {
   const [rowSelection, setRowSelection] = useState({});
-    const { lang: locale } = useParams();
+    const { lang: locale,zoneId } = useParams();
+    const zoneIdString = Array.isArray(zoneId) ? zoneId[0] : zoneId;
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [data, setData] = useState<DriverWalletType[]>(staticGroup);
@@ -81,7 +82,7 @@ const DriverWalletTable = ({ staticGroup, dictionary }: { staticGroup: DriverWal
           header: dictionary['navigation'].driverName,
           cell: ({ row }) => <Typography
           component={row.original.driverId ? Link : 'span'}
-          href={row.original.driverId ? getLocalizedUrl(`apps/taxi/user/view/${row.original.driverId}`, locale as Locale) : undefined}
+          href={row.original.driverId ? getLocalizedUrl(`${zoneIdString}/apps/taxi/user/view/${row.original.userId}`, locale as Locale) : undefined}
           color="primary"
         >
 
@@ -95,7 +96,7 @@ const DriverWalletTable = ({ staticGroup, dictionary }: { staticGroup: DriverWal
       header: dictionary['navigation'].walletBalance,
       cell: ({ row }) => <Typography className='font-medium'>{String(row.original.walletBalance)}</Typography>,
     }),
-  ], [ dictionary]);
+  ], [ locale,zoneIdString,dictionary]);
 
   const table = useReactTable({
     data,

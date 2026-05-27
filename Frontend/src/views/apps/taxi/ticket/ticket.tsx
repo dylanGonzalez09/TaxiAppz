@@ -86,7 +86,7 @@ const fuzzyFilter: FilterFn<TicketDataType> = (row, columnId, filterValue) => {
 
 const columnHelper = createColumnHelper<TicketDataType>();
 
-const TicketTable = ({ dictionary, ticketData }: { dictionary: any; ticketData: any; }) => {
+const TicketTable = ({ dictionary, ticketData,zoneId }: { dictionary: any; ticketData: any,zoneId:any }) => {
   const { lang: locale } = useParams()
   const [rowSelection, setRowSelection] = useState({});
   const [addTicketOpen, setAddTicketOpen] = useState(false);
@@ -103,6 +103,16 @@ const TicketTable = ({ dictionary, ticketData }: { dictionary: any; ticketData: 
   const [totalResults, setTotalResults] = useState(ticketData.total); // To track the total number of records
   const [data, setData] = useState(ticketData.results);
   const [pageSize, setPageSize] = useState(ticketData.limit);
+  const [Status, setStatus] = useState<string>('All')
+
+    const filtermaps = [
+    { name: 'All', value: 'All' },
+    { name: 'Open', value: 'open' },
+    { name: 'In-Progress', value: 'In-Progress' },
+    { name: 'Action-Taken', value: 'Action-Taken' },
+    { name: 'Closed', value: 'closed' }
+  ]
+
 
   const formatDate = (date: any) => {
     if (!date) return '-'; // Handle undefined or null date
@@ -129,7 +139,7 @@ return format(new Date(date), 'dd/MM/yyyy HH:mm'); // Format date to a more read
       cell: ({ row }) => (
         <div>
 
-     <Link href={getLocalizedUrl(`/apps/taxi/user/view/${row.original.userId}`, locale as Locale)} className='flex'>
+     <Link href={getLocalizedUrl(`${zoneId}/apps/taxi/user/view/${row.original.userId}`, locale as Locale)} className='flex'>
 
             <Typography color="primary" className="cursor-pointer hover:underline">
               {row.original.userName}
@@ -180,7 +190,7 @@ return format(new Date(date), 'dd/MM/yyyy HH:mm'); // Format date to a more read
 
         return (
           <Chip
-            label={status}
+            label={dictionary['navigation'] [status]}
             color={statusColorMapping[status] || 'default'} // Use color based on status
             variant="tonal"
             size="small"
@@ -340,13 +350,27 @@ return format(new Date(date), 'dd/MM/yyyy HH:mm'); // Format date to a more read
   };
 
 
+  const handleFilterChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value || 'All'
 
+    setStatus(value)
+
+    const response = await getByTicketByPagination(pageSearch, 1, pageSize, value,zoneId)
+
+    if (!response) return
+
+    const { results = [], total = 0 } = response
+
+    setData(results)
+    setTotalResults(total)
+    setPageIndex(0)
+  }
 
 
 
   const handlePageChange = async (event: unknown, newPage: number) => {
     try {
-      const { results, total } = await getByTicketByPagination(pageSearch, newPage, pageSize);
+      const { results, total } = await getByTicketByPagination(pageSearch, newPage, pageSize,Status, zoneId);
 
       setData(results);
       setPageIndex(newPage);
@@ -360,7 +384,7 @@ return format(new Date(date), 'dd/MM/yyyy HH:mm'); // Format date to a more read
 
     const newPageSize = parseInt(event.target.value);
 
-    const { results, total } = await getByTicketByPagination(pageSearch, 1, newPageSize);
+    const { results, total } = await getByTicketByPagination(pageSearch, 1, newPageSize,Status,zoneId);
 
     setPageSize(newPageSize);
     setData(results);
@@ -375,7 +399,9 @@ return format(new Date(date), 'dd/MM/yyyy HH:mm'); // Format date to a more read
         const result = await getByTicketByPagination(
           searchTerm,
           1, // Reset to first page on new search
-          pageSize
+          pageSize,
+          Status,
+          zoneId
         );
 
         setPageSearch(searchTerm);
@@ -398,7 +424,7 @@ return format(new Date(date), 'dd/MM/yyyy HH:mm'); // Format date to a more read
       <Card>
         <div className='flex flex-wrap justify-between gap-4 p-6'>
 
-          {/* start pagination */}
+
 
           <div className='flex items-center gap-x-4'>
             <CustomTextField
@@ -418,6 +444,13 @@ return format(new Date(date), 'dd/MM/yyyy HH:mm'); // Format date to a more read
           {/* end pagination */}
 
           <div className='flex items-center gap-x-4'>
+            <CustomTextField select value={Status} onChange={(e: any) => handleFilterChange(e)} className='flex-auto'>
+              {filtermaps.map((f, index) => (
+                <MenuItem key={index} value={f.value}>
+                  {f.name}
+                </MenuItem>
+              ))}
+            </CustomTextField>
 
             <CustomTextField
               select
@@ -508,6 +541,8 @@ return format(new Date(date), 'dd/MM/yyyy HH:mm'); // Format date to a more read
                handlePageChange={handlePageChange}  // Page change handler
                handlePageSizeChange={handlePageSizeChange}  // Page size change handler
                dictionary={dictionary}
+
+
              />}
              count={totalResults}
              page={pageIndex}
@@ -531,7 +566,8 @@ return format(new Date(date), 'dd/MM/yyyy HH:mm'); // Format date to a more read
           onPageChange={handlePageChange}
           rowsPerPage={pageSize}
           dictionary={dictionary}
-
+          zoneId={zoneId}
+          isSuperAdmin={ticketData.isSuperAdmin}
         />
         <ConfirmationDialog
           open={deleteConfirmationOpen}

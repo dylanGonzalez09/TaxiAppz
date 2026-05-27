@@ -408,7 +408,7 @@ const DispatcherTable = ({ dispatcherData, dictionary }: { dispatcherData?: any,
               </Button>
           </div>
         </div>
-        <div className='overflow-x-auto'>
+        <div className='overflow-x-auto' id="table-container">
           <table className={tableStyles.table}>
             <thead>
               {table.getHeaderGroups().map(headerGroup => (

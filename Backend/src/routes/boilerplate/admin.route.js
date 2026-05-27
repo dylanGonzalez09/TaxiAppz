@@ -6,12 +6,20 @@ const adminController = require('../../controllers/boilerplate/admin.controller'
 
 const router = express.Router();
 
-router.route('/create').post(auth('Admin'),validate(adminValidation.createAdmin), adminController.createAdmin);
-router.route('/getAdmins').get(auth('Admin'),validate(adminValidation.getAdmins), adminController.getAdmins);
-router.route('/getAdmin/:adminId').get(auth('Admin'),validate(adminValidation.getAdmin), adminController.getAdmin);
-router.route('/getAdminByRole/:roleId').get(auth('Admin'),validate(adminValidation.getAdminByRole), adminController.getAdminByRole);
-router.route('/updateAdmins/:adminId').patch(auth('Admin'),validate(adminValidation.updateAdmin), adminController.updatAdmin);
-router.route('/deleteAdmins/:adminId').delete(auth('Admin'),validate(adminValidation.deleteAdmin), adminController.deleteAdmin);
+router.route('/create').post(auth('Admin'), validate(adminValidation.createAdmin), adminController.createAdmin);
+router.route('/getAdmins').get(auth('Admin'), validate(adminValidation.getAdmins), adminController.getAdmins);
+router.route('/getAdmin/:adminId').get(auth('Admin'), validate(adminValidation.getAdmin), adminController.getAdmin);
+router
+  .route('/getAdminByRole/:roleId')
+  .get(auth('Admin'), validate(adminValidation.getAdminByRole), adminController.getAdminByRole);
+router
+  .route('/updateAdmins/:adminId')
+  .patch(auth('Admin'), validate(adminValidation.updateAdmin), adminController.updatAdmin);
+router
+  .route('/deleteAdmins/:adminId')
+  .delete(auth('Admin'), validate(adminValidation.deleteAdmin), adminController.deleteAdmin);
+router.route('/getAdminsOnly').get(auth('Admin'), adminController.getAdminsOnly);
+router.route('/getDropDown/list/:clientId/:zoneId').get(adminController.getDropDownListForAdmin);
 router.route('/getDropDown/list/:clientId').get(adminController.getDropDownList);
 
 module.exports = router;
@@ -492,7 +500,6 @@ module.exports = router;
  *         $ref: '#/components/responses/Unauthorized'
  */
 
-
 /**
  * @swagger
  * /admin/getAdminByRole/{roleId}:
@@ -628,7 +635,6 @@ module.exports = router;
  *       "401":
  *         $ref: '#/components/responses/Unauthorized'
  */
-
 
 /**
  * @swagger

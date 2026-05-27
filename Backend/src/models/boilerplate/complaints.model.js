@@ -8,43 +8,58 @@ const complaintSchema = mongoose.Schema(
       trim: true,
       default: null,
     },
-    category:{
-        type: mongoose.SchemaTypes.ObjectId,
-        ref: 'Category',
-        required: false,
+    category: {
+      type: mongoose.SchemaTypes.ObjectId,
+      ref: 'Category',
+      required: false,
+      default: null,
     },
     type: {
       type: String,
       trim: true,
       default: null,
     },
-     status: {
-            type: Boolean,
-            default: true,
-        },
+    status: {
+      type: Number,
+      required: true,
+      default: 1,
+    },
     complaintType: {
       type: Number,
       required: true,
       default: 1,
     },
-   
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
     language: {
       type: String,
       trim: true,
       default: null,
     },
- 
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
     clientId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Client',
-    }
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Client',
+    },
+    zoneId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Zone',
+      required: true,
+      default: null,
+    },
   },
   {
     timestamps: {
       createdAt: 'createdAt',
       updatedAt: 'updatedAt',
     },
-  }
+  },
 );
 
 // Add plugin that converts mongoose to json

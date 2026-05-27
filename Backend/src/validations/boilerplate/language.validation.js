@@ -29,8 +29,7 @@ const getLanguagebyCode = {
   }),
 };
 
-const getLanguageWithOutPagination = {
-};
+const getLanguageWithOutPagination = {};
 
 const updateLanguage = {
   params: Joi.object().keys({
@@ -38,10 +37,10 @@ const updateLanguage = {
   }),
   body: Joi.object()
     .keys({
-    name: Joi.string(),
-    code: Joi.string(),
-    status: Joi.boolean(),
-    clientId: Joi.string().custom(objectId).optional()
+      name: Joi.string(),
+      code: Joi.string(),
+      status: Joi.boolean(),
+      clientId: Joi.string().custom(objectId).optional(),
     })
     .min(1),
 };
@@ -69,5 +68,5 @@ module.exports = {
   updateLanguage,
   deleteLanguage,
   getLanguagebyCode,
-  updatelanguageStatus
+  updatelanguageStatus,
 };

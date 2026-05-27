@@ -97,7 +97,10 @@ const AddLanguageDrawer = (props: Props) => {
       // Update the state with the new language data
 
       // Show success message
-      toast.success(dictionary['navigation'].Languageaddedsuccessfully);
+      toast.success(
+        dictionary['navigation'].LanguageAddedTranslatingInBackground ||
+          'Language added. Translating from English in the background. Check Translation in a few moments.'
+      );
 
       // Optionally, reset the form or any other UI elements
       handleReset();
@@ -186,7 +189,7 @@ const AddLanguageDrawer = (props: Props) => {
                 />
               )}
             />
-            <div className="flex items-center gap-4">
+            <div className="flex justify-end gap-5">
               <Button
                 variant="contained"
                 color="primary"

@@ -11,7 +11,9 @@ router.post('/getUserByEmail', validate(usersValidation.getUserByEmail), usersCo
 router.post('/getUserByEmailDetails', validate(usersValidation.getUserByEmail), usersController.getUserByEmailDetails);
 router.route('/getUsers').get(auth('Users'), validate(usersValidation.getUsers), usersController.getUsers);
 router.route('/getUser/:userId').get(auth('Users'), validate(usersValidation.getUser), usersController.getUser);
-router.route('/getUserByRole/:roleId').get(auth('Users'), validate(usersValidation.getUserByRole), usersController.getUserByRole);
+router
+  .route('/getUserByRole/:roleId')
+  .get(auth('Users'), validate(usersValidation.getUserByRole), usersController.getUserByRole);
 router.route('/updateUsers/:userId').patch(auth('Users'), validate(usersValidation.updateUser), usersController.updateUser);
 router.route('/deleteUsers/:userId').delete(auth('Users'), validate(usersValidation.deleteUser), usersController.deleteUser);
 
@@ -28,7 +30,8 @@ router.route('/getDropDown/list/:clientId').get(usersController.getDropDownList)
 router.route('/getDashboardCount').get(usersController.getDashboardCount);
 router.route('/allAdmin').get(usersController.getAllAdmin);
 router.route('/getUserProfileDetails/:userId').get(usersController.getUserProfileDetails);
-router.route('/getLogisticalCounts').get( usersController.getLogisticalCounts);
+router.route('/getDriverProfileDetails/:userId').get(usersController.getDriverProfileDetails);
+router.route('/getLogisticalCounts').get(usersController.getLogisticalCounts);
 
 module.exports = router;
 

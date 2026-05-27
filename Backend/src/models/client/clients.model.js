@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { toJSON, paginate } = require('./../plugins');
+const { toJSON, paginate } = require('../plugins');
 
 const clientSchema = mongoose.Schema(
   {
@@ -10,7 +10,7 @@ const clientSchema = mongoose.Schema(
     },
     Name: {
       type: String,
-      required: true
+      required: true,
     },
     subScriptionId: {
       type: mongoose.SchemaTypes.ObjectId,
@@ -19,42 +19,42 @@ const clientSchema = mongoose.Schema(
     },
     clientCode: {
       type: String,
-      required: true
+      required: true,
     },
     Startdate: {
       type: Date,
-      required: true
+      required: true,
     },
     Enddate: {
       type: Date,
-      required: true
+      required: true,
     },
     noOfDrivers: {
       type: Number,
-      required: true
+      required: true,
     },
     noOfUsers: {
       type: Number,
-      required: true
+      required: true,
     },
     features: {
       type: String,
-      required: true
+      required: true,
     },
     taxiModules: {
       type: String,
-      required: true
+      required: true,
     },
 
     status: {
       type: Boolean,
       required: true,
-      default: true
-    }
+      default: true,
+    },
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 clientSchema.plugin(toJSON);

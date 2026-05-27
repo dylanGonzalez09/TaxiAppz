@@ -2,9 +2,9 @@
 import { get, post, patch, del } from './apiService'
 import { ENDPOINTS } from './endpoint'
 
-export const fetchSubScription = async () => {
+export const fetchSubScription = async (zoneId?: string) => {
   try {
-    const response = await get(ENDPOINTS.subScription.list)
+    const response = await get(ENDPOINTS.subScription.list(zoneId))
 
     if (response.success) {
       return response.data
@@ -19,9 +19,14 @@ export const fetchSubScription = async () => {
 }
 
 
-export const getSubscriptionByPagination = async (searchTerm: string, page: number, limit: number) => {
+export const getSubscriptionByPagination = async (
+  searchTerm: string,
+  page: number,
+  limit: number,
+  zoneId?: string
+) => {
   try {
-    const response = await get(ENDPOINTS.subScription.getByPagination(searchTerm, page, limit))
+    const response = await get(ENDPOINTS.subScription.getByPagination(searchTerm, page, limit, zoneId))
 
     if (response.success) {
 
@@ -112,7 +117,7 @@ export const updateSubScriptionStatus = async (id: string, subScription: any) =>
       return null;
     }
   } catch (error) {
-    console.error('Error updating role:', error);
+    ;
 
     return null;
   }

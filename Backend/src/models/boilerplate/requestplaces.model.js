@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { toJSON, paginate } = require('./../plugins');
+const { toJSON, paginate } = require('../plugins');
 
 const requestPlaceSchema = mongoose.Schema(
   {
@@ -7,6 +7,7 @@ const requestPlaceSchema = mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       required: true,
       ref: 'Request',
+      index: true,
     },
     pickLat: {
       type: Number,
@@ -56,7 +57,7 @@ const requestPlaceSchema = mongoose.Schema(
       type: String,
       default: null,
     },
-    vehicleType:{
+    vehicleType: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Vehicle',
       default: null,
@@ -84,7 +85,7 @@ const requestPlaceSchema = mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 requestPlaceSchema.plugin(toJSON);

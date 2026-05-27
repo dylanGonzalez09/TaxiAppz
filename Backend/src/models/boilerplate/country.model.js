@@ -1,78 +1,78 @@
 const mongoose = require('mongoose');
-const { toJSON, paginate } = require('./../plugins');
+const { toJSON, paginate } = require('../plugins');
 
 const countrySchema = mongoose.Schema(
   {
     name: {
       type: String,
-      required: true
+      required: true,
     },
     dial_code: {
-      type: String
+      type: String,
     },
     code: {
-      type: String
+      type: String,
     },
     currency_name: {
-      type: String
+      type: String,
     },
     currency_code: {
-      type: String
+      type: String,
     },
     currency_symbol: {
-      type: String
+      type: String,
     },
     status: {
       type: Boolean,
-      default: false
+      default: false,
     },
     capital: {
-      type: String
+      type: String,
     },
     citizenship: {
-      type: String
+      type: String,
     },
     country_code: {
-      type: String
+      type: String,
     },
     currency: {
-      type: String
+      type: String,
     },
     currency_sub_unit: {
-      type: String
+      type: String,
     },
     full_name: {
-      type: String
+      type: String,
     },
     iso_3166_3: {
-      type: String
+      type: String,
     },
     region_code: {
-      type: String
+      type: String,
     },
     sub_region_code: {
-      type: String
+      type: String,
     },
     eea: {
-      type: String
+      type: String,
     },
     currency_decimals: {
-      type: String
+      type: String,
     },
     flag: {
-      type: String
+      type: String,
     },
     flag_base_64: {
-      type: String
+      type: String,
     },
     time_zone: {
-      type: String
+      type: String,
     },
     phoneLength: {
-      type: String
+      type: String,
     },
     gmt_offset: {
-      type: String
+      type: String,
     },
     clientId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -80,8 +80,8 @@ const countrySchema = mongoose.Schema(
     },
   },
   {
-    timestamps: true
-  }
+    timestamps: true,
+  },
 );
 
 // add plugins for toJSON and pagination

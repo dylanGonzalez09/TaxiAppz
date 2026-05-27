@@ -7,8 +7,8 @@ const requestListView = new mongoose.Schema(
   {
     collection: 'requestListView',
     strict: false,
-    autoCreate: false
-  }
+    autoCreate: false,
+  },
 );
 
 module.exports = mongoose.models[modelName] || mongoose.model(modelName, requestListView);

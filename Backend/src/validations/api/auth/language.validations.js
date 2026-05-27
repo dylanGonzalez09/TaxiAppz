@@ -1,13 +1,11 @@
 const Joi = require('joi');
 const { objectId } = require('../../custom.validation');
 
-
 const getLanguagebyCode = {
   params: Joi.object().keys({
     languageCode: Joi.string(),
   }),
 };
-
 
 const getLanguage = {
   body: Joi.object().keys({
@@ -15,12 +13,7 @@ const getLanguage = {
   }),
 };
 
-
 module.exports = {
-    getLanguagebyCode,
-    getLanguage,
+  getLanguagebyCode,
+  getLanguage,
 };
-
-
-
-

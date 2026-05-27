@@ -1,8 +1,10 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const ApiError = require('../../../utils/ApiError');
-const { Wallet, WalletTransaction, Country } = require('../../../models');
+const { Wallet, WalletTransaction, Country,User } = require('../../../models');
 const { tokenService } = require('../../../services');
 const ObjectId = require('mongoose').Types.ObjectId
+
+const {getUserId,getClientId,getDriverId} = require('../../../utils/commonFunction')
 
 
 /**
@@ -10,38 +12,6 @@ const ObjectId = require('mongoose').Types.ObjectId
   1. Check the Version Available or not if not redirect to update screen 
   2. check the avaliable languages for client send the avaliable languages 
  */
-const getClientId = async (req) => {
-  clientId = '';
-  if (!req.headers.clientid) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
-  } else {
-    clientId = req.headers.clientid;
-  }
-  return clientId;
-}
-
-
-
-const getUserId = async (req) => {
-
-  let userId = '';
-
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    res.status(httpStatus.UNAUTHORIZED).send({ message: 'Authorization header is missing or invalid' });
-    return;
-  }
-  // Remove the 'Bearer ' prefix and get the token
-  const token = authHeader.substring(7);
-
-  const user = await tokenService.verifyTokenAndGetUser(token);
-
-  userId = user.id
-
-  return userId;
-}
-
 
 
 
@@ -75,7 +45,10 @@ const queryWalletTransaction = async (req, filter, options) => {
     currencySymbol = countryDetails.currency_symbol ? countryDetails.currency_symbol : "";
   }
   filter.walletId = req.params.walletId;
+  filter.amount = { $ne: 0 };
+  options.sortBy ='createdAt:desc';
   const walletTransaction = await WalletTransaction.paginate(filter, options);
+
   return { walletTransaction, currencySymbol };
 };
 
@@ -101,12 +74,19 @@ const createWallets = async (req) => {
   };
 
   if (wallet) {
-    wallet.earnedAmount = (wallet.earnedAmount + amount).toString(); // Ensure earnedAmount is a string
-    wallet.balance = (wallet.balance + amount).toString(); // Ensure balance is a string
+
+    if(amount < 0){
+      wallet.amountSpent = (wallet.amountSpent + amount).toString();
+      wallet.balance = (wallet.balance + amount).toString();
+    }else{
+      wallet.earnedAmount = (wallet.earnedAmount + amount).toString(); 
+      wallet.balance = (wallet.balance + amount).toString();
+    }
 
     wallet = await updateWalletById(wallet._id, {
       earnedAmount: wallet.earnedAmount,
       balance: wallet.balance,
+      amountSpent: wallet.amountSpent,
     });
 
     walletTransaction.walletId = wallet._id.toString(); // Ensure walletId is a string
@@ -206,12 +186,14 @@ const getWalletById = async (id) => {
   return Wallet.findById(id);
 };
 
-const getWalletDetails = async (req) => {
+const getWalletDetails = async (req, driverId = null) => {
   let clientId = await getClientId(req);
   let userId = await getUserId(req);
 
 
-  let walletDetails = await Wallet.aggregate([
+  let walletDetails = null;
+
+  const walletAggregation = await Wallet.aggregate([
     {
       $match: {
         userId: new ObjectId(userId),
@@ -241,7 +223,7 @@ const getWalletDetails = async (req) => {
               $expr: {
                 $eq: [
                   '$_id',
-                  { $toObjectId: '$$countryId' } // Convert string to ObjectId
+                  { $toObjectId: '$$countryId' }
                 ]
               }
             }
@@ -267,11 +249,11 @@ const getWalletDetails = async (req) => {
                   { $eq: ["$earnedAmount", Infinity] },
                   { $eq: ["$earnedAmount", -Infinity] },
                   { $eq: ["$earnedAmount", null] },
-                  { $not: { $ifNull: ["$earnedAmount", false] } } // Handles missing field
+                  { $not: { $ifNull: ["$earnedAmount", false] } }
                 ]
               },
-              0, // Replace Infinity/null with 0
-              "$earnedAmount" // Keep original value if valid
+              0,
+              "$earnedAmount"
             ]
           }
         },
@@ -314,17 +296,36 @@ const getWalletDetails = async (req) => {
     },
   ]);
 
+  // Handle case where wallet doesn't exist
+  if (walletAggregation && Array.isArray(walletAggregation) && walletAggregation.length > 0) {
+    walletDetails = walletAggregation[0];
+  } else {
+    // Create default wallet structure if no wallet found
+    const user = await User.findById(userId);
+    let countryDetails = null;
+    
+    if (user && user.countryCode) {
+      countryDetails = await Country.findById(user.countryCode);
+    }
 
-  // 66d5848ce928e7a8d374d85b
-  if (walletDetails != null && Array.isArray(walletDetails)) {
-    walletDetails = walletDetails[0];
+    walletDetails = {
+      _id: null,
+      earnedAmount: "0",
+      amountSpent: "0", 
+      balance: "0",
+      country: user?.countryCode || null,
+      countryCode: countryDetails?.dial_code || "",
+      currencySymbol: countryDetails?.currency_symbol || "",
+      currency: countryDetails?.currencySymbol || ""
+    };
   }
 
-  let countryDetails = await Country.findById(walletDetails?.country);
-
-
-  if (countryDetails?.currencySymbol) {
-    walletDetails.currency = countryDetails?.currencySymbol ? countryDetails?.currencySymbol : "";
+  // Set currency if not already set
+  if (!walletDetails.currency && walletDetails.country) {
+    let countryDetails = await Country.findById(walletDetails.country);
+    if (countryDetails?.currencySymbol) {
+      walletDetails.currency = countryDetails.currencySymbol;
+    }
   }
 
 

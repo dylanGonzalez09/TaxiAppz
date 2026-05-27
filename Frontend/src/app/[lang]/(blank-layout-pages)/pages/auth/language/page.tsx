@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth'
 
 import { getByVersionByCode } from '@apis/version'
 import { getDictionary } from '@/utils/getDictionary'
-import DashboardClient from '@/app/[lang]/(dashboard)/(private)/dashboards/client/page'
+import DashboardClient from '@/app/[lang]/[zoneId]/(dashboard)/(private)/dashboards/client/page';
 import NotFoundPage from '@/app/[lang]/[...not-found]/page'
 import Language from '@views/pages/auth/language'
 

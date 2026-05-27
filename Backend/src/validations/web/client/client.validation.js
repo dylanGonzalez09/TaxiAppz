@@ -17,13 +17,13 @@ const createClient = {
     clientCode: Joi.string().required(),
     Startdate: Joi.date().required(),
     Enddate: Joi.date().required(),
-    noOfUsers:Joi.number().required(),
+    noOfUsers: Joi.number().required(),
     noOfDrivers: Joi.number().required(),
     features: Joi.string().required(),
     taxiModules: Joi.string().required(),
     status: Joi.boolean().required(),
     languageId: Joi.string().custom(objectId).optional(),
-    userId: Joi.string().custom(objectId).optional()
+    userId: Joi.string().custom(objectId).optional(),
   }),
 };
 
@@ -58,30 +58,32 @@ const updateClient = {
   params: Joi.object().keys({
     clientId: Joi.string().custom(objectId).required(),
   }),
-  body: Joi.object().keys({
-    Name: Joi.string().optional(),
-    firstName: Joi.string().optional(),
-    lastName: Joi.string().optional(),
-    email: Joi.string().email().optional(),
-    phoneNumber: Joi.string().optional(),
-    emergencyNumber: Joi.string().optional(),
-    password: Joi.string().optional(),
-    roleIds: Joi.array().items(Joi.string().custom(objectId)).optional(),
-    subScriptionId: Joi.string().custom(objectId).optional(),
-    address: Joi.string().optional(),
-    active: Joi.boolean().optional(),
-    clientCode: Joi.string().optional(),
-    Startdate: Joi.date().optional(),
-    Enddate: Joi.date().optional(),
-    noOfVehicle: Joi.string().optional(),
-    noOfUsers: Joi.number().optional(),
-    noOfDrivers: Joi.number().optional(),
-    features: Joi.string().optional(),
-    taxiModules: Joi.string().optional(),
-    status: Joi.boolean().optional(),
-    languageId: Joi.string().custom(objectId).optional(),
-    userId: Joi.string().custom(objectId).optional()
-  }).min(1), // Ensure at least one field is updated
+  body: Joi.object()
+    .keys({
+      Name: Joi.string().optional(),
+      firstName: Joi.string().optional(),
+      lastName: Joi.string().optional(),
+      email: Joi.string().email().optional(),
+      phoneNumber: Joi.string().optional(),
+      emergencyNumber: Joi.string().optional(),
+      password: Joi.string().optional(),
+      roleIds: Joi.array().items(Joi.string().custom(objectId)).optional(),
+      subScriptionId: Joi.string().custom(objectId).optional(),
+      address: Joi.string().optional(),
+      active: Joi.boolean().optional(),
+      clientCode: Joi.string().optional(),
+      Startdate: Joi.date().optional(),
+      Enddate: Joi.date().optional(),
+      noOfVehicle: Joi.string().optional(),
+      noOfUsers: Joi.number().optional(),
+      noOfDrivers: Joi.number().optional(),
+      features: Joi.string().optional(),
+      taxiModules: Joi.string().optional(),
+      status: Joi.boolean().optional(),
+      languageId: Joi.string().custom(objectId).optional(),
+      userId: Joi.string().custom(objectId).optional(),
+    })
+    .min(1), // Ensure at least one field is updated
 };
 
 // Validation for deleting a client

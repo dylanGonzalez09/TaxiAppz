@@ -5,23 +5,23 @@ const transporter = nodemailer.createTransport({
   service: 'gmail', // You can use other services like 'outlook', 'yahoo', etc.
   auth: {
     user: 'sales@taxiappz.com', // Your email address
-    pass: 'tcew blab vqxv hmoz' // Your email password or app password
-  }
+    pass: 'tcew blab vqxv hmoz', // Your email password or app password
+  },
 });
 
 // Function to send dynamic email
 const sendEmail = async (Enddate, toEmail, demoKey, clientName) => {
-    // Format Enddate to display only date and time
-    const formattedEndDate = new Date(Enddate);
-    const formattedDate = formattedEndDate.toLocaleString('en-US', {
-      weekday: 'long', 
-      year: 'numeric',
-      month: 'long',  
-      day: 'numeric'
-    });
-    
-    // HTML content for the email body with dynamic data
-    const htmlContent = ` <!DOCTYPE html>
+  // Format Enddate to display only date and time
+  const formattedEndDate = new Date(Enddate);
+  const formattedDate = formattedEndDate.toLocaleString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+
+  // HTML content for the email body with dynamic data
+  const htmlContent = ` <!DOCTYPE html>
 <html lang="en">
  
 <head>
@@ -315,21 +315,20 @@ const sendEmail = async (Enddate, toEmail, demoKey, clientName) => {
   </div>
 </body>
 </html>`;
-             
-    // Email options
-    const mailOptions = {
-      from: 'sales@taxiappz.com', // Sender address
-      to: toEmail, 
-      subject: 'TaxiAppz Demo Credentials', // Subject line
-      html: htmlContent // HTML body
-    };
-  
-    try {
-      const info = await transporter.sendMail(mailOptions);
 
-    } catch (error) {
-      console.error('Error sending email:', error);
-    }
+  // Email options
+  const mailOptions = {
+    from: 'sales@taxiappz.com', // Sender address
+    to: toEmail,
+    subject: 'TaxiAppz Demo Credentials', // Subject line
+    html: htmlContent, // HTML body
   };
-  
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+  } catch (error) {
+    console.error('Error sending email:', error);
+  }
+};
+
 module.exports = sendEmail;

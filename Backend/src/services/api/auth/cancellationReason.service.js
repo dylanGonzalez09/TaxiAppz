@@ -1,7 +1,7 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
+const { log } = require('winston');
 const ApiError = require('../../../utils/ApiError');
 const { CancellationReason } = require('../../../models');
-const { log } = require('winston');
 
 /**
  * Create a cancellation
@@ -34,7 +34,6 @@ const getCancellations = async () => {
   return CancellationReason.find();
 };
 
-
 /**
  * Get cancellation by cancellationId
  * @param {ObjectId} cancellationId
@@ -44,10 +43,6 @@ const getCancellationsById = async (cancellationId) => {
   return CancellationReason.findById(cancellationId);
 };
 
-
-
-
-
 /**
  * Update cancellation by cancellationId
  * @param {ObjectId} cancellationId
@@ -55,7 +50,6 @@ const getCancellationsById = async (cancellationId) => {
  * @returns {Promise<CancellationReason>}
  */
 const updateCancellationById = async (cancellationId, updateBody) => {
-  
   const cancellation = await getCancellationsById(cancellationId);
   if (!cancellation) {
     throw new ApiError(httpStatus.NOT_FOUND, 'cancellation not found');
@@ -76,7 +70,7 @@ const deleteCancellationById = async (cancellationId) => {
     throw new ApiError(httpStatus.NOT_FOUND, 'cancellation not found');
   }
   await cancellation.deleteOne();
-  return { status: "success",   msg:"data Deleted Successfully" };
+  return { status: 'success', msg: 'data Deleted Successfully' };
 };
 
 module.exports = {
@@ -84,7 +78,7 @@ module.exports = {
   queryCancellation,
   getCancellationsById,
   getCancellations,
-  
+
   updateCancellationById,
   deleteCancellationById,
 };

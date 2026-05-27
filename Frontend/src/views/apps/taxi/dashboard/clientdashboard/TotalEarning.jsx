@@ -18,7 +18,8 @@ import { useIsDemoUser } from '@/utils/demoUser'
 
 const AppReactApexCharts = dynamic(() => import('@/libs/styles/AppReactApexCharts'))
 
-const RevenueReport = ({revenue,dictionary}) => {
+
+const RevenueReport = ({ revenue, dictionary }) => {
   const { checkDemoStatus } = useIsDemoUser()
   const currentYear = new Date().getFullYear()
   const currentMonth = new Date().getMonth()
@@ -27,21 +28,31 @@ const RevenueReport = ({revenue,dictionary}) => {
   const [anchorEl, setAnchorEl] = useState(null)
   const [selectedYear, setSelectedYear] = useState(currentYear) // Default to current year
 
+  const normalizeToMonths = (data) => {
+  const result = Array(12).fill(0)
+
+  data.forEach((val, index) => {
+    result[index] = val
+  })
+
+  return result
+}
+
   // Format currency based on demo status
- const formatCurrency = (value) => {
+  const formatCurrency = (value) => {
     const currencySymbol = checkDemoStatus()
       ? '$'
       : revenue?.[selectedYear]?.payments?.currencySymbol || '$'
     
       return `${currencySymbol} ${(value ?? 0).toFixed(2)}`
   
-    }
+  }
   
   const yearlyData = yearOptions.reduce((acc, year) => {
+    
     const values = revenue?.[year] || {}
 
     acc[year] = {
-
         payments: values?.payments || { 
           total: 0, 
           cash: 0, 
@@ -52,7 +63,11 @@ const RevenueReport = ({revenue,dictionary}) => {
         completed: Array.isArray(values?.completed) ? values.completed : Array(12).fill(0),
         cancelled: Array.isArray(values?.cancelled) ? values.cancelled : Array(12).fill(0),
         lastMonth: Array.isArray(values?.lastMonth) ? values.lastMonth : [],
-        thisMonth: Array.isArray(values?.thisMonth) ? values.thisMonth : []
+
+        // thisMonth: Array.isArray(values?.thisMonth) ? values.thisMonth.map((entry) => entry.count || 0) : []
+        
+       thisMonth: normalizeToMonths(values?.thisMonth || [])
+
     }
 
     return acc
@@ -94,6 +109,7 @@ const RevenueReport = ({revenue,dictionary}) => {
       data
   }
 
+
   const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
   
   const getMonthLabelsForYear = () => {
@@ -105,15 +121,16 @@ const RevenueReport = ({revenue,dictionary}) => {
   // Chart series
   const barSeries = [
     { name: dictionary['navigation'].Completed, data: getFilteredData(completed) },
-    { name:dictionary['navigation'].Cancelled, data: getFilteredData(cancelled) }
+    { name: dictionary['navigation'].Cancelled, data: getFilteredData(cancelled) }
   ]
 
   const lineSeries = [
     { name: 'Last Month', data: getFilteredData(lastMonth) },
     { name: 'This Month', data: getFilteredData(thisMonth) }
   ]
+  
 
-  // Chart options (same as your original)
+  // Chart options
   const barOptions = {
     chart: {
       stacked: true,

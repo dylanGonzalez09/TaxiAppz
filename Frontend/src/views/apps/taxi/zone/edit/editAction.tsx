@@ -4,7 +4,7 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 
 import { toast } from 'react-toastify';
 
@@ -20,7 +20,8 @@ import RideLater from './RideLater';
 import SurgePricing from './SurgePricing';
 import { getByZoneId, updateZone } from '@/app/api/apps/taxi/zone';
 
-import { useIsDemoUser } from '@/utils/demoUser' 
+import { useIsDemoUser } from '@/utils/demoUser'
+import { normalizeMapZonePath } from '@/views/apps/taxi/zone/mapZoneUtils';
 
 interface FormValues {
   vehicleTypes: string[];
@@ -39,9 +40,9 @@ interface FormValues {
 
 interface EditZoneFormProps {
   lang: any;
-  zoneId: string; // Pass the zone ID for editing
+  currentZoneId: string; 
+  editZoneId: string; 
   dictionary:any;
-  subscriptionDetails?: any; // Optional prop for subscription details
 }
 
 const steps = [
@@ -52,8 +53,9 @@ const steps = [
 ];
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const EditAction: React.FC<EditZoneFormProps> = ({ lang, zoneId,dictionary,subscriptionDetails}) => {
+const EditAction: React.FC<EditZoneFormProps> = ({ currentZoneId, lang, editZoneId, dictionary}) => {
   const router = useRouter();
+  const params = useParams();
 
   const [activeStep, setActiveStep] = useState(0);
   const [zoneLevel, setZoneLevel] = useState('');
@@ -75,6 +77,11 @@ const EditAction: React.FC<EditZoneFormProps> = ({ lang, zoneId,dictionary,subsc
 
   const [biddingZoneData, setbiddingZoneDatas] = useState('');
 
+  /** Per-vehicle zone price row active (ZonePrice.status); false = deactivated for this zone. */
+  const [vehicleZonePriceActive, setVehicleZonePriceActive] = useState<Record<string, boolean>>({});
+
+  /** Primary zone vehicle status map for immediate toggle validation in SECONDARY edit. */
+  const [primaryVehicleStatusMap, setPrimaryVehicleStatusMap] = useState<Record<string, boolean>>({});
 
   const { control, handleSubmit, trigger, setValue, getValues, reset } = useForm<FormValues>({
     mode: 'all',
@@ -91,40 +98,110 @@ const EditAction: React.FC<EditZoneFormProps> = ({ lang, zoneId,dictionary,subsc
   // Fetch data for the edit view
   useEffect(() => {
     const fetchData = async () => {
-      const zoneData = await getByZoneId(zoneId);
-      
-      setData(zoneData[0]);
+      const zoneData = await getByZoneId(editZoneId);
+      const zone = Array.isArray(zoneData) ? zoneData[0] : zoneData;
+
+      if (!zone) return;
+
+      const rawVehicleTypes = zone.vehicleTypes || [];
+      let vehicleIds = rawVehicleTypes.map((v: any) =>
+        typeof v === 'string' ? v : v?._id || v?.id
+      ).filter(Boolean);
+
+      if (vehicleIds.length === 0 && zone.zonePriceDetails && typeof zone.zonePriceDetails === 'object') {
+        vehicleIds = Object.keys(zone.zonePriceDetails).filter(k => k && k !== '[object Object]');
+      }
+
+      const vehicleObjects = rawVehicleTypes.length > 0
+        ? rawVehicleTypes.map((v: any) => ({ ...v, id: v?.id ?? v?._id }))
+        : [];
+
+      setData(zone);
       reset({
-        vehicleTypes: zoneData[0].vehicleTypes,
-        paymentTypes: zoneData[0].paymentTypes,
-        vehicleDetails: zoneData[0].zonePriceDetails,
-        unit:zoneData[0].unit,
-        zoneLevel: zoneData[0].zoneLevel,
-        primaryZone: zoneData[0].primaryZone,
-        country: zoneData[0].country,
-        serviceLocation: zoneData[0].zoneName,
-        surgePricing: zoneData[0].zonesurgePriceData,
+        vehicleTypes: vehicleIds,
+        paymentTypes: zone.paymentTypes,
+        vehicleDetails: zone.zonePriceDetails,
+        unit: zone.unit,
+        zoneLevel: zone.zoneLevel,
+        primaryZone: zone.primaryZoneId ? String(zone.primaryZoneId) : '',
+        country: zone.country,
+        serviceLocation: zone.zoneName,
+        surgePricing: zone.zonesurgePriceData,
       });
-      const primaryZone = zoneData[0].primaryZoneId || '';
+      const primaryZone = zone.primaryZoneId || '';
 
       setPrimaryZoneData(primaryZone);
-      setUnitLevel(zoneData[0].unit);
-      setCurrency(zoneData[0].countrydetails.currency_symbol);
+      setUnitLevel(zone.unit);
+      setCurrency(zone.countrydetails.currency_symbol);
 
-      setZoneLevel(zoneData[0].zoneLevel);
-      setSelectedVehicles(zoneData[0].vehicleTypes);
-      setVehicleTypes(zoneData[0].vehicleTypes);
-      setPaymentTypes(zoneData[0].paymentTypes);
-      setSurgePricingData(zoneData[0].zoneSurgePriceDetails);
-      setPricingData(zoneData[0].zonePriceDetails);
-      setPolygonCoordinates(zoneData[0].mapZone);
-      setnonServiceZoneData(zoneData[0].nonServiceZone);
-      setbiddingZoneDatas(zoneData[0].biddingZone);
+      setZoneLevel(zone.zoneLevel);
+      setSelectedVehicles(vehicleObjects.length > 0 ? vehicleObjects : vehicleIds.map((id: string) => ({ _id: id, id, vehicleName: '' })));
+      setVehicleTypes(vehicleIds);
+      setPaymentTypes(zone.paymentTypes);
+      setSurgePricingData(zone.zoneSurgePriceDetails);
+      setPricingData(zone.zonePriceDetails);
+      setPolygonCoordinates(normalizeMapZonePath(zone.mapZone));
+      setnonServiceZoneData(zone.nonServiceZone);
+      setbiddingZoneDatas(zone.biddingZone);
+
+      const zpd = zone.zonePriceDetails && typeof zone.zonePriceDetails === 'object' ? zone.zonePriceDetails : {};
+      const initialActive: Record<string, boolean> = {};
+
+      vehicleIds.forEach((id: string) => {
+        const pd = (zpd as Record<string, any>)[id];
+
+        initialActive[id] = pd == null || pd.status == null ? true : Boolean(pd.status);
+      });
+      setVehicleZonePriceActive(initialActive);
     };
 
     fetchData();
 
-  }, [zoneId, reset]);
+  }, [editZoneId, reset]);
+
+  useEffect(() => {
+    const isSecondary = String(zoneLevel).toUpperCase() === 'SECONDARY';
+
+    if (!isSecondary) {
+      setPrimaryVehicleStatusMap({});
+      
+return;
+    }
+
+    const selectedPrimaryId = String(getValues('primaryZone') || primaryZoneData || '').trim();
+
+    if (!selectedPrimaryId) {
+      setPrimaryVehicleStatusMap({});
+      
+return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      const res = await getByZoneId(selectedPrimaryId, currentZoneId);
+
+      if (cancelled) return;
+
+      const primaryZone = Array.isArray(res) ? res[0] : res;
+
+      const zonePriceDetails =
+        primaryZone?.zonePriceDetails && typeof primaryZone.zonePriceDetails === 'object'
+          ? (primaryZone.zonePriceDetails as Record<string, any>)
+          : {};
+
+      const map: Record<string, boolean> = {};
+
+      Object.keys(zonePriceDetails).forEach((vehicleId: string) => {
+        map[vehicleId] = zonePriceDetails[vehicleId]?.status === true;
+      });
+      setPrimaryVehicleStatusMap(map);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [zoneLevel, primaryZoneData, currentZoneId, getValues]);
 
   const handleChangeZoneLevel = (event: React.ChangeEvent<{ value: unknown }>) => {
     const { value } = event.target;
@@ -136,23 +213,50 @@ const EditAction: React.FC<EditZoneFormProps> = ({ lang, zoneId,dictionary,subsc
     setUnitLevel(event.target.value as string);
   };
 
-  const handleChangeVehicles = (value: string[]) => {
-    setSelectedVehicles(value);
-    setVehicleTypes(value);
-    setValue('vehicleTypes', value);
-    const updatedVehicleDetails = { ...getValues('vehicleDetails') };
+  const handleChangeVehicles = (value: string[], vehicleObjects?: any[]) => {
+    const ids = value;
 
-    value.forEach(vehicle => {
-      if (!updatedVehicleDetails[vehicle]) {
-        updatedVehicleDetails[vehicle] = {};
-      }
+    const objects = vehicleObjects?.map((v: any) => ({ ...v, id: v.id ?? v._id }))
+      ?? selectedVehicles.filter((v: any) => ids.includes(v._id || v.id));
+
+    setSelectedVehicles(objects);
+    setVehicleTypes(ids);
+    setValue('vehicleTypes', ids);
+    const currentVehicleDetails = getValues('vehicleDetails') || {};
+    const updatedVehicleDetails: Record<string, any> = {};
+
+    // Keep only currently selected vehicles and initialize missing entries.
+    ids.forEach((id: string) => {
+      updatedVehicleDetails[id] = currentVehicleDetails[id] || {};
     });
+
+    setVehicleZonePriceActive(prev => {
+      const next: Record<string, boolean> = {};
+
+      ids.forEach((id: string) => {
+        next[id] = prev[id] !== undefined ? prev[id] : true;
+      });
+
+      return next;
+    });
+
+    // Also drop surge pricing entries for vehicles that were removed.
+    setSurgePricingData((prev) => {
+      const next: Record<string, any> = {};
+
+      ids.forEach((id: string) => {
+        if (prev?.[id]) next[id] = prev[id];
+      });
+      
+return next;
+    });
+
     setValue('vehicleDetails', updatedVehicleDetails);
   };
 
 
 
-  const handlePricingChange = (vehicleId: string, name: string, value: string) => {
+  const handlePricingChange = (vehicleId: string, name: string, value: string | boolean) => {
     setPricingData(prev => ({
       ...prev,
       [vehicleId]: {
@@ -161,6 +265,27 @@ const EditAction: React.FC<EditZoneFormProps> = ({ lang, zoneId,dictionary,subsc
       }
     }));
   };
+
+  const handleVehicleZonePriceActiveChange = useCallback((vehicleId: string, active: boolean) => {
+    const id = String(vehicleId);
+    const isSecondary = String(zoneLevel).toUpperCase() === 'SECONDARY';
+
+    if (active && isSecondary && primaryVehicleStatusMap[id] !== true) {
+      const vehicleName =
+        selectedVehicles.find((v: any) => String(v?.id ?? v?._id ?? '') === id)?.vehicleName || 'this vehicle';
+
+      toast.error(`Please enable ${vehicleName} in primary zone first`);
+      
+return;
+    }
+
+    setVehicleZonePriceActive(prev => ({ ...prev, [id]: active }));
+    setValue(`vehicleDetails.${id}.status`, active);
+    setPricingData(prev => ({
+      ...prev,
+      [id]: { ...(prev[id] || {}), status: active }
+    }));
+  }, [setValue, zoneLevel, primaryVehicleStatusMap, selectedVehicles]);
 
 
   const handleStepClick = async (step: number) => {
@@ -192,24 +317,27 @@ const EditAction: React.FC<EditZoneFormProps> = ({ lang, zoneId,dictionary,subsc
       }
     
       setLoading(true); // Set loading to true
+      const toastId = toast.loading(dictionary['navigation'].Submittingyourdata);
 
 
     const zonePriceData = Object.keys(data.vehicleDetails)
       .filter(key => key !== "[object Object]") // Filter out the unwanted key
       .map(key => {
         const details = data.vehicleDetails[key];
-
+        const active = vehicleZonePriceActive[key] !== false;
 
         return {
           vehicleId: key,
-          ...details
+          ...details,
+          status: active
         };
       });
 
-    const vehicleTypes: any[] = data.vehicleTypes;
+    const vehicleTypesRaw: any[] = data.vehicleTypes || [];
+    const vehicleIds = vehicleTypesRaw.map((v: any) => (typeof v === 'string' ? v : v?._id || v?.id)).filter(Boolean);
 
     const filteredZonePriceData = zonePriceData.filter(vt =>
-      vehicleTypes.some(rv => rv.id === vt.vehicleId)
+      vehicleIds.includes(vt.vehicleId)
     );
 
     const convertedSurgePricing = Object.keys(surgePricingData).flatMap(vehicleId => {
@@ -228,15 +356,16 @@ const EditAction: React.FC<EditZoneFormProps> = ({ lang, zoneId,dictionary,subsc
 
 
     const zoneData: any = {
-      unit:data.unit,
+      unit: data.unit,
       zoneLevel: data.zoneLevel,
       country: data.country,
-      currency: currency, 
+      currency: currency,
       paymentTypes: data.paymentTypes,
       zoneName: data.serviceLocation,
       mapCooder: roundedCoordinates,
       zonePriceData: filteredZonePriceData,
       zonesurgePriceData: convertedSurgePricing,
+      vehicleTypes: vehicleIds,
     };
 
     if (data.nonServiceZone != undefined) {
@@ -253,17 +382,36 @@ const EditAction: React.FC<EditZoneFormProps> = ({ lang, zoneId,dictionary,subsc
     }
 
 
-    const updateZoneData = await updateZone(zoneId, zoneData);
+    try {
+      const updateZoneData = await updateZone(editZoneId, zoneData);
 
-    if (updateZoneData) {
+      if (updateZoneData) {
+        toast.dismiss(toastId);
+        toast.success(dictionary['navigation'].Zoneupdatedsuccessfully || 'Zone updated successfully');
+        const activeLang = lang || (typeof params?.lang === 'string' ? params.lang : undefined) || 'en';
+        const targetUrl = `/${activeLang}/${currentZoneId}/apps/taxi/zone/list`;
 
-      const ZoneData = `/apps/taxi/zone/list`;
+        router.replace(targetUrl);
+        
+return;
+      }
 
-      router.push(ZoneData);
+      toast.dismiss(toastId);
+      toast.error(dictionary['navigation'].ErrorupdatingzonePleasetryagain || 'Error updating zone. Please try again');
+    } catch (error) {
+      toast.dismiss(toastId);
+
+      const fallbackMessage =
+        dictionary['navigation'].ErrorupdatingzonePleasetryagain || 'Error updating zone. Please try again';
+
+      const errorMessage = error instanceof Error ? error.message : fallbackMessage;
+
+      toast.error(errorMessage || fallbackMessage);
+    } finally {
       setLoading(false);
     }
 
-  }, [zoneId, surgePricingData, polygonCoordinates]);
+  }, [checkDemoStatus, dictionary, editZoneId, surgePricingData, polygonCoordinates, currency, currentZoneId, router, lang, params?.lang, vehicleZonePriceActive]);
 
   const handleSurgePricingChange = (surgePricing: Record<string, any>) => {
 
@@ -295,8 +443,9 @@ const EditAction: React.FC<EditZoneFormProps> = ({ lang, zoneId,dictionary,subsc
             nonServiceZoneData={nonServiceZoneData}
             dictionary={dictionary}
             setCurrency={setCurrency}
-            subscriptionDetails={subscriptionDetails}
             biddingZone={biddingZoneData}
+            zoneId={editZoneId}
+            currentZoneId={currentZoneId}
           />
         );
       case 1:
@@ -311,6 +460,8 @@ const EditAction: React.FC<EditZoneFormProps> = ({ lang, zoneId,dictionary,subsc
             currency={currency}
             onPricingChange={handlePricingChange}
             dictionary={dictionary}
+            vehicleZonePriceActive={vehicleZonePriceActive}
+            onVehicleZonePriceActiveChange={handleVehicleZonePriceActiveChange}
           />
         );
       case 2:
@@ -325,6 +476,8 @@ const EditAction: React.FC<EditZoneFormProps> = ({ lang, zoneId,dictionary,subsc
             onPricingChange={handlePricingChange}
             dictionary={dictionary}
             currency={currency}
+            vehicleZonePriceActive={vehicleZonePriceActive}
+            onVehicleZonePriceActiveChange={handleVehicleZonePriceActiveChange}
           />
         );
       case 3:
@@ -335,7 +488,7 @@ const EditAction: React.FC<EditZoneFormProps> = ({ lang, zoneId,dictionary,subsc
             existingSurgePrices={surgePricingData}
             dictionary={dictionary}
             currency={currency}
-    
+            vehicleZonePriceActive={vehicleZonePriceActive}
           />
         );
       default:
@@ -369,7 +522,7 @@ const EditAction: React.FC<EditZoneFormProps> = ({ lang, zoneId,dictionary,subsc
               <Button
                 variant="contained"
                 color="secondary"
-                disabled={activeStep === 0}
+                disabled={activeStep === 0 || loading}
                 onClick={handleBack}
               >
                 {dictionary['navigation'].Back}

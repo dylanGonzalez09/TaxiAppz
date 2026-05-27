@@ -2,11 +2,17 @@ const mongoose = require('mongoose');
 const app = require('./app');
 const config = require('./config/config');
 const logger = require('./config/logger');
-const { createDriverRequestView, createUserRequestView, createRequestListView,DriverDailyReport,createDriverBidListView } = require('./utils/views/createView'); // Import the createView function
+const {
+  createDriverRequestView,
+  createUserRequestView,
+  createRequestListView,
+  DriverDailyReport,
+} = require('./utils/views/createView'); // Import the createView function
 
 let server;
 
-mongoose.connect(config.mongoose.url)
+mongoose
+  .connect(config.mongoose.url)
   .then(() => {
     logger.info('Connected to MongoDB');
     server = app.listen(config.port, () => {
@@ -14,82 +20,17 @@ mongoose.connect(config.mongoose.url)
     });
   })
   .catch((error) => {
-    console.error('Error connecting to MongoDB Atlas:', error);
+    logger.error('Error connecting to MongoDB Atlas:', error);
   });
 
 mongoose.connection.once('open', async () => {
-  console.log('MongoDB connection is ready');
-
   try {
-
-    await DriverDailyReport()
-      .then(() => {
-        console.log('DriverDailyReport recreated successfully');
-      })
-      .catch((error) => {
-        console.error('Failed to recreate view:', error);
-      });
-
+    await Promise.all([DriverDailyReport(), createDriverRequestView(), createUserRequestView(), createRequestListView()]);
+    logger.info('All MongoDB views created successfully');
   } catch (error) {
-    logger.error('Failed to create view:', error);
+    logger.error('Failed to create view(s):', error);
   }
-
-  try {
-
-    await createDriverRequestView()
-      .then(() => {
-        console.log('createDriverRequestView recreated successfully');
-      })
-      .catch((error) => {
-        console.error('Failed to recreate view:', error);
-      });
-
-  } catch (error) {
-    logger.error('Failed to create view:', error);
-  }
-
-  try {
-
-    await createUserRequestView()
-      .then(() => {
-        console.log('createUserRequestView recreated successfully');
-      })
-      .catch((error) => {
-        console.error('Failed to recreate view:', error);
-      });
-
-  } catch (error) {
-    logger.error('Failed to create view:', error);
-  }
-
-  try {
-    await createRequestListView()
-      .then(() => {
-        console.log('createRequestListView recreated successfully');
-      })
-      .catch((error) => {
-        console.error('Failed to recreate view:', error);
-      });
-
-  } catch (error) {
-    logger.error('Failed to create view:', error);
-  }
-
-  try {
-    await createDriverBidListView()
-      .then(() => {
-        console.log('createDriverBidListView recreated successfully');
-      })
-      .catch((error) => {
-        console.error('Failed to recreate view:', error);
-      });
-
-  } catch (error) {
-    logger.error('Failed to create view:', error);
-  }
-
 });
-
 
 const exitHandler = () => {
   if (server) {

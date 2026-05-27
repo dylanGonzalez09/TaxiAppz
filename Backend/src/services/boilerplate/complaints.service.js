@@ -1,7 +1,7 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const ApiError = require('../../utils/ApiError');
 const { Complaints } = require('../../models');
-const ObjectId = require('mongoose').Types.ObjectId;
+const { ObjectId } = require('mongoose').Types;
 
 /**
  * Create a complaints
@@ -21,9 +21,11 @@ const createComplaints = async (complaintsBody) => {
  * @param {number} [options.page] - Current page (default = 1)
  * @returns {Promise<QueryResult>}
  */
-const queryComplaints = async (filter, options) => {
-  const complaints = await Complaints.paginate(filter, options);
+const queryComplaints = async (req, filter, options) => {
+  filter.clientId = new ObjectId(req.headers.clientid);
+  filter.zoneId = new ObjectId(req.headers.zoneid);
   options.sortBy = options.sortBy || 'createdAt:desc';
+  const complaints = await Complaints.paginate(filter, options);
 
   return complaints;
 };
@@ -36,7 +38,6 @@ const getComplaintss = async () => {
   return Complaints.find();
 };
 
-
 /**
  * Get complaints by complaintsId
  * @param {ObjectId} complaintsId
@@ -46,10 +47,6 @@ const getComplaintsById = async (complaintsId) => {
   return Complaints.findById(complaintsId);
 };
 
-
-
-
-
 /**
  * Update complaints by complaintsId
  * @param {ObjectId} complaintsId
@@ -57,7 +54,6 @@ const getComplaintsById = async (complaintsId) => {
  * @returns {Promise<Complaints>}
  */
 const updateComplaintsById = async (complaintsId, updateBody) => {
-  
   const complaints = await getComplaintsById(complaintsId);
   if (!complaints) {
     throw new ApiError(httpStatus.NOT_FOUND, 'complaints not found');
@@ -78,26 +74,26 @@ const deleteComplaintsById = async (complaintsId) => {
     throw new ApiError(httpStatus.NOT_FOUND, 'complaints not found');
   }
   await complaints.deleteOne();
-  return { status: "success",   msg:"data Deleted Successfully" };
+  return { status: 'success', msg: 'data Deleted Successfully' };
 };
-const getComplaintsByLanguage = async (req,filter, options) => {
-  const langId = req.params.langId;
+const getComplaintsByLanguage = async (req, filter, options) => {
+  const { langId } = req.params;
   filter.clientId = new ObjectId(req.headers.clientid);
+  filter.zoneId = new ObjectId(req.headers.zoneid);
   filter.language = new ObjectId(langId);
- 
+
   const complaint = await Complaints.paginate(filter, options);
   options.sortBy = options.sortBy || 'createdAt:desc';
- 
+
   return complaint;
- 
 };
 module.exports = {
   createComplaints,
   queryComplaints,
   getComplaintsById,
   getComplaintss,
-  
+
   updateComplaintsById,
   deleteComplaintsById,
-  getComplaintsByLanguage
+  getComplaintsByLanguage,
 };

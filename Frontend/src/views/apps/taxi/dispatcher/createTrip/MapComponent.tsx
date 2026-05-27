@@ -5,6 +5,7 @@ import React, { useEffect, useRef, useState } from 'react';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faLocationArrow, faLocationCrosshairs } from '@fortawesome/free-solid-svg-icons';
+import type { IconProp } from '@fortawesome/fontawesome-svg-core';
 
 import locationPermissionGif from '@/assets/images/location-permission.gif'; // Import your GIF
 import { getGoogleMapsApiKey } from '@configs/getGoogleMapsApiKey';
@@ -12,26 +13,33 @@ import { getGoogleMapsApiKey } from '@configs/getGoogleMapsApiKey';
 import { BASE_IMAGE_URL } from '@/app/api/apps/taxi/endpoint';
 import { InsideDrivers } from '@apis/mqtt';
 
+
+
 const MapComponent: React.FC<{
   onPickPointChange: (value: { lat: number; lng: number }) => void;
   onDropPointChange: (value: { lat: number; lng: number }) => void;
   onStopPointChange: (value: { lat: number; lng: number }) => void;
   onZoneChange: (value: any) => void;
+  dictionary:any;
   pickupDetails: { lat: number; lng: number },
   dropDetails: { lat: number; lng: number },
   stopDetails: { lat: number; lng: number },
   zoneDetails: any,
   isLoadingData: boolean
-}> = ({ 
-  onPickPointChange, 
-  onDropPointChange, 
-  onStopPointChange, 
-  onZoneChange, 
-  pickupDetails, 
-  dropDetails, 
-  stopDetails, 
-  zoneDetails, 
-  isLoadingData 
+  setOpenPopup: React.Dispatch<React.SetStateAction<boolean>>
+
+}> = ({
+  onPickPointChange,
+  onDropPointChange,
+  onStopPointChange,
+  onZoneChange,
+  pickupDetails,
+  dropDetails,
+  stopDetails,
+  zoneDetails,
+  isLoadingData,
+  dictionary,
+  setOpenPopup
 }) => {
   const mapRef = useRef<HTMLDivElement | null>(null);
   const [map, setMap] = useState<google.maps.Map | null>(null);
@@ -55,7 +63,7 @@ const MapComponent: React.FC<{
     try {
       if (navigator.permissions && navigator.permissions.query) {
         const permissionStatus = await navigator.permissions.query({ name: 'geolocation' });
-        
+
         const granted = permissionStatus.state === 'granted';
 
         setHasLocationPermission(granted);
@@ -83,7 +91,7 @@ const MapComponent: React.FC<{
     if (!navigator.geolocation) {
       console.error('Geolocation is not supported by this browser.');
       setPermissionDenied(true);
-      
+
 return;
     }
 
@@ -120,9 +128,9 @@ return;
     const initializeMap = async () => {
       try {
         const key = await getGoogleMapsApiKey();
-        
+
         const script = document.createElement('script');
-        
+
         script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&libraries=drawing,places,geometry`;
         script.async = true;
         script.defer = true;
@@ -215,7 +223,10 @@ return;
         }
       } else {
         onPickPointChange({ lat: 0, lng: 0 });
-        alert('Pickup location is outside the zone.');
+
+        // alert('Pickup location is outside the zone.');
+
+        setOpenPopup(true)
         map.setCenter(defaultCenter);
         map.setZoom(10);
       }
@@ -225,13 +236,13 @@ return;
   // Calculate route between points
   useEffect(() => {
     if (!window.google || !window.google.maps) return;
-    
+
     calculateRoute();
   }, [pickupDetails, dropDetails, stopDetails]);
 
   const calculateRoute = () => {
     if (!window.google || !window.google.maps || !directionsRenderer) return;
-    
+
     if (pickupDetails && (stopDetails || dropDetails)) {
       const directionsService = new window.google.maps.DirectionsService();
 
@@ -281,7 +292,7 @@ return;
     newPolygon.setMap(map);
     setPolygon(newPolygon);
     map.setZoom(15);
-    
+
     const bounds = new window.google.maps.LatLngBounds();
 
     coordinates.forEach((coord: { lat: any; lng: any; }) => {
@@ -293,7 +304,7 @@ return;
   const updateDriverMarkers = (jsonObject: any) => {
     if (!map || !Array.isArray(jsonObject)) {
       setIsLoading(false);
-      
+
 return;
     }
 
@@ -306,7 +317,7 @@ return;
     const vehicleCounts: any = {};
 
     jsonObject.forEach((driver: any) => {
-      const vehicleImage = driver.vehicleId?.image
+      const vehicleImage = driver?.vehicleId?.image
         ? 'https://static.vecteezy.com/system/resources/previews/021/594/388/large_2x/taxi-graphic-clipart-design-free-png.png'
         : `${BASE_IMAGE_URL}/uploads/vehicles/${driver?.vehicleId?.image}`;
 
@@ -369,7 +380,7 @@ return;
         }
       }
     }, 15000);
-  
+
     return () => clearInterval(intervalId);
   }, [zoneDetails]);
 
@@ -416,16 +427,16 @@ return;
               alignItems: 'center',
               animation: 'pulse 2s infinite'
             }}>
-              <FontAwesomeIcon 
-                icon={faLocationArrow} 
-                style={{ 
-                  fontSize: '50px', 
+              <FontAwesomeIcon
+                icon={faLocationArrow as IconProp}
+                style={{
+                  fontSize: '50px',
                   color: '#1976d2',
                   animation: 'bounce 1.5s infinite'
-                }} 
+                }}
               />
             </div>
-            
+
             {/* Pulsing rings animation */}
             <div style={{
               position: 'absolute',
@@ -456,7 +467,7 @@ return;
           }}>
             We Need Your Location
           </h2>
-          
+
           <p style={{
             fontSize: '16px',
             color: '#666',
@@ -464,10 +475,10 @@ return;
             maxWidth: '400px',
             lineHeight: '1.6'
           }}>
-            To provide the best experience, please allow location access. 
+            To provide the best experience, please allow location access.
             Your location helps us show nearby services and accurate results.
           </p>
-          
+
           <div style={{
             display: 'flex',
             gap: '15px',
@@ -494,12 +505,12 @@ return;
               }}
             >
               <FontAwesomeIcon
-                icon={faLocationArrow}
+                icon={faLocationArrow as IconProp}
                 style={{ marginRight: '10px' }}
               />
               Allow Location Access
             </button>
-            
+
             {/* <button
               onClick={() => setPermissionDenied(false)}
               style={{
@@ -521,7 +532,7 @@ return;
               Continue Without Location
             </button> */}
           </div>
-          
+
           <p style={{
             fontSize: '14px',
             color: '#999',
@@ -533,14 +544,14 @@ return;
       )}
 
       {/* Map container */}
-      <div 
-        ref={mapRef} 
-        style={{ 
-          height: '100%', 
+      <div
+        ref={mapRef}
+        style={{
+          height: '100%',
           width: '100%',
           filter: (!hasLocationPermission && permissionDenied) ? 'blur(3px)' : 'none',
           transition: 'filter 0.3s ease'
-        }} 
+        }}
       />
 
       {/* Loading state */}
@@ -589,79 +600,71 @@ return;
           minWidth: '200px'
         }}
       >
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
           marginBottom: '15px',
           justifyContent: 'space-between'
         }}>
-          <h3 style={{ 
-            fontSize: '16px', 
-            fontWeight: '600', 
+          <h3 style={{
+            fontSize: '16px',
+            fontWeight: '600',
             color: '#333',
             margin: 0
+
           }}>
-            Driver Status
+           {dictionary['navigation'].DriverStatus || 'Driver Status'}
           </h3>
-          <div style={{ 
-            width: '10px', 
-            height: '10px', 
+          <div style={{
+            width: '10px',
+            height: '10px',
             borderRadius: '50%',
             backgroundColor: onlineCount > 0 ? '#4CAF50' : '#f44336'
           }} />
         </div>
-        
-        <div style={{ 
-          display: 'flex', 
+
+        <div style={{
+          display: 'flex',
           justifyContent: 'space-between',
           marginBottom: '10px'
         }}>
-          <span style={{ color: '#666' }}>Online:</span>
-          <span style={{ 
-            fontWeight: '600', 
+          <span style={{ color: '#666' }}>{dictionary['navigation'].Online || 'Online'}:</span>
+          <span style={{
+            fontWeight: '600',
             color: '#4CAF50'
           }}>{onlineCount}</span>
         </div>
-        
-        <div style={{ 
-          display: 'flex', 
+
+        <div style={{
+          display: 'flex',
           justifyContent: 'space-between',
           marginBottom: '15px'
         }}>
-          <span style={{ color: '#666' }}>Offline:</span>
-          <span style={{ 
-            fontWeight: '600', 
+          <span style={{ color: '#666' }}>{dictionary['navigation'].Offline || 'Offline'}:</span>
+          <span style={{
+            fontWeight: '600',
             color: '#f44336'
           }}>{offlineCount}</span>
         </div>
-        
-        <div style={{ 
-          borderTop: '1px solid #eee', 
+
+        <div style={{
+          borderTop: '1px solid #eee',
           paddingTop: '15px',
           marginBottom: '15px'
         }}>
-          <h3 style={{ 
-            fontSize: '16px', 
-            fontWeight: '600', 
+          <h3 style={{
+            fontSize: '16px',
+            fontWeight: '600',
             color: '#333',
             margin: '0 0 10px 0'
           }}>
-            Vehicle Types
+            {dictionary['navigation']. VehicleTypes || ' Vehicle Types'}
           </h3>
-          {Object.keys(vehicleCounts).length === 0 ? (
-            <div style={{
-              color: '#999',
-              fontSize: '14px',
-              textAlign: 'center',
-              padding: '10px 0'
-            }}>
-              No vehicles available
-            </div>
-          ) : (
-          Object.keys(vehicleCounts).map(vehicleName => (
-            <div 
-              key={vehicleName} 
-              style={{ 
+
+          {Object.keys(vehicleCounts).map(vehicleName => (
+            <div
+              key={vehicleName}
+              style={{
                 display: 'flex',
                 justifyContent: 'space-between',
                 marginBottom: '8px'
@@ -670,10 +673,9 @@ return;
               <span style={{ color: '#666' }}>{vehicleName}:</span>
               <span style={{ fontWeight: '600' }}>{vehicleCounts[vehicleName]}</span>
             </div>
-          ))
-        )}
+          ))}
         </div>
-        
+
         <button
           onClick={() => map && getCurrentLocation(map)}
           style={{
@@ -693,10 +695,10 @@ return;
           }}
         >
           <FontAwesomeIcon
-            icon={faLocationArrow}
+            icon={faLocationArrow as IconProp}
             style={{ marginRight: '8px' }}
           />
-          Find My Location
+        {dictionary['navigation'].FindMyLocation || 'Find My Location'}
         </button>
       </div>
     </div>

@@ -1,44 +1,39 @@
 const mongoose = require('mongoose');
-const { toJSON, paginate } = require('./../plugins');
+const { toJSON, paginate } = require('../plugins');
 
 const categorySchema = mongoose.Schema(
   {
     category: {
       type: String,
-      required: true
+      required: true,
     },
     categoryImage: {
       type: String,
-      required: true
+      required: true,
     },
     status: {
       type: Boolean,
       required: true,
-      default: true
+      default: true,
     },
     clientId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Client',
     },
-    companyId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref:'Company',
-      default: null,
-    },
+
     zoneId: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: 'Zone',
-        },
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Zone',
+    },
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // add plugin that converts mongoose to json
 categorySchema.plugin(toJSON);
 categorySchema.plugin(paginate);
-
 
 /**
  * @typedef Category

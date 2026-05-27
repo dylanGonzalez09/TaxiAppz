@@ -1,57 +1,52 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable import/no-unresolved */
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import type { ChangeEvent } from 'react';
-import React, { useEffect, useState } from 'react';
+import type { ChangeEvent } from 'react'
+import React, { useEffect, useState } from 'react'
 
-import {
-  IconButton,
-  Divider,
-  Button,
-  Drawer,
-  Grid,
-  MenuItem,
-} from '@mui/material';
-import CircularProgress from '@mui/material/CircularProgress';
-import { useForm, Controller } from 'react-hook-form';
-import { toast } from 'react-toastify';
+import { IconButton, Divider, Button, Drawer, Typography, MenuItem, Grid } from '@mui/material'
+import CircularProgress from '@mui/material/CircularProgress'
+import { useForm, Controller } from 'react-hook-form'
+import { toast } from 'react-toastify'
 
-import { getSession } from 'next-auth/react';
+import { getSession } from 'next-auth/react'
 
-import CustomTextField from '@core/components/mui/TextField';
-import { createComplaints, updateComplaints } from '@apis/complaints';
-import { useIsDemoUser } from '@/utils/demoUser';
-import { validateTextOnly } from '@/utils/validation';
-import { ENDPOINTS } from '@/app/api/apps/taxi/endpoint';
+import CustomTextField from '@core/components/mui/TextField'
+import { createComplaints, updateComplaints } from '@apis/complaints'
+import { getDropDownList } from '@/app/api/apps/taxi/user'
 
+import { validateTextOnly } from '@/utils/validation'
 
 interface ComplaintsDataType {
-  id: string;
-  title: string;
-  type: string;
-  language: string;
-  status: boolean;
+  id?: string
+  title: string
+  type: string
+  language: string
+  status?: boolean
+  zoneId: string
 }
 
 interface AddcomplaintsDrawerProps {
-  open: boolean;
-  handleClose: () => void;
-  complaintsData: any[];
-  dictionary?: any;
-  editData?: ComplaintsDataType | null;
-  setData: (data: any[]) => void;
-  count: number;
-  page: number;
-  onPageChange: (event: React.ChangeEvent<unknown>, newPage: number) => void;
-  rowsPerPage: number;
-    langId: string;
-
+  open: boolean
+  handleClose: () => void
+  complaintsData: any[]
+  dictionary?: any
+  editData?: ComplaintsDataType | null
+  setData: (data: any[]) => void
+  count: number
+  page: number
+  onPageChange: (event: React.ChangeEvent<unknown>, newPage: number) => void
+  rowsPerPage: number
+  langId: string
+  setTotalResults: any
+  clientId: string
+  zoneId: string
 }
 
 interface FormValues {
-  title: string;
-  type: string;
-  language: string;
+  title: string
+  type: string
+  language: string
 }
 
 const AddcomplaintsDrawer: React.FC<AddcomplaintsDrawerProps> = ({
@@ -65,166 +60,154 @@ const AddcomplaintsDrawer: React.FC<AddcomplaintsDrawerProps> = ({
   onPageChange,
   rowsPerPage,
   dictionary,
-    langId,
+  langId,
+  setTotalResults,
+  clientId,
+  zoneId
 }) => {
-  const [loading, setLoading] = useState(false);
-  const [languages, setLanguages] = useState<{ id: string; name: string }[]>([]);
-  const { checkDemoStatus } = useIsDemoUser();
-  const isSubmitDisabled = checkDemoStatus() || loading;
+  const [loading, setLoading] = useState(false)
+  const [languages, setLanguages] = useState<{ id: string; name: string }[]>([])
+  const isSubmitDisabled = loading
 
-  const { handleSubmit, control, reset, setValue, formState: { errors } } = useForm<FormValues>({
+  const {
+    handleSubmit,
+    control,
+    reset,
+    setValue,
+    formState: { errors }
+  } = useForm<FormValues>({
     mode: 'all',
     defaultValues: {
       title: '',
       type: '',
-      language: '',
-    },
-  });
-
-    const getClientId = async () => {
-      const session = await getSession();
-      const clientId = session?.user?.image?.clientId;
-      const companyId = session?.user?.image?.companyId;
-  
-  
-      return { clientId, companyId };
-    };
+      language: ''
+    }
+  })
 
   useEffect(() => {
     const fetchLanguages = async () => {
       try {
-        const { clientId } = await getClientId();
+        const res = await getDropDownList(clientId, zoneId)
+        const filteredLang = (res.language as { id: string; name: string }[]).filter(lang => lang.id === langId)
 
-        if (!clientId) throw new Error('Client ID missing');
-
-        const res = await fetch(ENDPOINTS.user.dropDownList(clientId));
-        const json = await res.json();
-
-        setLanguages(json.data.language || []);
+        setLanguages(filteredLang)
       } catch (err) {
-        toast.error(dictionary?.['navigation']?.dataFetchError || 'Error fetching languages');
+        toast.error(dictionary?.['navigation']?.dataFetchError || 'Error fetching languages')
       }
-    };
+    }
 
-    fetchLanguages();
-  }, []);
+    fetchLanguages()
+  }, [clientId, zoneId, langId, dictionary])
 
   useEffect(() => {
     if (editData) {
-      setValue('title', editData.title);
-      setValue('type', editData.type);
-   
-      setValue('language', editData.language);
+      setValue('title', editData.title)
+      setValue('type', editData.type)
+      setValue('language', editData.language)
     } else {
-      if(langId)
-      {
+      if (langId) {
         reset({
           title: '',
           type: '',
-          
-          language: langId,
-        });
+          language: langId
+        })
       }
-
-      // reset();
     }
-  }, [editData, langId,setValue, reset]);
+  }, [editData, langId, setValue, reset])
 
   const handleFormSubmit = async (data: FormValues) => {
-    setLoading(true);
+    setLoading(true)
 
     try {
-      const response = editData
-        ? await updateComplaints(editData.id, data)
-        : await createComplaints(data);
+      let response
+
+      const NewData = {
+        ...data,
+        zoneId
+      }
+
+      if (editData) {
+        response = await updateComplaints(editData.id, NewData)
+      } else {
+        response = await createComplaints(NewData)
+      }
 
       const newItem = {
         id: response.id,
-        ...data,
-        status: editData ? editData.status : true,
-      };
+        title: data.title,
+        type: data.type,
+        language: data.language,
+        status: editData ? editData.status : true
+      }
 
+      // Update Local State
       const updatedComplaintsData = editData
-        ? complaintsData.map(item => (item.id === newItem.id ? newItem : item))
-        : [newItem, ...complaintsData];
+        ? complaintsData.map((item: ComplaintsDataType) => (item.id === newItem.id ? newItem : item))
+        : [newItem, ...complaintsData]
 
-      setData(updatedComplaintsData);
-      handlePageChangeForAddRecord(count, rowsPerPage, onPageChange);
+      setData(updatedComplaintsData)
+
+      if (!editData) {
+        // 1. Update Total Count
+        setTotalResults((prev: number) => prev + 1)
+        
+        // 2. Force Table to go to Page 1 to see the new item
+        onPageChange({} as ChangeEvent<unknown>, 1)
+      }
 
       toast.success(
-        editData
-          ? dictionary['navigation'].Complaintsupdatedsuccessfully
-          : dictionary['navigation'].Complaintscreatedsuccessfully
-      );
-      reset();
-      handleClose();
+        editData ? dictionary['navigation'].Complaintsupdatedsuccessfully : dictionary['navigation'].Complaintscreatedsuccessfully
+      )
+      reset()
+      handleClose()
     } catch (error) {
-      toast.error(dictionary['navigation'].ErrorsavingComplaintsPleasetryagain);
+      toast.error(dictionary['navigation'].ErrorsavingComplaintsPleasetryagain)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
-  const handlePageChangeForAddRecord = (
-    count: number,
-    rowsPerPage: number,
-    onPageChange: (event: ChangeEvent<unknown>, page: number) => void
-  ) => {
-    const dummyEvent = {
-      target: { value: 1 },
-      currentTarget: { value: 1 },
-      nativeEvent: {} as Event,
-      bubbles: false,
-    } as unknown as ChangeEvent<unknown>;
-
-    onPageChange(dummyEvent, 1);
-  };
-
- return (
-     <Drawer
-       open={open}
-       anchor='right'
-       onClose={() => {
-         handleClose();
-         reset();
-       }}
-       variant='temporary'
-       ModalProps={{ keepMounted: true }}
-       sx={{ '& .MuiDrawer-paper': { width: { xs: 300, sm: 400 }, padding: 2 } }}
-     >
-     <div className="flex items-center justify-between mb-4">
-  <h2 className="text-lg font-semibold">
-    {editData
-      ? dictionary['navigation'].EditComplaints
-      : dictionary['navigation'].AddComplaints}
-  </h2>
-  <IconButton
-    size="small"
-    onClick={() => {
-      handleClose();
-      reset();
-    }}
-  >
-    <i className="tabler-x text-textSecondary text-2xl" />
-  </IconButton>
-</div>
-       <Divider />
-       <div>
-        <form onSubmit={handleSubmit(handleFormSubmit)} className="flex flex-col gap-6 p-6">
+  return (
+    <Drawer
+      open={open}
+      anchor='right'
+      onClose={() => {
+        handleClose()
+        reset()
+      }}
+      variant='temporary'
+      ModalProps={{ keepMounted: true }}
+      sx={{ '& .MuiDrawer-paper': { width: { xs: 300, sm: 400 }, padding: 2 } }}
+    >
+      <div className='flex items-center justify-between mb-4'>
+        <h2 className='text-lg font-semibold'>
+          {editData ? dictionary['navigation'].EditComplaints : dictionary['navigation'].AddComplaints}
+        </h2>
+        <IconButton
+          size='small'
+          onClick={() => {
+            handleClose()
+            reset()
+          }}
+        >
+          <i className='tabler-x text-textSecondary text-2xl' />
+        </IconButton>
+      </div>
+      <Divider />
+      <div>
+        <form onSubmit={handleSubmit(handleFormSubmit)} className='flex flex-col gap-6 p-6'>
           <Grid container spacing={2}>
             <Grid item xs={12}>
               <Controller
-                name="title"
+                name='title'
                 control={control}
-                rules={{
-                  required: dictionary['navigation'].Titleisrequired,
-                }}
+                rules={{ required: dictionary['navigation'].Titleisrequired }}
                 render={({ field }) => (
                   <CustomTextField
                     {...field}
                     fullWidth
-                    label={dictionary['navigation'].title}
-                    placeholder={dictionary['navigation'].EnterTitle}
+                    label={dictionary['navigation'].Title}
+                    placeholder={dictionary['navigation'].Title}
                     error={!!errors.title}
                     helperText={errors.title?.message}
                   />
@@ -234,75 +217,56 @@ const AddcomplaintsDrawer: React.FC<AddcomplaintsDrawerProps> = ({
 
             <Grid item xs={12}>
               <Controller
-                name="type"
+                name='type'
                 control={control}
-                rules={{
-                  required: dictionary['navigation'].Typeisrequired,
-                }}
+                rules={{ required: dictionary['navigation'].Typeisrequired }}
                 render={({ field }) => (
                   <CustomTextField
                     {...field}
                     select
                     fullWidth
-                    label={dictionary['navigation'].type}
+                    label={dictionary['navigation'].userType}
                     error={!!errors.type}
                     helperText={errors.type?.message}
                   >
-                    <MenuItem value="user">User</MenuItem>
-                    <MenuItem value="driver">Driver</MenuItem>
+                    <MenuItem value='User'>{dictionary['navigation'].User}</MenuItem>
+                    <MenuItem value='Driver'>{dictionary['navigation'].Driver}</MenuItem>
+                    <MenuItem value='Both'>{dictionary['navigation'].Both}</MenuItem>
                   </CustomTextField>
                 )}
               />
             </Grid>
-
-            {/* <Grid item xs={12}>
+            <Grid item xs={12}>
               <Controller
-                name="language"
+                name='language'
                 control={control}
-                rules={{ required: dictionary['navigation'].Languageisrequired }}
-                render={({ field }) => (
-                  <CustomTextField
-                    {...field}
-                    select
-                    fullWidth
-                    label={dictionary['navigation'].Language}
-                    error={!!errors.language}
-                    helperText={errors.language?.message}
-                  >
-                    {languages.map(lang => (
-                      <MenuItem key={lang.id} value={lang.id}>
-                        {lang.name}
-                      </MenuItem>
-                    ))}
-                  </CustomTextField>
-                )}
+                render={({ field }) => <input type='hidden' {...field} value={langId || ''} />}
               />
-            </Grid> */}
+            </Grid>
           </Grid>
-
-          <div className="flex justify-end mt-4">
+          <div className='flex justify-end mt-4 gap-5'>
             <Button
-              type="submit"
-              variant="contained"
-              color="primary"
+              type='submit'
+              variant='contained'
+              color='primary'
               disabled={isSubmitDisabled}
-              endIcon={loading && <CircularProgress size={20} color="inherit" />}
+              endIcon={loading && <CircularProgress size={20} color='inherit' />}
             >
               {editData
                 ? loading
                   ? dictionary['navigation'].Updating
                   : dictionary['navigation'].Update
                 : loading
-                ? dictionary['navigation'].Creating
-                : dictionary['navigation'].Create}
+                  ? dictionary['navigation'].Creating
+                  : dictionary['navigation'].Create}
             </Button>
             <Button
               onClick={() => {
-                handleClose();
-                reset();
+                handleClose()
+                reset()
               }}
-              variant="outlined"
-              color="secondary"
+              variant='outlined'
+              color='error'
               style={{ marginLeft: '10px' }}
             >
               {dictionary['navigation'].Cancel}
@@ -311,7 +275,7 @@ const AddcomplaintsDrawer: React.FC<AddcomplaintsDrawerProps> = ({
         </form>
       </div>
     </Drawer>
-  );
-};
+  )
+}
 
-export default AddcomplaintsDrawer;
+export default AddcomplaintsDrawer

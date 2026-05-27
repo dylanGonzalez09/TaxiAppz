@@ -5,12 +5,18 @@
 import React, { useState, useMemo, useEffect } from 'react';
 
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
 
 import type { TextFieldProps } from '@mui/material/TextField';
 import TablePagination from '@mui/material/TablePagination';
 import {createColumnHelper, flexRender, useReactTable, getCoreRowModel, getFilteredRowModel, getSortedRowModel, getPaginationRowModel } from '@tanstack/react-table';
-import { MenuItem, Typography, Card , Link } from '@mui/material';
+import { MenuItem, Typography, Card  } from '@mui/material';
 import type { ColumnDef, FilterFn } from '@tanstack/react-table';
+
+import { ClassNames } from '@emotion/react';
+
+import type { Locale } from '@configs/i18n';
+import { getLocalizedUrl } from '@/utils/i18n';
 
 
 import CustomTextField from '@core/components/mui/TextField';
@@ -24,6 +30,7 @@ type driverZoneList = {
   status: boolean;
   action: any;
   zoneLevel: string;
+  id:string;
 };
 
 const fuzzyFilter: FilterFn<driverZoneList> = (row, columnId, filterValue) => {
@@ -66,7 +73,8 @@ const DriverZoneListTable = ({ staticGroup, dictionary }: { staticGroup: driverZ
   const [rowSelection, setRowSelection] = useState({});
   const [data, setData] = useState<driverZoneList[]>(staticGroup);
   const [globalFilter, setGlobalFilter] = useState('');
-  const { lang: locale } = useParams();
+  const { lang: locale,zoneId } = useParams();
+  const zoneIdString = Array.isArray(zoneId) ? zoneId[0] : zoneId;
 
   const columns = useMemo<ColumnDef<driverZoneList, any>[]>(() => [
     {
@@ -91,20 +99,35 @@ const DriverZoneListTable = ({ staticGroup, dictionary }: { staticGroup: driverZ
     }),
     columnHelper.accessor('status', {
       header: dictionary['navigation'].status,
-      cell: ({ row }) => <Typography className='font-medium'> {`${row.original.status == true ? 'Active' : 'Inactive'} `}</Typography>,
+      cell: ({ row }) =>
+     <Typography
+          className='font-medium'
+          style={{ color: row.original.status === true ? 'green' : 'red' }}
+        >
+          {row.original.status === true ? dictionary['navigation'].Active || 'Active': dictionary['navigation'].Inactive || 'Inactive'}
+        </Typography>
     }),
     columnHelper.accessor('action', {
       header: dictionary['navigation'].Action,
       cell: ({ row }) => (
         <div className='flex items-center'>
-          <Link href={`/apps/taxi/driver/documentExpiry/drivers/${row.original._id}`} className='flex'>
+
+           <Typography
+                component={Link}
+                href={getLocalizedUrl(`${zoneIdString}/apps/taxi/driver/documentExpiry/drivers/${row.original.id || row.original._id}` , locale as Locale)}
+                className='flex'
+              >
+               <i className='tabler-eye text-textSecondary' />
+              </Typography>
+
+          {/* <Link href={`/${zoneIdString}/apps/taxi/driver/documentExpiry/drivers/${row.original._id}`} className='flex'>
             <i className='tabler-eye text-textSecondary' />
-          </Link>
+          </Link> */}
         </div>
       ),
       enableSorting: false,
     }),
-  ], [ dictionary]);
+  ], [zoneIdString,dictionary]);
 
   const table = useReactTable({
     data,

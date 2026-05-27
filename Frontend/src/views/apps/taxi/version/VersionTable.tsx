@@ -40,7 +40,7 @@ import CustomTextField from '@core/components/mui/TextField';
 
 import tableStyles from '@core/styles/table.module.css';
 
-import { useIsDemoUser } from '@/utils/demoUser'
+import { useIsDemoUser } from '@/utils/demoUser' 
 
 import { deleteByVersionId, updateVersionStatus, getVersionByPagination } from '@apis/version';
 
@@ -141,7 +141,7 @@ const VersionTable = ({ versionData, dictionary }: { versionData: any, dictionar
   const handleDeleteClick = (original: versionType) => {
     if (checkDemoStatus()) {
      toast.error(dictionary['navigation'].deleteError);
-
+      
       return;
       }
 
@@ -152,8 +152,8 @@ const VersionTable = ({ versionData, dictionary }: { versionData: any, dictionar
   const handleStatusToggle = async (version: versionType) => {
     if (checkDemoStatus()) {
       toast.error(dictionary['navigation'].editError);
-
-    return;
+      
+    return;  
       }
 
     setStatusVersion(version);
@@ -193,7 +193,7 @@ const VersionTable = ({ versionData, dictionary }: { versionData: any, dictionar
       {
         id: 'serialNo',
         header: dictionary['navigation'].serialNo,
-        cell: ({ row }) => <Typography>{row.index + 1}</Typography>,
+        cell: ({ row }) => <Typography>{(pageIndex == 0 ? 0 : pageIndex - 1) * pageSize + row.index + 1}</Typography>,
       },
       columnHelper.accessor('versionNumber', {
         header: dictionary['navigation'].versionNumber,
@@ -251,6 +251,7 @@ const VersionTable = ({ versionData, dictionary }: { versionData: any, dictionar
                 {
                   text: dictionary['navigation'].Delete,
                   icon: 'tabler-trash',
+                  hidden: true,
                   menuItemProps: {
                     onClick: () => handleDeleteClick(row.original),
                   },
@@ -297,10 +298,10 @@ const VersionTable = ({ versionData, dictionary }: { versionData: any, dictionar
   const handleEditClick = (rowData: versionType) => {
     if (checkDemoStatus()) {
      toast.error(dictionary['navigation'].editError);
-
+      
       return;
     }
-
+    
     setEditData(rowData);
     setEditVersionOpen(true);
   };

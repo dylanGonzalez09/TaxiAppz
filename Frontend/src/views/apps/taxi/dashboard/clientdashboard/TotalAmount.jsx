@@ -33,11 +33,11 @@ const TotalAmount = ({ todayAmountData,dictionary} ) => {
               {checkDemoStatus()
                 ? report?.totalRevenue ? `$ ${report.totalRevenue.toFixed(2)}` : "$ 0.00"
                 : report?.currency && report?.totalRevenue
-                  ? `${report.currency} ${report.totalRevenue.toFixed(2)}`
-                  : `${report.currency} 0.00`}
+                  ? `${report?.currency} ${report?.totalRevenue.toFixed(2)}`
+                  : `${report?.currency} 0.00`}
             </Typography>
 
-            <Button variant='contained' color='primary' disabled>
+            <Button variant='contained' color='primary' >
               {dictionary['navigation'].TotalEarnings}
             </Button>
           </CardContent>
@@ -52,6 +52,7 @@ const TotalAmount = ({ todayAmountData,dictionary} ) => {
           </div>
         </Grid>
       </Grid>
+      
     </Card>
   )
 }

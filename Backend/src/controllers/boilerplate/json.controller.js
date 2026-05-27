@@ -1,17 +1,16 @@
-const httpStatus = require('http-status');
-const catchAsync = require('../../utils/catchAsync');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const dotenv = require('dotenv');
-dotenv.config();
+const catchAsync = require('../../utils/catchAsync');
+
 // Update the path to your desired directory on the server
-const uploadPath = process.env.TRANSLATION_PATH
+const uploadPath = process.env.TRANSLATION_PATH;
 
 // Set up storage configuration for Multer
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    // Ensure the directory exists  
+    // Ensure the directory exists
     if (!fs.existsSync(uploadPath)) {
       fs.mkdirSync(uploadPath, { recursive: true });
     }

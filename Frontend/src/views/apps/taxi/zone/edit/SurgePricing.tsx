@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import React, { useState, useCallback, useEffect } from 'react';
 
@@ -34,6 +33,7 @@ interface SurgePricingProps {
   existingSurgePrices?: Record<string, SurgePriceRow[]>; // Prop for existing surge prices
   dictionary: any;
   currency?: any;
+  vehicleZonePriceActive?: Record<string, boolean>;
 }
 
 const SurgePricing: React.FC<SurgePricingProps> = ({
@@ -42,6 +42,7 @@ const SurgePricing: React.FC<SurgePricingProps> = ({
   existingSurgePrices,
   dictionary,
   currency,
+  vehicleZonePriceActive = {},
 }) => {
   const [surgePriceRows, setSurgePriceRows] = useState<Record<string, SurgePriceRow[]>>({});
 
@@ -50,9 +51,11 @@ const SurgePricing: React.FC<SurgePricingProps> = ({
   useEffect(() => {
     if (Object.keys(surgePriceRows).length === 0 && selectedVehicles.length > 0) {
       const initialSurgePriceRows = selectedVehicles.reduce((acc, vehicle) => {
+        const id = String(vehicle.id ?? vehicle._id ?? '');
+
         return {
           ...acc,
-          [vehicle.id]: existingSurgePrices?.[vehicle.id]?.map(price => ({
+          [id]: existingSurgePrices?.[id]?.map(price => ({
             _id: price._id?.toString(),
             surgePrice: price.surgePrice?.toString(),
             surgeDistancePrice: price.surgeDistancePrice?.toString(),
@@ -153,7 +156,7 @@ const SurgePricing: React.FC<SurgePricingProps> = ({
         [vehicleId]: updatedRows,
       };
     });
-  }, []);
+  }, [dictionary]);
 
   return (
      <Box sx={{ p: { xs: 1, sm: 2 } }}>
@@ -168,14 +171,18 @@ const SurgePricing: React.FC<SurgePricingProps> = ({
        </Grid>
  
        {/* Render a section for each selected vehicle */}
-       {selectedVehicles.map((vehicle, vehicleIndex) => (
-         <Box key={vehicle.id} sx={{ mb: 1 }}>
-           {surgePriceRows[vehicle.id]?.map((row, rowIndex) => (
+       {selectedVehicles.map((vehicle, vehicleIndex) => {
+         const vid = String(vehicle.id ?? vehicle._id ?? '');
+         const isVehicleActive = vehicleZonePriceActive[vid] !== false;
+
+         return (
+         <Box key={vid} sx={{ mb: 1 }}>
+           {surgePriceRows[vid]?.map((row, rowIndex) => (
              <Grid 
                container 
                spacing={2} 
                alignItems="flex-start" 
-               key={`${vehicle.id}-${rowIndex}`} 
+               key={`${vid}-${rowIndex}`} 
                sx={{ 
                  mb: 3,
                  flexDirection: { xs: 'column', md: 'row' }
@@ -191,7 +198,8 @@ const SurgePricing: React.FC<SurgePricingProps> = ({
                      sx={{ height: '100%', textAlign: 'center' }}
                    >
                      <IconButton
-                       onClick={() => addRow(vehicle.id)}
+                       onClick={() => addRow(vid)}
+                       disabled={!isVehicleActive}
                        sx={{ color: 'green' }}
                      >
                        <AddCircleOutlineIcon sx={{ fontSize: { xs: 40, md: 60 } }} />
@@ -209,9 +217,10 @@ const SurgePricing: React.FC<SurgePricingProps> = ({
                  </Typography>
                  <CustomTextField
                    fullWidth
+                   disabled={!isVehicleActive}
                    placeholder={dictionary['navigation'].SurgePrice}
                    value={row.surgePrice}
-                   onChange={(e) => updateRow(vehicle.id, rowIndex, 'surgePrice', e.target.value)}
+                   onChange={(e) => updateRow(vid, rowIndex, 'surgePrice', e.target.value)}
                    error={Boolean(row.surgePriceError)}
                    helperText={row.surgePriceError}
                    InputProps={{
@@ -228,9 +237,10 @@ const SurgePricing: React.FC<SurgePricingProps> = ({
                  </Typography>
                  <CustomTextField
                    fullWidth
+                   disabled={!isVehicleActive}
                    placeholder={dictionary['navigation'].SurgeDistancePrice}
                    value={row.surgeDistancePrice}
-                   onChange={(e) => updateRow(vehicle.id, rowIndex, 'surgeDistancePrice', e.target.value)}
+                   onChange={(e) => updateRow(vid, rowIndex, 'surgeDistancePrice', e.target.value)}
                    error={Boolean(row.surgeDistancePriceError)}
                    helperText={row.surgeDistancePriceError}
                    InputProps={{
@@ -247,9 +257,10 @@ const SurgePricing: React.FC<SurgePricingProps> = ({
                  </Typography>
                  <CustomTextField
                    fullWidth
+                   disabled={!isVehicleActive}
                    type="time"
                    value={row.startTime}
-                   onChange={(e) => updateRow(vehicle.id, rowIndex, 'startTime', e.target.value)}
+                   onChange={(e) => updateRow(vid, rowIndex, 'startTime', e.target.value)}
                  
                    //  error={Boolean(row.startTimeError)}
                   //  helperText={row.startTimeError}
@@ -262,9 +273,10 @@ const SurgePricing: React.FC<SurgePricingProps> = ({
                  </Typography>
                  <CustomTextField
                    fullWidth
+                   disabled={!isVehicleActive}
                    type="time"
                    value={row.endTime}
-                   onChange={(e) => updateRow(vehicle.id, rowIndex, 'endTime', e.target.value)}
+                   onChange={(e) => updateRow(vid, rowIndex, 'endTime', e.target.value)}
                    error={Boolean(row.timeError)}
                   helperText={row.timeError}
                  />
@@ -277,15 +289,20 @@ const SurgePricing: React.FC<SurgePricingProps> = ({
                  <CustomAutocomplete
                    multiple
                    limitTags={2}
+                   disabled={!isVehicleActive}
                    options={daysOfWeek}
                    value={row.availableDays || []}
-                   onChange={(event, newValue) => updateRow(vehicle.id, rowIndex, 'availableDays', newValue)}
+                   onChange={(event, newValue) => updateRow(vid, rowIndex, 'availableDays', newValue)}
                    renderInput={(params) => <CustomTextField {...params} placeholder="Select Days" />}
                  />
                </Grid>
  
                <Grid item xs={12} md={0.3} sx={{ display: 'flex', justifyContent: { xs: 'flex-end', md: 'center' } }}>
-                 <IconButton onClick={() => removeRow(vehicle.id, rowIndex)} sx={{ color: 'red' }}>
+                 <IconButton
+                   onClick={() => removeRow(vid, rowIndex)}
+                   disabled={!isVehicleActive}
+                   sx={{ color: 'red' }}
+                 >
                    <DeleteIcon />
                  </IconButton>
                </Grid>
@@ -296,7 +313,8 @@ const SurgePricing: React.FC<SurgePricingProps> = ({
              <Divider sx={{ my: 3 }} />
            )}
          </Box>
-       ))}
+       );
+       })}
      </Box>
   );
 };

@@ -37,13 +37,13 @@ interface AddVehicleModelDrawerProps {
   page: number;
   onPageChange: (event: React.ChangeEvent<unknown>, newPage: number) => void
   rowsPerPage: number;
-  vehicleId: string;
+  brandId: string;
 }
 
 interface FormValues {
   modelname: string;
   image: FileList | null;
-  vehicleId: string;
+  brandId: string;
 }
 
 const AddVehicleModelDrawer: React.FC<AddVehicleModelDrawerProps> = ({
@@ -58,7 +58,7 @@ const AddVehicleModelDrawer: React.FC<AddVehicleModelDrawerProps> = ({
   page,
   onPageChange,
   rowsPerPage,
-  vehicleId
+  brandId
 }) => {
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [vehicleImagePreview, setVehicleImagePreview] = useState<string | null>(null);
@@ -72,9 +72,17 @@ const AddVehicleModelDrawer: React.FC<AddVehicleModelDrawerProps> = ({
     defaultValues: {
       modelname: '',
       image: null,
-      vehicleId: ''
+      brandId: ''
     },
   });
+
+const clearImage = () => {
+  if (vehicleImageRef.current) {
+    vehicleImageRef.current.value = '';
+  }
+
+  setVehicleImagePreview(null);
+};
 
  useEffect(() => {
   const fetchVehicles = async () => {
@@ -86,7 +94,7 @@ const AddVehicleModelDrawer: React.FC<AddVehicleModelDrawerProps> = ({
       // Now that vehicles are loaded, set values if in edit mode
       // if (editData) {
       //   setValue('modelname', editData.modelname || '');
-      //   setValue('vehicleId', editData.vehicleId || '');
+      //   setValue('brandId', editData.brandId || '');
       //   setVehicleImagePreview(editData.image ? `${BASE_IMAGE_URL}${editData.image}` : null);
       // }
     } catch (error) {
@@ -97,17 +105,12 @@ const AddVehicleModelDrawer: React.FC<AddVehicleModelDrawerProps> = ({
 
     if (editData) {
       setValue('modelname', editData.modelname || '');
-      setValue('vehicleId', editData.vehicleid || '');
+      setValue('brandId', editData.brandId || '');
       setVehicleImagePreview(editData.image ? `${BASE_IMAGE_URL}/uploads/vehicleModels/${editData.image}` : null);
     } else {
       reset();
       
-      if (vehicleImageRef.current) {
-        vehicleImageRef.current.value = ''; 
-      
-      }
-      
-      setVehicleImagePreview(null);
+      clearImage();
     }
   };
 
@@ -153,7 +156,7 @@ const AddVehicleModelDrawer: React.FC<AddVehicleModelDrawerProps> = ({
       const formData = new FormData();
 
       formData.append('modelname', data.modelname);
-      formData.append('vehicleId', vehicleId);
+      formData.append('brandId', brandId);
 
       if (data.image?.[0]) {
         formData.append('image', data.image[0]);
@@ -174,7 +177,7 @@ const AddVehicleModelDrawer: React.FC<AddVehicleModelDrawerProps> = ({
           id: response.id,
           modelname: response.modelname,
           image: response.image,
-          vehicleId: response.vehicleId,
+          brandId: response.brandId,
           status: response.status,
         };
 
@@ -197,10 +200,7 @@ const AddVehicleModelDrawer: React.FC<AddVehicleModelDrawerProps> = ({
         
         reset();
         
-        if (vehicleImageRef.current) {
-          vehicleImageRef.current.value = ''; 
-        }
-        
+        clearImage();
         handleClose();
       } else {
         throw new Error('API response error');
@@ -322,7 +322,7 @@ const AddVehicleModelDrawer: React.FC<AddVehicleModelDrawerProps> = ({
        
             {/* <Grid item xs={12}>
               <Controller
-                name='vehicleId'
+                name='brandId'
                 control={control}
                 rules={{ required: dictionary['navigation'].Vehicleisrequired}}
                 render={({ field }) => (
@@ -333,8 +333,8 @@ const AddVehicleModelDrawer: React.FC<AddVehicleModelDrawerProps> = ({
                     margin="normal"
                     variant="outlined"
                     {...field}
-                    error={!!errors.vehicleId}
-                    helperText={errors.vehicleId?.message}
+                    error={!!errors.brandId}
+                    helperText={errors.brandId?.message}
                   >
                     {vehicles.map((vehicle: any) => (
                       <MenuItem key={vehicle.id} value={vehicle.id}>
@@ -346,7 +346,7 @@ const AddVehicleModelDrawer: React.FC<AddVehicleModelDrawerProps> = ({
               />
             </Grid> */}
           </Grid>
-          <div className='flex justify-end mt-4'>
+          <div className='flex justify-end mt-4 gap-5'>
             <Button
               type='submit'
               variant='contained'
@@ -363,14 +363,10 @@ const AddVehicleModelDrawer: React.FC<AddVehicleModelDrawerProps> = ({
                 handleClose();
                 reset();
                 
-                if (vehicleImageRef.current) {
-                  vehicleImageRef.current.value = '';
-                }
-                
-                setVehicleImagePreview(null);
+                clearImage();
               }}
               variant='outlined'
-              color='secondary'
+              color='error'
               style={{ marginLeft: '10px' }}
             >
               {dictionary['navigation'].Cancel}

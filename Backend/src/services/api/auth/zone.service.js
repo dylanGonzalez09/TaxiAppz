@@ -1,18 +1,9 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const ApiError = require('../../../utils/ApiError');
 const { Zone,ZonePrice,ZoneSurgePrice } = require('../../../models');
 const ObjectId = require('mongoose').Types.ObjectId
 
-
-const getClientId = async (req) => {
-  clientId = '';
-  if (!req.headers.clientid) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
-  } else {
-    clientId = req.headers.clientid;
-  }
-  return clientId;
-}
+const {getClientId} = require('../../../utils/commonFunction')
 
 /**
  * Create a zone
@@ -244,11 +235,40 @@ const getZoneById = async (id) => {
       },
     },
     {
-      $unwind: {
-        path: '$vehicleDetails',
-        preserveNullAndEmptyArrays: true, // In case there's no vehicle match
+      $lookup: {
+        from: 'zones',
+        let: { rootZoneId: '$_id', rootClientId: '$clientId' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ['$primaryZoneId', '$$rootZoneId'] },
+                  { $eq: ['$clientId', '$$rootClientId'] },
+                  { $eq: ['$zoneLevel', 'SECONDARY'] },
+                ],
+              },
+            },
+          },
+          {
+            $project: {
+              _id: 1,
+              zoneName: 1,
+              primaryZoneId: 1,
+              zoneLevel: 1,
+              mapZone: 1,
+              status: 1,
+              unit: 1,
+              paymentTypes: 1,
+              country: 1,
+              currency: 1,
+            },
+          },
+        ],
+        as: 'secondaryZones',
       },
     },
+    /** Do not $unwind vehicleDetails — that duplicated one document per vehicle. */
     {
       $project: {
         _id: 1,
@@ -330,16 +350,23 @@ const getZoneById = async (id) => {
           }
         },
         vehicleDetails: {
-          vehicleName: '$vehicleDetails.vehicleName',
-          image: '$vehicleDetails.image',
-          capacity: '$vehicleDetails.capacity',
-          serviceType: '$vehicleDetails.serviceType',
-          categoryId: '$vehicleDetails.categoryId',
-          highlightImage: '$vehicleDetails.highlightImage',
-          status: '$vehicleDetails.status',
-          id: '$vehicleDetails._id',
-        }
-      }
+          $map: {
+            input: { $ifNull: ['$vehicleDetails', []] },
+            as: 'vd',
+            in: {
+              vehicleName: '$$vd.vehicleName',
+              image: '$$vd.image',
+              capacity: '$$vd.capacity',
+              serviceType: '$$vd.serviceType',
+              categoryId: '$$vd.categoryId',
+              highlightImage: '$$vd.highlightImage',
+              status: '$$vd.status',
+              id: '$$vd._id',
+            },
+          },
+        },
+        secondaryZones: { $ifNull: ['$secondaryZones', []] },
+      },
     },
   ];
 
@@ -353,30 +380,30 @@ const getZoneById = async (id) => {
       _id:priceDetail._id,
       zoneId:priceDetail.zoneId,
       vehicleId:priceDetail.vehicleId,
-      ridenowBasePrice: priceDetail.ridenowBasePrice.toString(),
+      ridenowBasePrice: priceDetail.ridenowBasePrice?.toString() || '',
       ridenowPricePerTime: priceDetail.ridenowPricePerTime,
       ridenowBaseDistance: priceDetail.ridenowBaseDistance,
-      ridenowPricePerDistance: priceDetail.ridenowPricePerDistance.toString(),
+      ridenowPricePerDistance: priceDetail.ridenowPricePerDistance?.toString() || '',
       ridenowFreeWaitingTime: priceDetail.ridenowFreeWaitingTime,
       ridenowFreeWaitingTimeAfterStart: priceDetail.ridenowFreeWaitingTimeAfterStart,
-      ridenowWaitingCharge: priceDetail.ridenowWaitingCharge.toString(),
-      ridenowCancellationFeeAfterAccept: priceDetail.ridenowCancellationFeeAfterAccept.toString(),
-      ridenowCancellationFeeAfterArrive: priceDetail.ridenowCancellationFeeAfterArrive.toString(),
-      ridenowCancellationFeeAfterStart: priceDetail.ridenowCancellationFeeAfterStart.toString(),
+      ridenowWaitingCharge: priceDetail.ridenowWaitingCharge?.toString() || '',
+      ridenowCancellationFeeAfterAccept: priceDetail.ridenowCancellationFeeAfterAccept?.toString() || '',
+      ridenowCancellationFeeAfterArrive: priceDetail.ridenowCancellationFeeAfterArrive?.toString() || '',
+      ridenowCancellationFeeAfterStart: priceDetail.ridenowCancellationFeeAfterStart?.toString() || '',
       ridenowAdminCommissionType: priceDetail.ridenowAdminCommissionType,
-      ridenowAdminCommission: priceDetail.ridenowAdminCommission.toString(),
-      ridelaterBasePrice: priceDetail.ridelaterBasePrice.toString(),
+      ridenowAdminCommission: priceDetail.ridenowAdminCommission?.toString() || '',
+      ridelaterBasePrice: priceDetail.ridelaterBasePrice?.toString() || '',
       ridelaterPricePerTime: priceDetail.ridelaterPricePerTime,
       ridelaterBaseDistance: priceDetail.ridelaterBaseDistance,
-      ridelaterPricePerDistance: priceDetail.ridelaterPricePerDistance.toString(),
+      ridelaterPricePerDistance: priceDetail.ridelaterPricePerDistance?.toString() || '',
       ridelaterFreeWaitingTime: priceDetail.ridelaterFreeWaitingTime,
       ridelaterFreeWaitingTimeStart: priceDetail.ridelaterFreeWaitingTimeStart,
-      ridelaterWaitingCharge: priceDetail.ridelaterWaitingCharge.toString(),
-      ridelaterCancellationFeeAfterAccept: priceDetail.ridelaterCancellationFeeAfterAccept.toString(),
-      ridelaterCancellationFeeAfterArrive: priceDetail.ridelaterCancellationFeeAfterArrive.toString(),
-      ridelaterCancellationFeeAfterStart: priceDetail.ridelaterCancellationFeeAfterStart.toString(),
+      ridelaterWaitingCharge: priceDetail.ridelaterWaitingCharge?.toString() || '',
+      ridelaterCancellationFeeAfterAccept: priceDetail.ridelaterCancellationFeeAfterAccept?.toString() || '',
+      ridelaterCancellationFeeAfterArrive: priceDetail.ridelaterCancellationFeeAfterArrive?.toString() || '',
+      ridelaterCancellationFeeAfterStart: priceDetail.ridelaterCancellationFeeAfterStart?.toString() || '',
       ridelaterAdminCommissionType: priceDetail.ridelaterAdminCommissionType,
-      ridelaterAdminCommission: priceDetail.ridelaterAdminCommission.toString(),
+      ridelaterAdminCommission: priceDetail.ridelaterAdminCommission?.toString() || '',
       status: priceDetail.status,
       createdBy: priceDetail.createdBy,
       createdAt: priceDetail.createdAt,
@@ -386,34 +413,28 @@ const getZoneById = async (id) => {
 
   const zoneSurgePriceGrouped = groupBy(zone.zoneSurgePriceDetails, 'vehicleId');
 
-  const convertToVehicleTypes = (responseData) => {
-    const vehicleMap = new Map();
-    responseData.forEach(zone => {
-      const vehicleDetail = zone.vehicleDetails;
-      if (!vehicleMap.has(vehicleDetail.vehicleName)) {
-        vehicleMap.set(vehicleDetail.vehicleName, {
-          id:vehicleDetail.id,
-          vehicleName: vehicleDetail.vehicleName,
-          image: vehicleDetail.image,
-          capacity: vehicleDetail.capacity,
-          serviceType: vehicleDetail.serviceType,
-          categoryId: vehicleDetail.categoryId,
-          highlightImage: vehicleDetail.highlightImage,
-          status: vehicleDetail.status,
-        });
-      }
-    });
+  const rawVehicles = Array.isArray(zone.vehicleDetails) ? zone.vehicleDetails : [];
+  const vehicleTypes = rawVehicles
+    .filter((v) => v && (v.vehicleName || v.id))
+    .map((vehicleDetail) => ({
+      id: vehicleDetail.id,
+      vehicleName: vehicleDetail.vehicleName,
+      image: vehicleDetail.image,
+      capacity: vehicleDetail.capacity,
+      serviceType: vehicleDetail.serviceType,
+      categoryId: vehicleDetail.categoryId,
+      highlightImage: vehicleDetail.highlightImage,
+      status: vehicleDetail.status,
+    }));
 
-    return Array.from(vehicleMap.values());
-  };
-
-  const vehicleTypes = convertToVehicleTypes(responseData);
+  const vehicleDetailsLegacy = vehicleTypes[0] ?? null;
 
     return {
       ...zone,
       zonePriceDetails: zonePriceGrouped,
       zoneSurgePriceDetails: zoneSurgePriceGrouped,
-      vehicleTypes:vehicleTypes
+      vehicleTypes,
+      vehicleDetails: vehicleDetailsLegacy,
     };
   });
 

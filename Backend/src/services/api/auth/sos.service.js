@@ -1,42 +1,16 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const ApiError = require('../../../utils/ApiError');
-const { Sos } = require('../../../models');
-const { tokenService } = require('../../../services');
-const ObjectId = require('mongoose').Types.ObjectId
+const { Sos, Country } = require('../../../models');
+const { tokenService } = require('../..');
+const { ObjectId } = require('mongoose').Types;
+
+const { getUserId, getClientId, getDriverId } = require('../../../utils/commonFunction');
 
 /**
   from the mobile side they need to send Client Id and Code (Version code)
-  1. Check the Version Available or not if not redirect to update screen 
-  2. check the avaliable languages for client send the avaliable languages 
+  1. Check the Version Available or not if not redirect to update screen
+  2. check the avaliable languages for client send the avaliable languages
  */
-
-const getClientId = async (req) => {
-  clientId = '';
-  if (!req.headers.clientid) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
-  } else {
-    clientId = req.headers.clientid;
-  }
-  return clientId;
-}
-
-
-
-const getUserId = async (req) => {
-  let userId = '';
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    res.status(httpStatus.UNAUTHORIZED).send({ message: 'Authorization header is missing or invalid' });
-    return;
-  }
-  // Remove the 'Bearer ' prefix and get the token
-  const token = authHeader.substring(7);
-  const user = await tokenService.verifyTokenAndGetUser(token);
-  userId = user.id
-  return userId;
-}
-
-
 
 /**
  * Create a wallet
@@ -44,8 +18,27 @@ const getUserId = async (req) => {
  * @returns {Promise<Sos>}
  */
 const createSos = async (req) => {
-  req.body.userId = await getUserId(req)
+  req.body.userId = await getUserId(req);
   req.body.clientId = await getClientId(req);
+
+  const count = await Sos.countDocuments({ userId: req.body.userId });
+
+  if (count >= 8) {
+    throw new ApiError(httpStatus.BAD_REQUEST, `You have reached the maximum limit of 8 SOS requests !`);
+  }
+
+  const isExist = await Sos.findOne({ userId: req.body.userId, phoneNumber: req.body.phoneNumber });
+
+  if (isExist) {
+    throw new ApiError(httpStatus.BAD_REQUEST, `This number ${req.body.phoneNumber} already exists !`);
+  }
+  req.body.countryCode = new ObjectId(req.body.countryCode);
+  const data = await Country.findById(req.body.countryCode);
+  if (!data) {
+    throw new ApiError(httpStatus.BAD_REQUEST, `Country not found !`);
+  }
+  req.body.dialCode = data.dial_code;
+
   return Sos.create(req.body);
 };
 
@@ -72,17 +65,15 @@ const querySoss = async (filter, options, req) => {
   return sos;
 };
 
-
 /**
  * Get wallets
  * @returns {Promise<Sos>}
  */
 const getSoss = async (req) => {
-  let clientId = await getClientId(req);
-  let userId = await getUserId(req)
-  return Sos.find({ clientId: new ObjectId(clientId) , userId: new ObjectId(userId) });
+  const clientId = await getClientId(req);
+  const userId = await getUserId(req);
+  return Sos.find({ clientId: new ObjectId(clientId), userId: new ObjectId(userId) });
 };
-
 
 /**
  * Get wallet by id
@@ -92,7 +83,6 @@ const getSoss = async (req) => {
 const getSosById = async (id) => {
   return Sos.findById(id);
 };
-
 
 /**
  * Update Sos by id
@@ -122,7 +112,7 @@ const deleteSosById = async (sosId) => {
     throw new ApiError(httpStatus.NOT_FOUND, 'Sos not found');
   }
   await sos.deleteOne();
-  return { status: "success", msg: "data Deleted Successfully" };
+  return { status: 'success', msg: 'data Deleted Successfully' };
 };
 
 module.exports = {

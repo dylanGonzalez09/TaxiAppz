@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -41,7 +40,6 @@ type DriverSummaryType = {
   distanceCharges: string;
   totalCharges: string;
   driverAmount: string;
-  companyServiceCharge: string;
 };
 
 const fuzzyFilter: FilterFn<DriverSummaryType> = (row, columnId, filterValue) => {
@@ -79,11 +77,16 @@ const DebouncedInput = ({
 
 const columnHelper = createColumnHelper<DriverSummaryType>();
 
-const DriverSummaryTable = ({ staticGroup, dictionary }: { staticGroup: DriverSummaryType[], dictionary: any }) => {
+const DriverSummaryTable = ({ staticGroup, dictionary,zoneId }: { staticGroup: DriverSummaryType[], dictionary: any,zoneId:any }) => {
   const [rowSelection, setRowSelection] = useState({});
   const [data, setData] = useState<DriverSummaryType[]>(staticGroup);
   const [globalFilter, setGlobalFilter] = useState('');
   const { lang: locale } = useParams();
+
+
+  useEffect(() => {
+  setData(staticGroup);
+}, [staticGroup]);
 
   const columns = useMemo<ColumnDef<DriverSummaryType, any>[]>(() => [
     {
@@ -97,7 +100,7 @@ const DriverSummaryTable = ({ staticGroup, dictionary }: { staticGroup: DriverSu
             <div className='flex items-center gap-2'>
               <Typography
                 component={Link}
-                href={getLocalizedUrl(`/apps/taxi/request/requestView/${row.original._id}`, locale as Locale)}
+                href={getLocalizedUrl(`${zoneId}/apps/taxi/request/requestView/${row.original._id}`, locale as Locale)}
                 color='primary'
               >{`#${row.original.requestNumber}`}</Typography>
             </div>
@@ -109,7 +112,7 @@ const DriverSummaryTable = ({ staticGroup, dictionary }: { staticGroup: DriverSu
       cell: ({ row }) =>
     <Typography
       component={row.original.userId ? Link : 'span'}
-      href={row.original.userId ? getLocalizedUrl(`apps/taxi/driver/view/${row.original.driverId}`, locale as Locale) : undefined}
+      href={row.original.userId ? getLocalizedUrl(`${zoneId}/apps/taxi/driver/view/${row.original.driverId}`, locale as Locale) : undefined}
       color="primary"
     >
 
@@ -124,7 +127,7 @@ const DriverSummaryTable = ({ staticGroup, dictionary }: { staticGroup: DriverSu
       header: dictionary['navigation'].customerName,
       cell: ({ row }) => <Typography
       component={row.original.userId ? Link : 'span'}
-      href={row.original.userId ? getLocalizedUrl(`apps/taxi/user/view/${row.original.userId}`, locale as Locale) : undefined}
+      href={row.original.userId ? getLocalizedUrl(`${zoneId}/apps/taxi/user/view/${row.original.userId}`, locale as Locale) : undefined}
       color="primary"
     >
 
@@ -149,7 +152,7 @@ return <Typography className='font-medium'>{startTime.toLocaleTimeString([], { h
       header: dictionary['navigation'].startLocation,
       cell: ({ row }) => {
         const address = row.original.startLocation;
-        const truncatedAddress = address.length > 15 ? address.substring(0, 15) + '...' : address;
+        const truncatedAddress = address?.length > 15 ? address.substring(0, 15) + '...' : address;
 
         return (
           <Tooltip title={address} arrow>
@@ -176,7 +179,7 @@ return (
       header: dictionary['navigation'].endLocation,
       cell: ({ row }) => {
         const address = row.original.endLocation;
-        const truncatedAddress = address.length > 15 ? address.substring(0, 15) + '...' : address;
+        const truncatedAddress = address?.length > 15 ? address.substring(0, 15) + '...' : address;
 
         return (
           <Tooltip title={address} arrow>
@@ -216,11 +219,8 @@ return (
       header: dictionary['navigation'].driverAmount,
       cell: ({ row }) => <Typography className='font-medium'>{row.original.driverAmount}</Typography>,
     }),
-    columnHelper.accessor('companyServiceCharge', {
-      header: dictionary['navigation'].companyServiceCharge,
-      cell: ({ row }) => <Typography className='font-medium'>{row.original.companyServiceCharge}</Typography>,
-    }),
-  ], [ dictionary]);
+
+  ], [ locale,zoneId,dictionary]);
 
   const table = useReactTable({
     data,
@@ -239,7 +239,7 @@ return (
 
   return (
     <Card>
-      <TableFilters setData={setData} filterData={data} dictionary={dictionary} />
+      <TableFilters setData={setData} filterData={staticGroup} dictionary={dictionary} />
 
       <div className='flex flex-wrap justify-between gap-4 p-6'>
         <DebouncedInput
@@ -257,6 +257,8 @@ return (
             <MenuItem value={10}>10</MenuItem>
             <MenuItem value={15}>15</MenuItem>
             <MenuItem value={25}>25</MenuItem>
+            <MenuItem value={50}>50</MenuItem>
+
           </CustomTextField>
           <ExportOptions
             data={data}

@@ -1,8 +1,7 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 'use client'
 
 // React Imports
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 
 // Next Imports
 import Link from 'next/link'
@@ -30,57 +29,55 @@ type LanguageDataType = {
   langCode: Locale
   langName: string
 }
-type Props = {
-  refreshTrigger: number; // just a number to force re-fetch when it changes
-}
 
-// Utility to build new path
 const getLocalePath = (pathName: string, locale: string) => {
   if (!pathName) return '/'
   const segments = pathName.split('/')
-
+  
   segments[1] = locale
   
-return segments.join('/')
+  return segments.join('/')
 }
 
 const LanguageDropdown = () => {
-  // States
   const [open, setOpen] = useState(false)
   const [languageData, setLanguageData] = useState<LanguageDataType[]>([])
+  const [fetched, setFetched] = useState(false)
 
-  // Refs
   const anchorRef = useRef<HTMLButtonElement>(null)
 
-  // Hooks
   const pathName = usePathname()
   const { settings } = useSettings()
   const { lang } = useParams()
 
-  // Fetch active languages on mount
-  useEffect(() => {
-    const fetchLanguages = async () => {
-      try {
-        const activeLe = await fetchActiveLanguage()
-
-        const mappedLanguages = activeLe
-          .filter((lang: any) => lang.status) // Only include active ones
-          .map((lang: any) => ({
-            langCode: lang.code,
-            langName: lang.name
-          }))
-
+  const fetchLanguages = async () => {
+    
+    try {
+      const activeLe = await fetchActiveLanguage()
+      
+      const mappedLanguages = activeLe
+        .filter((lang: any) => lang.status)
+        .map((lang: any) => ({
+          langCode: lang.code,
+          langName: lang.name
+        }))
+      
         setLanguageData(mappedLanguages)
-      } catch (error) {
-        console.error('Failed to fetch languages:', error)
-      }
+      setFetched(true)
+    } catch (error) {
+      console.error('Failed to fetch languages:', error)
     }
-
-    fetchLanguages()
-  }, [])
+  }
 
   const handleClose = () => setOpen(false)
-  const handleToggle = () => setOpen(prev => !prev)
+
+  const handleToggle = async () => {
+    setOpen(prev => !prev)
+   
+    if (!fetched) {
+      await fetchLanguages()
+    }
+  }
 
   return (
     <>

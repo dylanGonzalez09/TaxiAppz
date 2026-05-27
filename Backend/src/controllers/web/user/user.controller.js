@@ -3,7 +3,7 @@ const ApiError = require('../../../utils/ApiError');
 const catchAsync = require('../../../utils/catchAsync');
 const { webUserService, tokenService, userService, requestService, cancellationReasonService } = require('../../../services');
 const mongoose = require('mongoose');
-const { Country, User, Role, Referral, Wallet, WalletTransaction, Language } = require('../../../models');
+const { Country, User, Role, Referral, Wallet, WalletTransaction, Language, Demo } = require('../../../models');
 const { userUpload } = require('../../../middlewares/upload');
 const Response = require('../../../config/response');
 const { errorMessages } = require('../../../config/errorMessages');
@@ -96,7 +96,7 @@ const getUserWithRoles = async (userId) => {
  * OTP is already verified before reaching this endpoint, so we just create user and auto-authenticate
  */
 const createUser = catchAsync(async (req, res) => {
-  const { phoneNumber, countryCode, name, email, deviceInfoHash, deviceType, isPrimary } = req.body;
+  const { phoneNumber, countryCode, name, email, deviceInfoHash, deviceType, isPrimary,demoKey } = req.body;
   
   // OTP is already verified in the OTP verification step
   // We just need to create the user and auto-authenticate them
@@ -119,10 +119,26 @@ const createUser = catchAsync(async (req, res) => {
       }
     }
 
+    // Check if email already exists (avoid duplicate key error and return clear message)
+    if (email && String(email).trim()) {
+      const existingEmail = await User.findOne({ email: String(email).trim() });
+      if (existingEmail) {
+        throw new ApiError(httpStatus.BAD_REQUEST, 'Email already taken');
+      }
+    }
+
     // Validate country code
     const countryDial = await Country.findById(countryCode);
     if (!countryDial) {
       throw new ApiError(httpStatus.UNAUTHORIZED, errorMessages.INVALID_COUNTRYCODE);
+    }
+
+    // Validate demo key if provided (must exist in Demo model)
+    if (demoKey && String(demoKey).trim()) {
+      const demoRecord = await Demo.findOne({ demoKey: { $regex: new RegExp(`^${String(demoKey).trim()}$`, 'i') } });
+      if (!demoRecord) {
+        throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid demo key');
+      }
     }
 
     let roleId = await webUserService.findRolesByRoleUser();
@@ -139,6 +155,7 @@ const createUser = catchAsync(async (req, res) => {
       // No clientId for web - platform-wide
       roleIds: roleId,
       referralCode: generateReferralCode(),
+      demoKey: demoKey && String(demoKey).trim() ? String(demoKey).trim() : null
     };
 
     if (email) {
@@ -150,54 +167,69 @@ const createUser = catchAsync(async (req, res) => {
       if (err) {
         await session.abortTransaction();
         session.endSession();
-        throw new ApiError(httpStatus.BAD_REQUEST, err.message);
+        return res.status(httpStatus.BAD_REQUEST).send(Response(false, null, err.message));
       }
 
-      const driverImage = req.file ? req.file.filename : '';
-      if (driverImage) {
-        userData.profilePic = driverImage;
-      }
-
-      const user = await userService.createUser(userData);
-
-      // Send welcome notification
-      await sendPushNotificationToken(userData.deviceInfoHash, user._id.toString(), {
-        title: "WELCOME",
-        message: process.env.WELCOME_TEXT || "Welcome to our platform"
-      });
-
-      // Generate tokens immediately (auto-authenticate - no need to verify OTP again)
-      const tokens = await tokenService.generateAuthTokens(user);
-      tokens.userId = user._id;
-
-      // Handle referral code if provided
-      if (req.body.referralCode) {
-        const referedByData = await User.findOne({ referralCode: req.body.referralCode });
-        if (referedByData) {
-          let referralBody = {
-            referredBy: referedByData._id,
-            referredTo: user._id
-          };
-          await Referral.create(referralBody);
+      try {
+        const driverImage = req.file ? req.file.filename : '';
+        if (driverImage) {
+          userData.profilePic = driverImage;
         }
+
+        const user = await userService.createUser(userData);
+
+        // Send welcome notification
+        await sendPushNotificationToken(userData.deviceInfoHash, user._id.toString(), {
+          title: "WELCOME",
+          message: process.env.WELCOME_TEXT || "Welcome to our platform"
+        });
+
+        // Generate tokens immediately (auto-authenticate - no need to verify OTP again)
+        const tokens = await tokenService.generateAuthTokens(user);
+        tokens.userId = user._id;
+
+        // Handle referral code if provided
+        if (req.body.referralCode) {
+          const referedByData = await User.findOne({ referralCode: req.body.referralCode });
+          if (referedByData) {
+            let referralBody = {
+              referredBy: referedByData._id,
+              referredTo: user._id
+            };
+            await Referral.create(referralBody);
+          }
+        }
+
+        // Initialize wallet
+        await walletIntialTransaction(0, user._id, "Earned", "Wallet Create");
+
+        await session.commitTransaction();
+        session.endSession();
+
+        // Get user with roles for response
+        const userWithRoles = await getUserWithRoles(user._id);
+
+        // Return response in same format as verify endpoint (for frontend compatibility)
+        const response = Response(true, {
+          usertype: "ExistingUser",
+          tokens,
+          driver: userWithRoles
+        }, "User created and authenticated successfully");
+        return res.status(httpStatus.CREATED).send(response);
+      } catch (createErr) {
+        await session.abortTransaction();
+        session.endSession();
+        // Handle MongoDB duplicate key (e.g. email) so frontend gets a proper message and CORS response
+        const isDuplicateKey = createErr.code === 11000 || (createErr.message && createErr.message.includes('E11000'));
+        const isEmailDup = isDuplicateKey && (createErr.message && createErr.message.includes('email'));
+        if (isEmailDup) {
+          return res.status(httpStatus.BAD_REQUEST).send(Response(false, null, 'Email already taken'));
+        }
+        if (isDuplicateKey) {
+          return res.status(httpStatus.BAD_REQUEST).send(Response(false, null, 'A user with this information already exists.'));
+        }
+        throw createErr;
       }
-
-      // Initialize wallet
-      await walletIntialTransaction(0, user._id, "Earned", "Wallet Create");
-
-      await session.commitTransaction();
-      session.endSession();
-      
-      // Get user with roles for response
-      const userWithRoles = await getUserWithRoles(user._id);
-      
-      // Return response in same format as verify endpoint (for frontend compatibility)
-      const response = Response(true, { 
-        usertype: "ExistingUser", 
-        tokens, 
-        driver: userWithRoles 
-      }, "User created and authenticated successfully");
-      res.status(httpStatus.CREATED).send(response);
     });
   } catch (error) {
     await session.abortTransaction();
@@ -313,6 +345,25 @@ const updateUser = catchAsync(async (req, res) => {
 });
 
 /**
+ * Reverse geocode: get address from lat/lng (Web, public - no auth)
+ * GET /v1/web/user/reverse-geocode?lat=...&lng=...
+ */
+const getReverseGeocode = catchAsync(async (req, res) => {
+  const lat = parseFloat(req.query.lat);
+  const lng = parseFloat(req.query.lng);
+  if (isNaN(lat) || isNaN(lng)) {
+    return res.status(httpStatus.BAD_REQUEST).send(Response(false, null, 'lat and lng are required'));
+  }
+  try {
+    const { getAddressFromLatLng } = require('../../../utils/commonFunction');
+    const address = await getAddressFromLatLng({ body: { lat, lng } });
+    return res.status(httpStatus.OK).send(Response(true, address, 'Address found'));
+  } catch (err) {
+    return res.status(httpStatus.BAD_REQUEST).send(Response(false, null, err.message || 'Could not get address'));
+  }
+});
+
+/**
  * Get autocomplete places (Web)
  * GET /v1/web/user/places?keyword=...&lat=...&lng=...
  */
@@ -415,6 +466,7 @@ module.exports = {
   getUser,
   updateUser,
   getAutocompletePlaces,
+  getReverseGeocode,
   getRequestsHistory,
   getCancellationReasons,
 };

@@ -6,18 +6,23 @@ const permissionsController = require('../../../controllers/web/privilege/permis
 
 const router = express.Router();
 
-router.route('/create').post(auth('Permissions'),validate(permissionsValidation.createPermission), permissionsController.createPermission);
+router
+  .route('/create')
+  .post(auth('Permissions'), validate(permissionsValidation.createPermission), permissionsController.createPermission);
 router.route('/getPermissionsWithPagination').get(auth('Permissions'), permissionsController.getPermissions);
-router.route('/getPermissions/:permissionId').get(auth('Permissions'),validate(permissionsValidation.getPermission), permissionsController.getPermission);
-router.route('/getPermission/list').get(auth('Permissions'),permissionsController.getPermissionWithOutPagination);
-router.route('/updatePermissions/:permissionId').patch(auth('Permissions'),validate(permissionsValidation.updatePermission), permissionsController.updatePermission);
-router.route('/deletePermissions/:permissionId').delete(auth('Permissions'),validate(permissionsValidation.deletePermission), permissionsController.deletePermission);
+router
+  .route('/getPermissions/:permissionId')
+  .get(auth('Permissions'), validate(permissionsValidation.getPermission), permissionsController.getPermission);
+router.route('/getPermission/list').get(auth('Permissions'), permissionsController.getPermissionWithOutPagination);
+router
+  .route('/updatePermissions/:permissionId')
+  .patch(auth('Permissions'), validate(permissionsValidation.updatePermission), permissionsController.updatePermission);
+router
+  .route('/deletePermissions/:permissionId')
+  .delete(auth('Permissions'), validate(permissionsValidation.deletePermission), permissionsController.deletePermission);
 // router.route('/getDropDown/list/:clientId').get(permissionsController.getDropDownList);
 
-
 module.exports = router;
-
-
 
 /**
  * @swagger

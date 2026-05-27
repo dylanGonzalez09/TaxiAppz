@@ -6,8 +6,12 @@ const languageController = require('../../../controllers/api/auth/language.contr
 
 const router = express.Router();
 
-router.post('/getLanguage',validate(languageValidation.getLanguage), languageController.getlanguage);
+router.post('/getLanguage', validate(languageValidation.getLanguage), languageController.getlanguage);
 
-router.get('/getLanguages/:languageCode',validate(languageValidation.getLanguagebyCode), languageController.getlanguageByCode);
+router.get(
+  '/getLanguages/:languageCode',
+  validate(languageValidation.getLanguagebyCode),
+  languageController.getlanguageByCode,
+);
 
 module.exports = router;

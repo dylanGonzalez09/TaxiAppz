@@ -114,7 +114,7 @@ const PromoReportsTable = ({ staticGroup, dictionary }: { staticGroup: PromoRepo
 
           <Typography
             variant="body2"
-            color={isExpired ? 'danger.main' : 'success.main'}
+            color={isExpired ? 'red' : 'green'}
           >
             {isExpired ? dictionary['navigation'].Expired : dictionary['navigation'].NotExpired}
           </Typography>

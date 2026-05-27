@@ -1,5 +1,5 @@
 const Joi = require('joi');
-const { password,objectId } = require('../custom.validation');
+const { password, objectId } = require('../custom.validation');
 
 const createDispatcher = {
   body: Joi.object().keys({
@@ -16,7 +16,7 @@ const createDispatcher = {
     clientId: Joi.string().custom(objectId).optional(),
     password: Joi.string().required().custom(password),
     language: Joi.string().default('en'),
-    image: Joi.string()
+    image: Joi.string(),
   }),
 };
 
@@ -38,22 +38,24 @@ const updateDispatcher = {
   params: Joi.object().keys({
     dispatcherId: Joi.string().custom(objectId).required(),
   }),
-  body: Joi.object().keys({
-    firstName: Joi.string().optional(),
-    lastName: Joi.string().optional(),
-    email: Joi.string().email().optional(),
-    phoneNumber: Joi.string().optional(),
-    roleIds: Joi.array().items(Joi.string().custom(objectId)).required(),
-    address: Joi.string().optional(),
-    active: Joi.boolean().default(true),
-    location: Joi.string().optional(),
-    serviceType: Joi.string().optional(),
-    userId: Joi.string().custom(objectId).optional(),
-    clientId: Joi.string().custom(objectId).optional(),
-    password: Joi.string().required().custom(password),
-    language: Joi.string().default('en'),
-    image: Joi.string()
-  }).min(1),
+  body: Joi.object()
+    .keys({
+      firstName: Joi.string().optional(),
+      lastName: Joi.string().optional(),
+      email: Joi.string().email().optional(),
+      phoneNumber: Joi.string().optional(),
+      roleIds: Joi.array().items(Joi.string().custom(objectId)).required(),
+      address: Joi.string().optional(),
+      active: Joi.boolean().default(true),
+      location: Joi.string().optional(),
+      serviceType: Joi.string().optional(),
+      userId: Joi.string().custom(objectId).optional(),
+      clientId: Joi.string().custom(objectId).optional(),
+      password: Joi.string().required().custom(password),
+      language: Joi.string().default('en'),
+      image: Joi.string(),
+    })
+    .min(1),
 };
 
 const deleteDispatcher = {

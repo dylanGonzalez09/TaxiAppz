@@ -19,8 +19,6 @@ const TermsTable = dynamic(() => import('@/views/apps/taxi/settings/terms'), {
 
 import ModuleTable from '@/views/apps/taxi/settings/module';
 import KeysTable from '@/views/apps/taxi/settings/keys';
-import SmsTable from './sms';
-import PaymentTable from './payment';
 
 interface TabViewComponentProps {
   dictionary: any;
@@ -30,8 +28,6 @@ interface TabViewComponentProps {
     terms?: any;
     keys?: any;
     modules?: any;
-    sms?: any;
-    payment?: any;
     activeLanguage?: any;
     activeCountry?: any;
     langId?:any;
@@ -53,64 +49,45 @@ const TabViewComponent = ({ params, dictionary, settingsData }: TabViewComponent
           <Tab label={dictionary['navigation'].Keys} sx={{ width: '50%' }} />
           <Tab label={dictionary['navigation'].ModuleSettings} sx={{ width: '50%' }} />
           <Tab label={dictionary['navigation'].TermsandCondition} sx={{ width: '50%' }} />
-          <Tab label={dictionary['navigation'].sms} sx={{ width: '50%' }} />
-          <Tab label={dictionary['navigation'].payment} sx={{ width: '50%' }} />
         </Tabs>
       </Box>
       <Box sx={{ p: 2 }}>
         {currentTab === 0 && (
-          <GeneralTable 
-            translationData={settingsData.general?.settings || []} 
-            currentTab={currentTab} 
-            activeLanguage={settingsData.activeLanguage} 
-            activeCountry={settingsData.activeCountry} 
-            apiData={settingsData.general?.settings || []} 
+          <GeneralTable
+            translationData={settingsData.general?.settings || []}
+            currentTab={currentTab}
+            activeLanguage={settingsData.activeLanguage}
+            activeCountry={settingsData.activeCountry}
+            apiData={settingsData.general?.settings || []}
             dictionary={dictionary}
           />
         )}
         {currentTab === 1 && (
-          <KeysTable 
-            translationData={settingsData.keys?.settings || []} 
-            currentTab={currentTab} 
-            activeLanguage={settingsData.activeLanguage} 
+          <KeysTable
+            translationData={settingsData.keys?.settings || []}
+            currentTab={currentTab}
+            activeLanguage={settingsData.activeLanguage}
             dictionary={dictionary}
           />
         )}
         {currentTab === 2 && (
-          <ModuleTable 
-            translationData={settingsData.modules?.settings || []} 
-            currentTab={currentTab} 
-            activeLanguage={settingsData.activeLanguage} 
-            settingsData={settingsData.modules?.settings || []}  
+          <ModuleTable
+            translationData={settingsData.modules?.settings || []}
+            currentTab={currentTab}
+            activeLanguage={settingsData.activeLanguage}
+            settingsData={settingsData.modules?.settings || []}
             dictionary={dictionary}
           />
         )}
         {currentTab === 3 && (
-          <TermsTable 
-            translationData={settingsData.terms?.settings || []} 
-            currentTab={currentTab} 
-            activeLanguage={settingsData.activeLanguage} 
-            settingsData={settingsData.terms?.settings || []} 
-            dictionary={dictionary} 
+          <TermsTable
+            translationData={settingsData.terms?.settings || []}
+            currentTab={currentTab}
+            activeLanguage={settingsData.activeLanguage}
+            settingsData={settingsData.terms?.settings || []}
+            dictionary={dictionary}
             langId={settingsData.langId}
-          />
-        )}
-        {currentTab === 4 && (
-          <SmsTable 
-            translationData={settingsData.modules?.settings || []} 
-            currentTab={currentTab} 
-            activeLanguage={settingsData.activeLanguage} 
-            settingsData={settingsData.modules?.settings || []} 
-            dictionary={dictionary} 
-          />
-        )}
-        {currentTab === 5 && (
-          <PaymentTable 
-            translationData={settingsData.sms?.settings || []} 
-            currentTab={currentTab} 
-            activeLanguage={settingsData.activeLanguage} 
-            settingsData={settingsData.modules?.settings || []} 
-            dictionary={dictionary} 
+            clientId={params.id}
           />
         )}
       </Box>

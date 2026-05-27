@@ -1,9 +1,9 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
+const mongoose = require('mongoose'); // Import mongoose
 const ApiError = require('../../../utils/ApiError');
 const { Privillege } = require('../../../models');
-const mongoose = require('mongoose');  // Import mongoose
 const { Permission } = require('../../../models');
-const ObjectId = require('mongoose').Types.ObjectId
+const { ObjectId } = require('mongoose').Types;
 
 /**
  * Create a Privilege
@@ -37,15 +37,13 @@ const getPrivillegeById = async (privilegeId) => {
   return Privillege.findById(privilegeId);
 };
 
-
 const getPrivillegeByGroupName = async (privilegeId, groupName, clientId) => {
   return Privillege.find({
-    clientId: clientId,
-    groupName: groupName,
-    roleId: privilegeId
+    clientId,
+    groupName,
+    roleId: privilegeId,
   });
 };
-
 
 /**
  * Update privillege by id
@@ -64,8 +62,6 @@ const updatePrivillegeById = async (privillegeId, updateBody) => {
   return privillege;
 };
 
-
-
 /**
  * Update privillege by id
  * @param {ObjectId} privillegeId
@@ -75,20 +71,17 @@ const updatePrivillegeById = async (privillegeId, updateBody) => {
 const givePrivillegeById = async (privillegeId, updateBody) => {
   const privillege = await getPrivillegeByGroupName(privillegeId, updateBody.groupName, updateBody.clientId);
 
-
-
   if (!privillege || privillege.length === 0) {
     return Privillege.create(updateBody);
   } else {
     const privillege = await Privillege.findOneAndUpdate(
       { roleId: privillegeId, groupName: updateBody.groupName },
       updateBody,
-      { new: true, upsert: true } // Return the updated document, and create it if it does not exist
+      { returnDocument: 'after', upsert: true }, // Return the updated document, and create it if it does not exist
     );
     return privillege;
   }
 };
-
 
 /**
  * Delete privillege by id
@@ -101,9 +94,8 @@ const deletePrivillegeById = async (privillegeId) => {
     throw new ApiError(httpStatus.NOT_FOUND, 'privillege not found');
   }
   await privillege.deleteOne();
-  return { msg: "data Deleted Successfully" };
+  return { msg: 'data Deleted Successfully' };
 };
-
 
 /**
  * privillegeDetails
@@ -114,26 +106,26 @@ const getPrivilegesWithDetails = async (clientId) => {
   try {
     const result = await Privillege.aggregate([
       {
-        $match: { clientId: new ObjectId(clientId) } // Match by roleId
+        $match: { clientId: new ObjectId(clientId) }, // Match by roleId
       },
       {
         $lookup: {
           from: 'permissions', // The collection to join
           localField: 'permissionIds', // Field from the input documents
           foreignField: '_id', // Field from the documents of the "from" collection
-          as: 'permissions' // Output array field
-        }
+          as: 'permissions', // Output array field
+        },
       },
       {
         $lookup: {
           from: 'roles', // The collection to join
           localField: 'roleId', // Field from the input documents
           foreignField: '_id', // Field from the documents of the "from" collection
-          as: 'role' // Output array field
-        }
+          as: 'role', // Output array field
+        },
       },
       {
-        $unwind: '$role' // Unwind the role array (since it should be a single object)
+        $unwind: '$role', // Unwind the role array (since it should be a single object)
       },
       {
         $project: {
@@ -145,18 +137,18 @@ const getPrivilegesWithDetails = async (clientId) => {
               in: {
                 _id: '$$permission._id',
                 permissionName: '$$permission.permissionName',
-                groupName: '$$permission.groupName'
-              }
-            }
+                groupName: '$$permission.groupName',
+              },
+            },
           },
           role: {
             _id: '$role._id',
-            role: '$role.role'
+            role: '$role.role',
           },
           createdAt: 1,
-          updatedAt: 1
-        }
-      }
+          updatedAt: 1,
+        },
+      },
     ]);
 
     return result;
@@ -165,7 +157,6 @@ const getPrivilegesWithDetails = async (clientId) => {
     throw error;
   }
 };
-
 
 /**
  * privillegewithrole
@@ -178,50 +169,49 @@ const getPrivilegesWithRole = async (roleId, clientId) => {
     // Fetch all permissions from Permission collection
     const allPermissions = await Permission.find({}, { _id: 1, groupName: 1 });
 
-
-      // Convert to ObjectId
-      const roleIdObj = new ObjectId(roleId);
-      const clientIdObj = new ObjectId(clientId);
+    // Convert to ObjectId
+    const roleIdObj = new ObjectId(roleId);
+    const clientIdObj = new ObjectId(clientId);
 
     // Fetch privileges for the roleId
     const result = await Privillege.aggregate([
       {
-        $match: { roleId: roleIdObj, clientId: clientIdObj} // Match by roleId
+        $match: { roleId: roleIdObj, clientId: clientIdObj }, // Match by roleId
       },
       {
-        $unwind: { path: '$permissionIds', preserveNullAndEmptyArrays: true } // Unwind permissionIds array
+        $unwind: { path: '$permissionIds', preserveNullAndEmptyArrays: true }, // Unwind permissionIds array
       },
       {
         $lookup: {
           from: 'permissions', // Collection name of Permission model
           localField: 'permissionIds',
           foreignField: '_id',
-          as: 'permissionDetails'
-        }
+          as: 'permissionDetails',
+        },
       },
       {
-        $unwind: { path: '$permissionDetails', preserveNullAndEmptyArrays: true } // Unwind permissionDetails array
+        $unwind: { path: '$permissionDetails', preserveNullAndEmptyArrays: true }, // Unwind permissionDetails array
       },
       {
         $group: {
           _id: '$permissionDetails.groupName', // Group by groupName from Permission
-          permissionIds: { $push: '$permissionIds' } // Accumulate permissionIds
-        }
+          permissionIds: { $push: '$permissionIds' }, // Accumulate permissionIds
+        },
       },
       {
         $project: {
           _id: 0,
           groupName: '$_id', // Rename _id to groupName
-          permissionIds: 1
-        }
-      }
+          permissionIds: 1,
+        },
+      },
     ]);
 
     // Create a map to collect all groupNames
     const groupedPermissions = {};
 
     // Initialize all groupNames with empty arrays
-    allPermissions.forEach(permission => {
+    allPermissions.forEach((permission) => {
       groupedPermissions[permission.groupName] = [];
     });
 
@@ -253,42 +243,42 @@ const getPrivilegesWithRoleName = async (roleId, clientId) => {
     // Fetch privileges for the roleId
     const result = await Privillege.aggregate([
       {
-        $match: { roleId: new mongoose.Types.ObjectId(roleId), clientId: new mongoose.Types.ObjectId(clientId) } // Match by roleId
+        $match: { roleId: new mongoose.Types.ObjectId(roleId), clientId: new mongoose.Types.ObjectId(clientId) }, // Match by roleId
       },
       {
-        $unwind: { path: '$permissionIds', preserveNullAndEmptyArrays: true } // Unwind permissionIds array
+        $unwind: { path: '$permissionIds', preserveNullAndEmptyArrays: true }, // Unwind permissionIds array
       },
       {
         $lookup: {
           from: 'permissions', // Collection name of Permission model
           localField: 'permissionIds',
           foreignField: '_id',
-          as: 'permissionDetails'
-        }
+          as: 'permissionDetails',
+        },
       },
       {
-        $unwind: { path: '$permissionDetails', preserveNullAndEmptyArrays: true } // Unwind permissionDetails array
+        $unwind: { path: '$permissionDetails', preserveNullAndEmptyArrays: true }, // Unwind permissionDetails array
       },
       {
         $group: {
           _id: '$permissionDetails.groupName', // Group by groupName from Permission
-          permissions: { $push: '$permissionDetails.permissionName' } // Accumulate permission names
-        }
+          permissions: { $push: '$permissionDetails.permissionName' }, // Accumulate permission names
+        },
       },
       {
         $project: {
           _id: 0,
           groupName: '$_id', // Rename _id to groupName
-          permissions: 1
-        }
-      }
+          permissions: 1,
+        },
+      },
     ]);
 
     // Create a map to collect all groupNames
     const groupedPermissions = {};
 
     // Initialize all groupNames with empty arrays
-    allPermissions.forEach(permission => {
+    allPermissions.forEach((permission) => {
       groupedPermissions[permission.groupName] = [];
     });
 
@@ -302,15 +292,13 @@ const getPrivilegesWithRoleName = async (roleId, clientId) => {
     return {
       success: true,
       data: groupedPermissions,
-      message: 'Success'
+      message: 'Success',
     };
   } catch (error) {
     console.error('Error in aggregation:', error);
     throw error;
   }
 };
-
-
 
 /**
  * privillegewithrole
@@ -326,42 +314,42 @@ const getSuperAdminPrivilegesWithRoleName = async (roleId) => {
     // Fetch privileges for the roleId
     const result = await Privillege.aggregate([
       {
-        $match: { roleId: new mongoose.Types.ObjectId(roleId) } // Match by roleId
+        $match: { roleId: new mongoose.Types.ObjectId(roleId) }, // Match by roleId
       },
       {
-        $unwind: { path: '$permissionIds', preserveNullAndEmptyArrays: true } // Unwind permissionIds array
+        $unwind: { path: '$permissionIds', preserveNullAndEmptyArrays: true }, // Unwind permissionIds array
       },
       {
         $lookup: {
           from: 'permissions', // Collection name of Permission model
           localField: 'permissionIds',
           foreignField: '_id',
-          as: 'permissionDetails'
-        }
+          as: 'permissionDetails',
+        },
       },
       {
-        $unwind: { path: '$permissionDetails', preserveNullAndEmptyArrays: true } // Unwind permissionDetails array
+        $unwind: { path: '$permissionDetails', preserveNullAndEmptyArrays: true }, // Unwind permissionDetails array
       },
       {
         $group: {
           _id: '$permissionDetails.groupName', // Group by groupName from Permission
-          permissions: { $push: '$permissionDetails.permissionName' } // Accumulate permission names
-        }
+          permissions: { $push: '$permissionDetails.permissionName' }, // Accumulate permission names
+        },
       },
       {
         $project: {
           _id: 0,
           groupName: '$_id', // Rename _id to groupName
-          permissions: 1
-        }
-      }
+          permissions: 1,
+        },
+      },
     ]);
 
     // Create a map to collect all groupNames
     const groupedPermissions = {};
 
     // Initialize all groupNames with empty arrays
-    allPermissions.forEach(permission => {
+    allPermissions.forEach((permission) => {
       groupedPermissions[permission.groupName] = [];
     });
 
@@ -375,7 +363,7 @@ const getSuperAdminPrivilegesWithRoleName = async (roleId) => {
     return {
       success: true,
       data: groupedPermissions,
-      message: 'Success'
+      message: 'Success',
     };
   } catch (error) {
     console.error('Error in aggregation:', error);
@@ -386,22 +374,21 @@ const getSuperAdminPrivilegesWithRoleName = async (roleId) => {
 const transformData = (roles, permissions) => {
   const result = {};
   // Initialize the result object with roles
-  roles.forEach(role => {
+  roles.forEach((role) => {
     result[role.role] = [];
   });
 
   // Populate permissions for each role
-  permissions.forEach(permissionEntry => {
+  permissions.forEach((permissionEntry) => {
     const roleName = permissionEntry.role.role;
     if (result[roleName]) {
-      const permissionIds = permissionEntry.permissions.map(permission => permission._id);
+      const permissionIds = permissionEntry.permissions.map((permission) => permission._id);
       result[roleName] = result[roleName].concat(permissionIds);
     }
   });
 
   return result;
 };
-
 
 module.exports = {
   createPrivillege,
@@ -413,5 +400,5 @@ module.exports = {
   getPrivilegesWithRole,
   givePrivillegeById,
   getPrivilegesWithRoleName,
-  getSuperAdminPrivilegesWithRoleName
+  getSuperAdminPrivilegesWithRoleName,
 };

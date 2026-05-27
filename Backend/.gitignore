@@ -6,11 +6,6 @@ yarn-error.log
 
 uploads
 uploads/*
-uploads_backup
-uploads_backup/*
-src.zip
-srcbackup.zip
-
 # Environment varibales
 .env*
 !.env*.example

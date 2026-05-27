@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -42,7 +41,6 @@ type CompletedLocalTripType = {
   distanceCharges: string;
   totalCharges: string;
   driverAmount: string;
-  companyServiceCharge: string;
 };
 
 const fuzzyFilter: FilterFn<CompletedLocalTripType> = (row, columnId, filterValue) => {
@@ -80,11 +78,16 @@ const DebouncedInput = ({
 
 const columnHelper = createColumnHelper<CompletedLocalTripType>();
 
-const CompletedLocalTripTable = ({ staticGroup, dictionary }: { staticGroup: CompletedLocalTripType[], dictionary: any }) => {
+const CompletedLocalTripTable = ({ staticGroup, dictionary,zoneId }: { staticGroup: CompletedLocalTripType[], dictionary: any,zoneId:any }) => {
   const [rowSelection, setRowSelection] = useState({});
   const [data, setData] = useState<CompletedLocalTripType[]>(staticGroup);
   const [globalFilter, setGlobalFilter] = useState('');
   const { lang: locale } = useParams();
+
+
+  useEffect(() => {
+  setData(staticGroup);
+}, [staticGroup]);
 
   const columns = useMemo<ColumnDef<CompletedLocalTripType, any>[]>(() => [
     {
@@ -98,7 +101,7 @@ const CompletedLocalTripTable = ({ staticGroup, dictionary }: { staticGroup: Com
              <div className='flex items-center gap-2'>
                <Typography
                  component={Link}
-                 href={getLocalizedUrl(`/apps/taxi/request/requestView/${row.original._id}`, locale as Locale)}
+                 href={getLocalizedUrl(`${zoneId}/apps/taxi/request/requestView/${row.original._id}`, locale as Locale)}
                  color='primary'
                >{`#${row.original.requestNumber}`}</Typography>
              </div>
@@ -109,7 +112,7 @@ const CompletedLocalTripTable = ({ staticGroup, dictionary }: { staticGroup: Com
       cell: ({ row }) =>
     <Typography
       component={row.original.userId ? Link : 'span'}
-      href={row.original.userId ? getLocalizedUrl(`apps/taxi/driver/view/${row.original.driverId}`, locale as Locale) : undefined}
+      href={row.original.userId ? getLocalizedUrl(`${zoneId}/apps/taxi/driver/view/${row.original.driverId}`, locale as Locale) : undefined}
       color="primary"
     >
 
@@ -124,7 +127,7 @@ const CompletedLocalTripTable = ({ staticGroup, dictionary }: { staticGroup: Com
       header: dictionary['navigation'].customerName,
       cell: ({ row }) => <Typography
       component={row.original.userId ? Link : 'span'}
-      href={row.original.userId ? getLocalizedUrl(`apps/taxi/user/view/${row.original.userId}`, locale as Locale) : undefined}
+      href={row.original.userId ? getLocalizedUrl(`${zoneId}/apps/taxi/user/view/${row.original.userId}`, locale as Locale) : undefined}
       color="primary"
     >
 
@@ -215,11 +218,8 @@ return (
       header: dictionary['navigation'].driverAmount,
       cell: ({ row }) => <Typography className='font-medium'>{row.original.driverAmount}</Typography>,
     }),
-    columnHelper.accessor('companyServiceCharge', {
-      header: dictionary['navigation'].companyServiceCharge,
-      cell: ({ row }) => <Typography className='font-medium'>{row.original.companyServiceCharge}</Typography>,
-    }),
-  ], [ dictionary]);
+
+  ], [ locale,zoneId,dictionary]);
 
   const table = useReactTable({
     data,
@@ -238,7 +238,7 @@ return (
 
   return (
     <Card>
-      <TableFilters setData={setData} filterData={data} dictionary={dictionary}/>
+     <TableFilters setData={setData} filterData={staticGroup} dictionary={dictionary} />
 
       <div className='flex flex-wrap justify-between gap-4 p-6'>
         <DebouncedInput

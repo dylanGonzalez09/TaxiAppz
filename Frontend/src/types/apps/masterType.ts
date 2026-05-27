@@ -22,11 +22,13 @@ export interface GroupDocumentType {
   zoneId:string;
   zoneName?:string;
   status?: boolean;
+  type?: string; // Added type field
 }
 
 export interface DocumentType {
   map(arg0: (doc: any) => any): unknown;
   id: string;
+  _id: string;
   documentName: string;
   required: boolean;
   identifier: boolean;
@@ -35,4 +37,5 @@ export interface DocumentType {
   imageRequired: boolean;
   documentId: string;
   status?: boolean;
+  type?: string; // Added type field
 }

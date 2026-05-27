@@ -6,7 +6,7 @@ const createFavouritePlace = {
     type: Joi.string().optional(),
     latitude: Joi.number().required(),
     longitude: Joi.number().required(),
-    address: Joi.string().required()
+    address: Joi.string().required(),
   }),
 };
 
@@ -36,7 +36,7 @@ const updateFavouritePlace = {
       latitude: Joi.number(),
       longitude: Joi.number(),
       address: Joi.string(),
-      status: Joi.boolean()
+      status: Joi.boolean(),
     })
     .min(1),
 };

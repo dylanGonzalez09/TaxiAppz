@@ -54,9 +54,9 @@ export type Config = {
 }
 
 const themeConfig: Config = {
-  templateName: process.env.REACT_APP_TEMPLATE_NAME || 'Taxi Appz Pro',
+  templateName: process.env.REACT_APP_TEMPLATE_NAME || 'Taxiappz',
   homePageUrl: '/dashboards/client',
-  settingsCookieName: 'Taxia -mui-next-demo-1',
+  settingsCookieName: 'Taxiappz',
   mode: 'light', // 'system', 'light', 'dark'
   skin: 'default', // 'default', 'bordered'
   semiDark: false, // true, false

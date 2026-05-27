@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import type { ChangeEvent } from 'react';
 
@@ -61,7 +60,8 @@ const AddClientDrawer: React.FC<any> = ({
   page,
   onPageChange,
   rowsPerPage,
-  dictionary
+  dictionary,
+  overrideZoneId
 }) => {
   const [loading, setLoading] = useState(false)
   const [startDate, setStartDate] = useState<Date | null>(null)
@@ -78,7 +78,8 @@ const AddClientDrawer: React.FC<any> = ({
         const dropDownData = await fetch(ENDPOINTS.democlient.dropDownList)
         
         const data = await dropDownData.json()
-        
+
+
         setRoles(data.data.roles)
         setLanguages(data.data.languages)
       } catch (error) {
@@ -87,7 +88,7 @@ const AddClientDrawer: React.FC<any> = ({
     }
 
     fetchData()
-  }, [])
+  }, [dictionary])
 
   const {
     control,
@@ -206,6 +207,7 @@ const AddClientDrawer: React.FC<any> = ({
   };
 
   const onSubmit = async (formData: ClientType) => {
+
     setLoading(true)
     const defaultLanguage = languages.length > 0 ? languages[0].id : null
     const defaultPassword = "123456789"
@@ -227,9 +229,8 @@ const AddClientDrawer: React.FC<any> = ({
         demo: true,
         languageId: defaultLanguage
       }
-    
+
       if (editClient?._id) {
-       
         const response = await updateClient(editClient._id, updatedData)
 
         updatedData.Name = formData.firstName
@@ -237,7 +238,7 @@ const AddClientDrawer: React.FC<any> = ({
         setEditClient(response)
         toast.success(dictionary['navigation'].clientupdatedsuccessfully)
       } else {
-        const response = await createClient(updatedData)
+        const response = await createClient(updatedData,overrideZoneId)
 
         if (!response.success) {
           toast.error(response.message)
@@ -294,8 +295,9 @@ const AddClientDrawer: React.FC<any> = ({
       sx={{ '& .MuiDrawer-paper': { width: { xs: 300, sm: 400 } } }}
     >
       <div className="flex items-center justify-between plb-5 pli-6">
-        <Typography variant="h5">{editClient ? 'Edit Client' : 'Add Client'}</Typography>
-        <IconButton size="small" onClick={handleDialogClose}>
+<Typography variant="h5">
+  {editClient ? dictionary['navigation'].EditClient : dictionary['navigation'].AddClient}
+</Typography>        <IconButton size="small" onClick={handleDialogClose}>
           <i className="tabler-x text-2xl text-textPrimary" />
         </IconButton>
       </div>
@@ -343,7 +345,8 @@ const AddClientDrawer: React.FC<any> = ({
             <CustomTextField
               {...field}
               fullWidth
-              label="Demo key"
+             
+              label={dictionary['navigation'].Demokey}
               value={demoKey}
               onChange={(e) => {
                 const input = e.target.value;
@@ -382,7 +385,7 @@ const AddClientDrawer: React.FC<any> = ({
           rules={{ required: 'Phone Number is required',validate: value => validatePhoneNumber(value, dictionary) }}
           render={({ field }) => (
             <CustomTextField
-              label="Phone Number"
+              label={dictionary['navigation'].phoneNumber}
               fullWidth
               {...field}
               error={!!errors.phoneNumber}
@@ -448,7 +451,7 @@ const AddClientDrawer: React.FC<any> = ({
             <AppReactDatepicker
               id="end-date"
               selected={endDate}
-              minDate={startDate}
+              minDate={startDate ?? undefined}
               onChange={(date: Date | null) => {
                 setEndDate(date)
                 field.onChange(date)

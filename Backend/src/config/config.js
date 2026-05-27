@@ -2,12 +2,12 @@ const dotenv = require('dotenv');
 const path = require('path');
 const Joi = require('joi');
 
-dotenv.config({ path: path.join(__dirname, '../../.env') });
+dotenv.config({ path: path.join(__dirname, '../../.env'), quiet: true });
 
 const envVarsSchema = Joi.object()
   .keys({
     NODE_ENV: Joi.string().valid('production', 'development', 'test').required(),
-    PORT: Joi.number().default(3001),
+    PORT: Joi.number().default(4001),
     MONGODB_URL: Joi.string().required().description('Mongo DB url'),
     JWT_SECRET: Joi.string().required().description('JWT secret key'),
     JWT_ACCESS_EXPIRATION_MINUTES: Joi.number().default(30).description('minutes after which access tokens expire'),
@@ -23,7 +23,8 @@ const envVarsSchema = Joi.object()
     SMTP_USERNAME: Joi.string().description('username for email server'),
     SMTP_PASSWORD: Joi.string().description('password for email server'),
     EMAIL_FROM: Joi.string().description('the from field in the emails sent by the app'),
-  }).unknown();
+  })
+  .unknown();
 
 const { value: envVars, error } = envVarsSchema.prefs({ errors: { label: 'key' } }).validate(process.env);
 
@@ -37,10 +38,8 @@ module.exports = {
   mongoose: {
     url: envVars.MONGODB_URL + (envVars.NODE_ENV === 'test' ? '-test' : ''),
     options: {
-      useCreateIndex: true,
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 300000,  // 5 minutes
+      serverSelectionTimeoutMS: 300000, // 5 minutes
+      maxPoolSize: 50, // reuse connections for better throughput
     },
   },
   jwt: {

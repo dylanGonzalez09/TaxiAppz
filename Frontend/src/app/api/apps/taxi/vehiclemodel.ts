@@ -3,9 +3,9 @@ import { get, post, patch, del } from './formApiService';
 import { ENDPOINTS } from './endpoint';
 
 
-export const fetchVehicleModel = async () => {
+export const fetchVehicleModel = async (overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.vehicleModel.list);
+    const response = await get(ENDPOINTS.vehicleModel.list, undefined, overrideZoneId);
 
     if (response.success) {
       return response.data
@@ -17,9 +17,9 @@ export const fetchVehicleModel = async () => {
   }
 };
 
-export const getVehicleModelByPagination = async (id:string,searchTerm: string, page: number, limit: number) => {
+export const getVehicleModelByPagination = async (id: string, searchTerm: string, page: number, limit: number, overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.vehicleModel.getByPagination(id,searchTerm, page, limit))
+    const response = await get(ENDPOINTS.vehicleModel.getByPagination(id, searchTerm, page, limit), undefined, overrideZoneId)
 
     if (response.success) {
 
@@ -37,11 +37,11 @@ export const getVehicleModelByPagination = async (id:string,searchTerm: string, 
 }
 
 
-export const createVehicleModel = async (formData: FormData) => {
+export const createVehicleModel = async (formData: FormData, overrideZoneId?: any) => {
   try {
     const response = await post(ENDPOINTS.vehicleModel.create, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    }, overrideZoneId);
 
     if (response.success) {
       return response.data
@@ -53,11 +53,11 @@ export const createVehicleModel = async (formData: FormData) => {
   }
 };
 
-export const updateVehicleModel = async (id: string, formData: FormData) => {
+export const updateVehicleModel = async (id: string, formData: FormData, overrideZoneId?: any) => {
   try {
     const response = await patch(ENDPOINTS.vehicleModel.update(id), formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    }, overrideZoneId);
 
     if (response.success) {
       return response.data
@@ -69,9 +69,9 @@ export const updateVehicleModel = async (id: string, formData: FormData) => {
   }
 };
 
-export const getByVehicleIdModel = async (id: string) => {
+export const getByVehicleIdModel = async (id: string, overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.vehicleModel.getById(id));
+    const response = await get(ENDPOINTS.vehicleModel.getById(id), undefined, overrideZoneId);
 
     if (response.success) {
       return response.data
@@ -83,9 +83,9 @@ export const getByVehicleIdModel = async (id: string) => {
   }
 };
 
-export const getByVehicleModelByVehicleId = async (id: string) => {
+export const getByVehicleModelByVehicleId = async (id: string, overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.vehicleModel.getByVehicleId(id));
+    const response = await get(ENDPOINTS.vehicleModel.getByVehicleId(id), undefined, overrideZoneId);
 
     if (response.success) {
       return response.data
@@ -97,9 +97,9 @@ export const getByVehicleModelByVehicleId = async (id: string) => {
   }
 };
 
-export const deleteVehicleModelById = async (id: string) => {
+export const deleteVehicleModelById = async (id: string, overrideZoneId?: any) => {
   try {
-    const response = await del(ENDPOINTS.vehicleModel.deleteById(id));
+    const response = await del(ENDPOINTS.vehicleModel.deleteById(id), undefined, overrideZoneId);
 
     if (response.success) {
       return response.data
@@ -111,9 +111,9 @@ export const deleteVehicleModelById = async (id: string) => {
   }
 };
 
-export const updateVehicleModelStatus = async (id: string, vehicleModel: any) => {
+export const updateVehicleModelStatus = async (id: string, vehicleModel: any, overrideZoneId?: any) => {
   try {
-    const response = await patch(ENDPOINTS.vehicleModel.updateStatus(id), vehicleModel);
+    const response = await patch(ENDPOINTS.vehicleModel.updateStatus(id), vehicleModel, undefined, overrideZoneId);
 
     if (response.success) {
       return response.data;

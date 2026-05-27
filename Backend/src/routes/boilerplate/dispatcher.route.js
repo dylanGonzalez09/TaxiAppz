@@ -3,22 +3,43 @@ const auth = require('../../middlewares/auth');
 const validate = require('../../middlewares/validate');
 const dispatcherValidation = require('../../validations/boilerplate/dispatcher.validation');
 const dispatcherController = require('../../controllers/boilerplate/dispatcher.controller');
-const {dispatcherUpload} = require('../../middlewares/upload');
+const { dispatcherUpload } = require('../../middlewares/upload');
 
 const router = express.Router();
 
 // Routes with authentication and validation
-router.route('/create').post(auth('Dispatcher'), validate(dispatcherValidation.createDispatcher), dispatcherUpload.single('image'),dispatcherController.createDispatcher);
-router.route('/update/:dispatcherId').patch(auth('Dispatcher'), validate(dispatcherValidation.updateDispatcher), dispatcherUpload.single('image'),dispatcherController.updateDispatcher);
-router.route('/getDispatchers').get(auth('Dispatcher'), validate(dispatcherValidation.getDispatchers), dispatcherController.getDispatchers);
-router.route('/getDispatchers/:dispatcherId').get(auth('Dispatcher'), validate(dispatcherValidation.getDispatcher), dispatcherController.getDispatcher);
-router.route('/delete/:dispatcherId').delete(auth('Dispatcher'), validate(dispatcherValidation.deleteDispatcher), dispatcherController.deleteDispatcher);
-router.route('/updateActiveStatus/:id').patch(auth('Dispatcher'),validate(dispatcherValidation.updateActiveStatus), dispatcherController.updateActiveStatus);
+router
+  .route('/create')
+  .post(
+    auth('Dispatcher'),
+    validate(dispatcherValidation.createDispatcher),
+    dispatcherUpload.single('image'),
+    dispatcherController.createDispatcher,
+  );
+router
+  .route('/update/:dispatcherId')
+  .patch(
+    auth('Dispatcher'),
+    validate(dispatcherValidation.updateDispatcher),
+    dispatcherUpload.single('image'),
+    dispatcherController.updateDispatcher,
+  );
+router
+  .route('/getDispatchers')
+  .get(auth('Dispatcher'), validate(dispatcherValidation.getDispatchers), dispatcherController.getDispatchers);
+router
+  .route('/getDispatchers/:dispatcherId')
+  .get(auth('Dispatcher'), validate(dispatcherValidation.getDispatcher), dispatcherController.getDispatcher);
+router
+  .route('/delete/:dispatcherId')
+  .delete(auth('Dispatcher'), validate(dispatcherValidation.deleteDispatcher), dispatcherController.deleteDispatcher);
+router
+  .route('/updateActiveStatus/:id')
+  .patch(auth('Dispatcher'), validate(dispatcherValidation.updateActiveStatus), dispatcherController.updateActiveStatus);
 router.route('/getDispatcher/list').get(auth('Dispatcher'), dispatcherController.getDispatcherPagination);
 router.route('/getDropDown/list/:clientId').get(dispatcherController.getDropDownList);
 
 module.exports = router;
- 
 
 /**
  * @swagger

@@ -32,6 +32,7 @@ type DriversList = {
   userId?: string;
   phoneNumber?: string;
   action: any;
+  id:string
 };
 
 const fuzzyFilter: FilterFn<DriversList> = (row, columnId, filterValue) => {
@@ -50,11 +51,11 @@ const DriversListTable = ({ staticGroup, dictionary, zoneId }: { staticGroup: an
   const { lang: locale } = useParams();
   const { checkDemoStatus } = useIsDemoUser();
 
-  const [pageIndex, setPageIndex] = useState(staticGroup.page - 1);
+  const [pageIndex, setPageIndex] = useState(staticGroup.page - 1 || 1);
   const [pageSearch, setPageSearch] = useState("");
-  const [totalResults, setTotalResults] = useState(staticGroup.totalResults);
-  const [data, setData] = useState(staticGroup.data);
-  const [pageSize, setPageSize] = useState(staticGroup.limit);
+  const [totalResults, setTotalResults] = useState(staticGroup.totalResults || 0);
+  const [data, setData] = useState(staticGroup.results || []);
+  const [pageSize, setPageSize] = useState(staticGroup.limit || 10);
 
   const columns = useMemo<ColumnDef<DriversList, any>[]>(() => [
     {
@@ -78,7 +79,7 @@ const DriversListTable = ({ staticGroup, dictionary, zoneId }: { staticGroup: an
               <Tooltip title={name} arrow placement="bottom">
                 <Typography
                   component={Link}
-                  href={getLocalizedUrl(`/apps/taxi/driver/view/${row.original.userId}`, locale as Locale)}
+                  href={getLocalizedUrl(`${zoneId}/apps/taxi/driver/view/${row.original.userId}`, locale as Locale)}
                   color="primary"
                   sx={{
                     whiteSpace: 'nowrap',
@@ -94,7 +95,7 @@ const DriversListTable = ({ staticGroup, dictionary, zoneId }: { staticGroup: an
             ) : (
               <Typography
                 component={Link}
-                href={getLocalizedUrl(`/apps/taxi/driver/view/${row.original.userId}`, locale as Locale)}
+                href={getLocalizedUrl(`${zoneId}/apps/taxi/driver/view/${row.original.userId}`, locale as Locale)}
                 color="primary"
               >
                 {displayName}
@@ -119,7 +120,10 @@ const DriversListTable = ({ staticGroup, dictionary, zoneId }: { staticGroup: an
       header: dictionary['navigation'].Action,
       cell: ({ row }) => (
         <div className='flex items-center'>
-          <Link href={`/apps/taxi/driver/documentExpiry/documents/${row.original._id }`} className='flex'>
+          {/* <Link href={`/apps/taxi/driver/documentExpiry/documents/${row.original._id }`} className='flex'>
+            <i className='tabler-eye text-textSecondary' />
+          </Link> */}
+          <Link href={getLocalizedUrl(`${zoneId}/apps/taxi/driver/documentExpiry/documents/${row.original.id || row.original._id}` , locale as Locale)} className='flex'>
             <i className='tabler-eye text-textSecondary' />
           </Link>
         </div>
@@ -149,7 +153,7 @@ const DriversListTable = ({ staticGroup, dictionary, zoneId }: { staticGroup: an
   const handlePageChange = async (event: unknown, newPage: number) => {
     try {
       const { results, totalResults } = await getDriversByZone(zoneId,pageSearch, newPage, pageSize);
-
+      
       setData(results);
       setPageIndex(newPage);
       setTotalResults(totalResults);
@@ -230,7 +234,7 @@ const DriversListTable = ({ staticGroup, dictionary, zoneId }: { staticGroup: an
           />
         </div>
       </div>
-      <div className='overflow-x-auto'>
+      <div className='overflow-x-auto' id="table-container">
         <table className={tableStyles.table}>
           <thead>
             {table.getHeaderGroups().map(headerGroup => (

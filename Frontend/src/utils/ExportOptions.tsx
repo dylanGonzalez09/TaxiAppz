@@ -62,6 +62,7 @@ return;
     if (printWindow) {
       printWindow.document.open();
       printWindow.document.write(`
+        <!DOCTYPE html>
         <html>
         <head>
           <title>${fileName}</title>

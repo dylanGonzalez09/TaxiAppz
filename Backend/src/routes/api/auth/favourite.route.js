@@ -7,8 +7,12 @@ const favouriteController = require('../../../controllers/api/auth/favourite_pla
 const router = express.Router();
 
 router.route('/list').get(auth('Favourite'), favouriteController.getFavouriteList);
-router.route('/create').post(auth('Favourite'), validate(favouriteValidation.createFavouritePlace), favouriteController.createFavourite);
-router.route('/update/:id').patch(auth('Favourite'), validate(favouriteValidation.updateFavouritePlace), favouriteController.updateFavourite);
+router
+  .route('/create')
+  .post(auth('Favourite'), validate(favouriteValidation.createFavouritePlace), favouriteController.createFavourite);
+router
+  .route('/update/:id')
+  .patch(auth('Favourite'), validate(favouriteValidation.updateFavouritePlace), favouriteController.updateFavourite);
 router.route('/delete/:id').delete(auth('Favourite'), favouriteController.deleteFavourite);
 
 module.exports = router;

@@ -11,6 +11,8 @@ import { useParams } from 'next/navigation'
 // MUI Imports
 import { styled, useColorScheme, useTheme } from '@mui/material/styles'
 
+import { usePrivilegeStore } from '@/store/privilegeStore';
+
 // Type Imports
 import type { getDictionary } from '@/utils/getDictionary'
 import type { Mode, SystemMode } from '@core/types'
@@ -35,7 +37,6 @@ type Props = {
   dictionary: Awaited<ReturnType<typeof getDictionary>>
   mode: Mode
   systemMode: SystemMode,
-  privillageData: any,
   session:any
 }
 
@@ -58,12 +59,21 @@ const StyledBoxForShadow = styled('div')(({ theme }) => ({
 
 const Navigation = (props: Props) => {
   // Props
-  const { dictionary, mode, systemMode, privillageData,session } = props
+  const { dictionary, mode, systemMode,session } = props
+ const privilegeData = usePrivilegeStore((s) => s.privilege);
+  const refreshFromCache = usePrivilegeStore((s) => s.refreshFromCache); // ✅ Use cache refresh
 
-  // Hooks
+  useEffect(() => {
+    // ✅ Only refresh from cache, no API calls
+    if (!privilegeData || privilegeData.length === 0) {
+      refreshFromCache();
+    }
+  }, [privilegeData, refreshFromCache]);
+
+
   const verticalNavOptions = useVerticalNav()
   const { updateSettings, settings } = useSettings()
-  const { lang: locale } = useParams()
+  const { lang: locale, zoneId } = useParams() as { lang?: string; zoneId?: string }
   const { mode: muiMode, systemMode: muiSystemMode } = useColorScheme()
   const theme = useTheme()
 
@@ -113,7 +123,7 @@ const Navigation = (props: Props) => {
     <VerticalNav
       customStyles={navigationCustomStyles(verticalNavOptions, theme)}
       collapsedWidth={71}
-      backgroundColor='var(--mui-palette-background-paper)'
+      backgroundColor='var(--mui-palette-background-default)'
       // eslint-disable-next-line lines-around-comment
       // The following condition adds the data-mui-color-scheme='dark' attribute to the VerticalNav component
       // when semiDark is enabled and the mode or systemMode is light
@@ -124,7 +134,16 @@ const Navigation = (props: Props) => {
     >
       {/* Nav Header including Logo & nav toggle icons  */}
       <NavHeader>
-        <Link href={getLocalizedUrl('/', locale as Locale)}>
+        <Link
+          href={
+            getLocalizedUrl(
+              zoneId
+                ? `/${zoneId}/dashboards/client`
+                : '/apps/taxi/zone/add',
+              locale as Locale
+            )
+          }
+        >
           <Logo />
         </Link>
         {!(isCollapsed && !isHovered) && (
@@ -137,7 +156,7 @@ const Navigation = (props: Props) => {
         )}
       </NavHeader>
       <StyledBoxForShadow ref={shadowRef} />
-      <VerticalMenu dictionary={dictionary} scrollMenu={scrollMenu} privillageData={privillageData} session={session}/>
+      <VerticalMenu dictionary={dictionary} scrollMenu={scrollMenu} privillageData={privilegeData} session={session}/>
     </VerticalNav>
   )
 }

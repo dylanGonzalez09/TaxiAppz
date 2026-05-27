@@ -1,4 +1,4 @@
-import { fetchSettings } from '@/app/api/apps/taxi/setting'
+ import { fetchSettings } from '@/app/api/apps/taxi/setting'
 
 // Cache the primary color with a TTL (time to live)
 let cachedPrimaryColor: string | null = null
@@ -8,7 +8,7 @@ const CACHE_TTL_MS = 1000 * 60 * 60 * 24
 let inFlightFetch: Promise<string> | null = null
 
 export const getPrimaryColorConfig = async (): Promise<string> => {
-  const defaultColor = '#0D2D5C'
+  const defaultColor = '#00c867'
   const now = Date.now()
 
   if (cachedPrimaryColor && cacheTimestamp && (now - cacheTimestamp < CACHE_TTL_MS)) {

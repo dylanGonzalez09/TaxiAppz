@@ -1,8 +1,7 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const ApiError = require('../../../utils/ApiError');
-const { FavouritePlace,Request } = require('../../../models');
-const ObjectId = require('mongoose').Types.ObjectId
-
+const { FavouritePlace, Request } = require('../../../models');
+const { ObjectId } = require('mongoose').Types;
 
 const getFavouritesByUser = async (userId) => {
   return FavouritePlace.find({ userId }).sort({ createdAt: -1 });
@@ -34,5 +33,5 @@ module.exports = {
   getLastTripHistory,
   isFavouriteExists,
   createFavourite,
-  getFavouriteById
+  getFavouriteById,
 };

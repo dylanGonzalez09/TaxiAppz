@@ -6,14 +6,18 @@ const translationController = require('../../controllers/boilerplate/translation
 const router = express.Router();
 
 router.route('/create').post(auth('Translation'), translationController.createTranslation);
+router.route('/translate').post(auth('Translation'), translationController.translateText);
 router.route('/gettranslation/list').get(auth('Translation'), translationController.getlanguageWithOutPagination);
 router.route('/get').get(auth('Translation'), translationController.getlanguageByCode);
-router.route('/mobile/get').get(auth('Translation'),translationController.getMobilelanguageByCode);
-router.route('/').get(auth('Translation'),translationController.getActivelanguage);
+router.route('/mobile/get').get(auth('Translation'), translationController.getMobilelanguageByCode);
+router.route('/').get(auth('Translation'), translationController.getActivelanguage);
 router.route('/getlanguage').get(translationController.getActivelanguageAndId);
 // auth('Translation'),
 router.route('/delete/:key').delete(auth('Translation'), translationController.deleteTranslation);
 
+// Public dictionary endpoint used by frontend for dynamic translations
+// Example: GET /v1/translation/dictionary/en
+router.route('/dictionary/:code').get(translationController.getDictionaryByCode);
 
 module.exports = router;
 
@@ -359,7 +363,7 @@ module.exports = router;
  *                       example: "success"
  *                     msg:
  *                       type: string
- *                       example: "data Deleted Successfully"
+ *                       example: "Data Deleted Successfully"
  *                 message:
  *                   type: string
  *                   example: Success
@@ -368,4 +372,3 @@ module.exports = router;
  *       "403":
  *         description: Forbidden, authenticated user does not have permission to delete the language
  */
-

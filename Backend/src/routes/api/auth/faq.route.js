@@ -6,12 +6,18 @@ const faqController = require('../../../controllers/api/auth/faq.controller');
 
 const router = express.Router();
 
-router.route('/create').post(auth('Faq'),validate(faqValidation.createFaq), faqController.createFaq);
-router.route('/getFaqs').get(auth('Faq'),validate(faqValidation.getFaqs), faqController.getFaqs);
-router.route('/getFaq/:faqId').get(auth('Faq'),validate(faqValidation.getFaq), faqController.getFaq);
-router.route('/getFaqs/list').get(auth('Faq'),faqController.getFaqsWithOutPagination);
-router.route('/updateFaq/:faqId').patch(auth('Faq'),validate(faqValidation.updateFaq), faqController.updateFaq);
-router.route('/deleteFaq/:faqId').delete(auth('Faq'),validate(faqValidation.deleteFaq), faqController.deleteFaq);
+router.route('/create').post(auth('Faq'), validate(faqValidation.createFaq), faqController.createFaq);
+router.route('/getFaqs').get(auth('Faq'), validate(faqValidation.getFaqs), faqController.getFaqs);
+router.route('/getFaq/:faqId').get(auth('Faq'), validate(faqValidation.getFaq), faqController.getFaq);
+router.route('/getFaqs/list').post(auth('Faq'), faqController.getFaqsWithOutPagination);
+router
+  .route('/getFaqs/list/user')
+  .post(auth('Faq'), validate(faqValidation.getFaqsListUser), faqController.getFaqsForUser);
+router
+  .route('/getFaqs/list/driver')
+  .post(auth('Faq'), validate(faqValidation.getFaqsListDriver), faqController.getFaqsForDriver);
+router.route('/updateFaq/:faqId').patch(auth('Faq'), validate(faqValidation.updateFaq), faqController.updateFaq);
+router.route('/deleteFaq/:faqId').delete(auth('Faq'), validate(faqValidation.deleteFaq), faqController.deleteFaq);
 
 module.exports = router;
 
@@ -237,4 +243,3 @@ module.exports = router;
  *       404:
  *         description: SOS request not found
  */
-

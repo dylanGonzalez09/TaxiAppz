@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable import/no-unresolved */
 import type { ChangeEvent} from 'react';
@@ -25,10 +24,9 @@ import { toast } from 'react-toastify';
 
 
 import CustomTextField from '@core/components/mui/TextField'; // Adjust path as necessary
-import { fetchCategories } from '@apis/category';
 import { createVehicle, updateVehicle } from '@apis/vehicle';
 import { BASE_IMAGE_URL } from '@apis/endpoint';
-import { useIsDemoUser } from '@/utils/demoUser' 
+import { useIsDemoUser } from '@/utils/demoUser'
 
 import { validateTextOnly, validateImage, validateNumeric, validateAtLeastOneChecked,checkOrder } from '@/utils/validation';
 
@@ -68,7 +66,6 @@ const AddVehicleDrawer: React.FC<AddVehicleDrawerProps> = ({
   onPageChange,
   rowsPerPage
 }) => {
-  const [categories, setCategories] = useState<any[]>([]);
   const [vehicleImagePreview, setVehicleImagePreview] = useState<string | null>(null);
   const [imageHighlightPreview, setImageHighlightPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false); // Loading state
@@ -91,18 +88,23 @@ const AddVehicleDrawer: React.FC<AddVehicleDrawerProps> = ({
     },
   });
 
+
+const clearImages = () => {
+  if (vehicleImageRef.current) {
+    vehicleImageRef.current.value = '';
+  }
+
+  if (imageHighlightRef.current) {
+    imageHighlightRef.current.value = '';
+  }
+
+  setVehicleImagePreview(null);
+  setImageHighlightPreview(null);
+};
+
+
   useEffect(() => {
-    const fetchCategory = async () => {
-      try {
-        const response = await fetchCategories();
 
-        setCategories(response);
-      } catch (error) {
-        toast.error(dictionary['navigation'].Failedtoloadcategories);
-      }
-    };
-
-    fetchCategory();
 
     if (editData) {
       setValue('vehicleName', editData.vehicleName || '');
@@ -130,19 +132,10 @@ const AddVehicleDrawer: React.FC<AddVehicleDrawerProps> = ({
       setImageHighlightPreview(editData.highlightImage ? `${BASE_IMAGE_URL}/uploads/vehicles/${editData.highlightImage}` : null);
     } else {
       reset();
-      
-      if (vehicleImageRef.current) {
-        vehicleImageRef.current.value = ''; 
-      }
-      
-      if (imageHighlightRef.current) {
-        imageHighlightRef.current.value = '';
-      }
-      
-      setVehicleImagePreview(null);
-      setImageHighlightPreview(null);
+
+     clearImages();
     }
-  }, [editData, setValue, reset, setVehicleImagePreview, setImageHighlightPreview]);
+  }, [editData, setValue, reset, setVehicleImagePreview, setImageHighlightPreview,dictionary]);
 
 
   // Helper function to handle page change logic
@@ -224,17 +217,11 @@ const AddVehicleDrawer: React.FC<AddVehicleDrawerProps> = ({
 
         toast.success(editData ? 'Vehicle updated successfully' : 'Vehicle created successfully');
         reset();
-        
-        if (vehicleImageRef.current) {
-          vehicleImageRef.current.value = ''; 
-        }
-        
-        if (imageHighlightRef.current) {
-          imageHighlightRef.current.value = '';
-        }
-        
+
+        clearImages();
+
         handleClose();
-      
+
       } else {
         throw new Error('API response error');
       }
@@ -263,6 +250,7 @@ const AddVehicleDrawer: React.FC<AddVehicleDrawerProps> = ({
       onClose={() => {
         handleClose();
         reset();
+        clearImages();
       }}
       variant='temporary'
       ModalProps={{ keepMounted: true }}
@@ -293,7 +281,7 @@ const AddVehicleDrawer: React.FC<AddVehicleDrawerProps> = ({
                   <CustomTextField
                     {...field}
                     fullWidth
-                    label={dictionary['navigation'].VehicleName}                    
+                    label={dictionary['navigation'].VehicleName}
                     error={!!errors.vehicleName}
                     helperText={errors.vehicleName?.message}
                   />
@@ -312,7 +300,7 @@ const AddVehicleDrawer: React.FC<AddVehicleDrawerProps> = ({
               <Controller
                 name='vehicleimage'
                 control={control}
-                rules={{ 
+                rules={{
                   validate: {
                     required: (value) => {
                       const isEditMode = !!editData;
@@ -330,10 +318,10 @@ const AddVehicleDrawer: React.FC<AddVehicleDrawerProps> = ({
 
                     customValidation: (value) => {
                       if (value && value.length > 0) {
-                      
+
                         return validateImage(value, dictionary); // Runs only if a file is selected
                       }
-                     
+
                       return true;
                     }
                   }
@@ -380,7 +368,7 @@ const AddVehicleDrawer: React.FC<AddVehicleDrawerProps> = ({
               <Controller
                 name='imageHighlight'
                 control={control}
-                rules={{ 
+                rules={{
                   validate: {
                     required: (value) => {
                       const isEditMode = !!editData;
@@ -393,17 +381,17 @@ const AddVehicleDrawer: React.FC<AddVehicleDrawerProps> = ({
                         : dictionary['navigation'].ImageHighlightisrequired;
                       }
 
-                      
+
                       return true;
-                    
+
                     },
-                  
+
                     customValidation: (value) => {
                       if (value && value.length > 0) {
-                        
+
                         return validateImage(value, dictionary); // Runs only if a file is selected
                       }
-                      
+
                       return true;
                     }
                   }
@@ -537,7 +525,7 @@ const AddVehicleDrawer: React.FC<AddVehicleDrawerProps> = ({
               </FormControl>
             </Grid>
           </Grid>
-          <div className='flex justify-end mt-4'>
+          <div className='flex justify-end mt-4 gap-5'>
             <Button
               type='submit'
               variant='contained'
@@ -546,31 +534,21 @@ const AddVehicleDrawer: React.FC<AddVehicleDrawerProps> = ({
               endIcon={loading && <CircularProgress size={20} color="inherit" />} // Show loading spinner
             >
               {editData ? (loading ? dictionary['navigation'].Updating : dictionary['navigation'].Update) : (loading ? dictionary['navigation'].Creating : dictionary['navigation'].Create)}
-           
+
             </Button>
 
             <Button
               onClick={() => {
-                
+
                 handleClose();
-               
-                reset(); 
-                 
-                if (vehicleImageRef.current) {
-                  vehicleImageRef.current.value = '';
-                }
-                
-                if (imageHighlightRef.current) {
-                  imageHighlightRef.current.value = '';
-                }
-                
-                setVehicleImagePreview(null);
-               
-                setImageHighlightPreview(null);
-             
+
+                reset();
+
+                clearImages();
+
               }}
               variant='outlined'
-              color='secondary'
+              color='error'
               style={{ marginLeft: '10px' }}
             >
               {dictionary['navigation'].Cancel}

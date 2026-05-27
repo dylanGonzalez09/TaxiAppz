@@ -42,6 +42,7 @@ const OrderDetailHeader = ({ requestData, order,dictionary }: { requestData?: an
 
   const dateTime = requestData[0].tripStartTime;
 
+
   if (!dateTime) {
     return <Typography variant="body2">{dictionary['navigation'].NoDateAvailable}</Typography>;
   }
@@ -55,6 +56,16 @@ const OrderDetailHeader = ({ requestData, order,dictionary }: { requestData?: an
     color,
     variant
   })
+
+const getStatusColor = (trip: any) => {
+  if (trip.isCompleted) return "success";
+  if (trip.isTripStart) return "primary";
+  if (trip.isDriverArrived) return "warning";
+  if (trip.isCancelled) return "error";
+  if (trip.isDriverStarted) return "info";
+
+return "default";
+};
 
   return (
     <div className='flex flex-wrap justify-between items-center gap-y-4'>
@@ -72,7 +83,9 @@ const OrderDetailHeader = ({ requestData, order,dictionary }: { requestData?: an
                       requestData[0].isDriverStarted ?dictionary['navigation'].Accepted :
                       dictionary['navigation'].Pending
             }
-            color='primary'
+
+            // color='primary'
+             color={getStatusColor(requestData[0])}
             size='small'
           />
 

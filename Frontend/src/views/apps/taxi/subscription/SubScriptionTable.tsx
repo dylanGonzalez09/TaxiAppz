@@ -2,7 +2,6 @@
 'use client';
 
 // React Imports
-import type { ChangeEvent } from 'react';
 import { useMemo, useState, useCallback } from 'react';
 
 // MUI Imports
@@ -46,7 +45,7 @@ import CustomTextField from '@core/components/mui/TextField';
 
 // Style Imports
 import tableStyles from '@core/styles/table.module.css';
-import { deleteBySubScriptionId, updateSubScriptionStatus, getSubscriptionByPagination } from '@apis/subscription';
+import { updateSubScriptionStatus, getSubscriptionByPagination } from '@apis/subscription';
 
 import ConfirmationDialog from '../../../../components/dialogs/delete-data'; // Import the ConfirmationDialog component
 import ExportOptions from '@/utils/ExportOptions';
@@ -73,6 +72,8 @@ export type subscriptionType = {
   status: boolean;
   unit: string;
 
+  /** Legacy rows where price was stored here before `amount` existed */
+  onOfDrivers?: number;
 };
 
 type SubScriptionWithActionsType = subscriptionType & {
@@ -96,15 +97,21 @@ const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
 // Column Definitions
 const columnHelper = createColumnHelper<SubScriptionWithActionsType>();
 
-const SubScriptionTable = ({ subScriptionData, dictionary }: { subScriptionData: any, dictionary: any }) => {
+const SubScriptionTable = ({
+  subScriptionData,
+  dictionary,
+  zoneId
+}: {
+  subScriptionData: any
+  dictionary: any
+  zoneId: string
+}) => {
   // States
   const [addSubscriptionOpen, setAddSubscriptionOpen] = useState(false);
   const [editData, setEditData] = useState<subscriptionType | undefined>(undefined);
   const [editSubscriptionOpen, setEditSubscriptionOpen] = useState(false);
 
   const [rowSelection, setRowSelection] = useState({});
-  const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
-  const [deleteSubscriptionId, setDeleteSubscriptionId] = useState<string | null>(null);
   const [statusConfirmationOpen, setStatusConfirmationOpen] = useState(false);
   const [statusSubScription, setstatusSubScription] = useState<subscriptionType | null>(null);
 
@@ -117,35 +124,6 @@ const SubScriptionTable = ({ subScriptionData, dictionary }: { subScriptionData:
   const [pageSize, setPageSize] = useState(subScriptionData.limit);
   const { checkDemoStatus } = useIsDemoUser();
 
-
-
-  const handleDeleteClick = (original: subscriptionType) => {
-    if (checkDemoStatus()) {
-     toast.error(dictionary['navigation'].deleteError);
-
-      return;
-      }
-
-    setDeleteSubscriptionId(original.id);
-    setDeleteConfirmationOpen(true);
-  };
-
-    const handlePageChangeForAddRecord = () => {
-      // Create a dummy event object
-      const dummyEvent = {
-        target: {
-          value: pageIndex,
-        },
-        currentTarget: {
-          value: pageIndex,
-        },
-        nativeEvent: {} as Event,
-        bubbles: false,
-      } as unknown as ChangeEvent<unknown>;
-
-      // Trigger onPageChange with the new page
-      handlePageChange(dummyEvent, pageIndex - 1);
-    };
 
 
   const handleStatusToggle = async (subscription: subscriptionType) => {
@@ -206,6 +184,7 @@ const SubScriptionTable = ({ subScriptionData, dictionary }: { subScriptionData:
       columnHelper.accessor('amount', {
         header: dictionary['navigation'].amount,
         cell: ({ row }) => <Typography>{row.original.amount}</Typography>
+
       }),
       columnHelper.accessor('status', {
         header: dictionary['navigation'].Status,
@@ -248,13 +227,6 @@ const SubScriptionTable = ({ subScriptionData, dictionary }: { subScriptionData:
                     onClick: () => handleEditClick(row.original),
                   },
                 },
-                {
-                  text: dictionary['navigation'].Delete,
-                  icon: 'tabler-trash',
-                  menuItemProps: {
-                    onClick: () => handleDeleteClick(row.original),
-                  },
-                }
               ]}
             />
           </div>
@@ -266,8 +238,16 @@ const SubScriptionTable = ({ subScriptionData, dictionary }: { subScriptionData:
     [data]
   );
 
+  const tableData = useMemo(
+    () =>
+      (Array.isArray(data) ? data : []).filter(
+        (r): r is subscriptionType => r != null && typeof r === 'object' && 'name' in r
+      ),
+    [data]
+  );
+
   const table = useReactTable({
-    data: data as subscriptionType[],
+    data: tableData,
     columns,
     filterFns: {
       fuzzy: fuzzyFilter
@@ -306,30 +286,9 @@ const SubScriptionTable = ({ subScriptionData, dictionary }: { subScriptionData:
   };
 
 
-  const handleConfirmDelete = async (confirmed: boolean) => {
-    if (confirmed && deleteSubscriptionId) {
-      try {
-        await deleteBySubScriptionId(deleteSubscriptionId);
-
-        if (data.length != 1) {
-          setData(data.filter((Subscription: { id: string; }) => Subscription.id !== deleteSubscriptionId));
-          handlePagecurrentForAddRecord()
-        } else {
-          handlePageChangeForAddRecord();
-        }
-      } catch (error) {
-        // Handle error, e.g., show an error message
-        console.error("Error deleting version:", error);
-      }
-    }
-
-    setDeleteConfirmationOpen(false);
-    setDeleteSubscriptionId(null);
-  };
-
   const handlePageChange = async (event: unknown, newPage: number) => {
     try {
-      const { results, totalResults } = await getSubscriptionByPagination(pageSearch, newPage, pageSize);
+      const { results, totalResults } = await getSubscriptionByPagination(pageSearch, newPage, pageSize, zoneId);
 
       setData(results);
       setPageIndex(newPage);
@@ -339,28 +298,11 @@ const SubScriptionTable = ({ subScriptionData, dictionary }: { subScriptionData:
     }
   };
 
-  const handlePagecurrentForAddRecord = () => {
-    // Create a dummy event object
-    const dummyEvent = {
-      target: {
-        value: pageIndex,
-      },
-      currentTarget: {
-        value: pageIndex,
-      },
-      nativeEvent: {} as Event,
-      bubbles: false,
-    } as unknown as ChangeEvent<unknown>;
-
-    // Trigger onPageChange with the new page
-    handlePageChange(dummyEvent, pageIndex);
-  };
-
   const handlePageSizeChange = async (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
 
     const newPageSize = parseInt(event.target.value);
 
-    const { results, totalResults } = await getSubscriptionByPagination(pageSearch, 1, newPageSize);
+    const { results, totalResults } = await getSubscriptionByPagination(pageSearch, 1, newPageSize, zoneId);
 
     setPageSize(newPageSize);
     setData(results);
@@ -375,7 +317,8 @@ const SubScriptionTable = ({ subScriptionData, dictionary }: { subScriptionData:
         const result = await getSubscriptionByPagination(
           searchTerm,
           1, // Reset to first page on new search
-          pageSize
+          pageSize,
+          zoneId
         );
 
         setPageSearch(searchTerm);
@@ -386,7 +329,7 @@ const SubScriptionTable = ({ subScriptionData, dictionary }: { subScriptionData:
         console.error("Error fetching search results:", error);
       }
     },
-    [pageSize]
+    [pageSize, zoneId]
   );
 
 
@@ -526,6 +469,7 @@ const SubScriptionTable = ({ subScriptionData, dictionary }: { subScriptionData:
         page={pageIndex}
         onPageChange={handlePageChange}
         rowsPerPage={pageSize}
+        zoneId={zoneId}
       />
       <EditSubScriptionDrawer
         open={editSubscriptionOpen}
@@ -535,15 +479,6 @@ const SubScriptionTable = ({ subScriptionData, dictionary }: { subScriptionData:
         handleClose={() => setEditSubscriptionOpen(false)}
         initialData={editData}
       />
-      <ConfirmationDialog
-        open={deleteConfirmationOpen}
-        setOpen={setDeleteConfirmationOpen}
-        confirmationType="delete-data"
-        onConfirm={handleConfirmDelete}
-        dictionary={dictionary}
-
-      />
-
       <ConfirmationDialog
         open={statusConfirmationOpen}
         setOpen={setStatusConfirmationOpen}

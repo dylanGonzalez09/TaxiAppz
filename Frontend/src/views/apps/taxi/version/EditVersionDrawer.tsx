@@ -145,8 +145,13 @@ const EditVersionDrawer = (props: Props) => {
           <Controller
             name='versionNumber'
             control={control}
-            rules={{ required: dictionary['navigation'].VersionNumberisrequired }}
-            render={({ field }) => (
+  rules={{
+    required: dictionary['navigation'].VersionNumberisrequired,
+    pattern: {
+      value: /^[A-Za-z0-9. ]+$/,
+      message: 'Only letters, numbers, spaces, and dot (.) are allowed'
+    }
+  }}             render={({ field }) => (
               <CustomTextField
                 {...field}
                 fullWidth
@@ -173,24 +178,26 @@ const EditVersionDrawer = (props: Props) => {
               />
             )}
           />
-          <Controller
-            name='description'
-            control={control}
-            rules={{ required: dictionary['navigation'].Descriptionisrequired }}
-            render={({ field }) => (
-              <CustomTextField
-                {...field}
-                fullWidth
-                multiline
-                minRows={3}
-                label={dictionary['navigation'].description}
-                placeholder={dictionary['navigation'].enterdescription}
-                error={!!errors.description}
-                helperText={errors.description ? errors.description.message : ''}
-              />
-            )}
-          />
-          
+     <Controller
+  name='description'
+  control={control}
+  rules={{
+    required: dictionary['navigation'].Descriptionisrequired,
+  
+  }}
+  render={({ field }) => (
+    <CustomTextField
+      {...field}
+      fullWidth
+      multiline
+      minRows={3}
+      label={dictionary['navigation'].description}
+      placeholder={dictionary['navigation'].enterdescription}
+      error={!!errors.description}
+      helperText={errors.description?.message}
+    />
+  )}
+/>
           <Controller
             name='applicationType'
             control={control}

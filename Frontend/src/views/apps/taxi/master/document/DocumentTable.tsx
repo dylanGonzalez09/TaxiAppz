@@ -5,6 +5,8 @@
 import type { ChangeEvent } from 'react';
 import React, { useState, useMemo, useCallback } from 'react';
 
+import { useParams } from 'next/navigation';
+
 import TablePagination from '@mui/material/TablePagination';
 import { createColumnHelper, flexRender, useReactTable, getCoreRowModel, getFilteredRowModel, getSortedRowModel, getPaginationRowModel } from '@tanstack/react-table';
 import { Chip, MenuItem, Button, Typography, Card , Dialog, DialogActions, DialogContent } from '@mui/material';
@@ -35,6 +37,7 @@ import CreateNewDocumentDialog from './AddEditDrawer';
 import ExportOptions from '@/utils/ExportOptions';
 import ConfirmationDialogErrorHandle from '@/components/dialogs/delete-data/index-error-handle';
 
+
 const fuzzyFilter: FilterFn<DocumentType> = (row, columnId, filterValue) => {
   const cellValue = row.getValue(columnId);
 
@@ -44,7 +47,21 @@ const fuzzyFilter: FilterFn<DocumentType> = (row, columnId, filterValue) => {
 
 const columnHelper = createColumnHelper<DocumentType>();
 
-const DocumentTable = ({ staticGroup, dictionary }: { staticGroup: any, dictionary: any }) => {
+const isLockedDefaultDocument = (document: DocumentType) =>
+  String(document?.documentName || '').trim().toLowerCase() === 'profile image' &&
+  String((document as any)?.type || '').trim().toLowerCase() === 'driver';
+
+const DocumentTable = ({
+  staticGroup,
+  dictionary,
+  initialType = 'All',
+  selectedGroupDocumentId,
+}: {
+  staticGroup: any;
+  dictionary: any;
+  initialType?: 'All' | 'driver' | 'vehicle';
+  selectedGroupDocumentId?: string;
+}) => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editData, setEditData] = useState<DocumentType | undefined>(undefined);
   const [rowSelection, setRowSelection] = useState({});
@@ -54,6 +71,7 @@ const DocumentTable = ({ staticGroup, dictionary }: { staticGroup: any, dictiona
   const [statusDocument, setStatusDocument] = useState<DocumentType | null>(null);
 
   const [globalFilter, setGlobalFilter] = useState('');
+  const [currentType, setCurrentType] = useState<'All' | 'driver' | 'vehicle'>(initialType);
   const [pageIndex, setPageIndex] = useState(staticGroup.page - 1);
   const [pageSearch, setPageSearch] = useState("");
   const [totalResults, setTotalResults] = useState(staticGroup.totalResults); // To track the total number of records
@@ -63,6 +81,7 @@ const DocumentTable = ({ staticGroup, dictionary }: { staticGroup: any, dictiona
   const [errorMessage, setErrorMessage] = useState('');
   const [errorData, setErrorData] = useState('');
   const { isDemoUser, checkDemoStatus } = useIsDemoUser();
+  const { lang: locale, zoneId } = useParams();
 
   const handlePageChangeForAddRecord = () => {
     // Create a dummy event object
@@ -102,6 +121,15 @@ const DocumentTable = ({ staticGroup, dictionary }: { staticGroup: any, dictiona
   };
 
   const handleStatusToggle = async (document: DocumentType) => {
+    if (isLockedDefaultDocument(document)) {
+      toast.error(
+        dictionary['navigation'].DefaultDriverProfileImageDocumentCannotBeModified ||
+          'Default Driver profile image document cannot be modified'
+      );
+
+return;
+    }
+
     if (checkDemoStatus()) {
       toast.error(dictionary['navigation'].editError);
 
@@ -112,41 +140,41 @@ const DocumentTable = ({ staticGroup, dictionary }: { staticGroup: any, dictiona
     setStatusConfirmationOpen(true);
   };
 
-  const handleConfirmStatus = async (confirmed: boolean) => {
-    if (confirmed && statusDocument) {
-      const updatedDocument = { ...statusDocument, status: !statusDocument.status };
+ const handleConfirmStatus = async (confirmed: boolean) => {
+  if (!confirmed || !statusDocument) {
+    setStatusConfirmationOpen(false);
+    setStatusDocument(null);
 
-      try {
-        const response = await updateDocumentStatus(statusDocument.id.toString(), { status: updatedDocument.status });
+    return;
+  }
 
-         if (response.status === httpStatus.FORBIDDEN) {
-          setErrorMessage(response.msg);
-          setErrorDialogOpen(true);
+  const updatedStatus = !statusDocument.status;
 
-        } else{
-          setData(prevData => {
-          // Check if the user is present in the state
-          return prevData.map(document =>
-            document.id === statusDocument.id ? updatedDocument : document
-          );
-        });
-        }
+  try {
+    await updateDocumentStatus(
+      statusDocument._id.toString(), // ✅ USE _id
+      { status: updatedStatus },
+      zoneId
+    );
 
-          toast.success(dictionary['navigation'].statusUpdatedSuccessfully);
+    setData(prev =>
+      prev.map(doc =>
+        doc._id === statusDocument._id
+          ? { ...doc, status: updatedStatus }
+          : doc
+      )
+    );
 
+    toast.success(dictionary['navigation'].statusUpdatedSuccessfully);
+  } catch (error: any) {
+    console.error('Failed to update document status:', error);
+    toast.error(error?.message || dictionary['navigation'].Anerroroccurredwhileupdatingthedocument);
+  } finally {
+    setStatusConfirmationOpen(false);
+    setStatusDocument(null);
+  }
+};
 
-
-        setStatusConfirmationOpen(false);
-        setStatusDocument(null);
-      } catch (error) {
-        console.error('Failed to update user status:', error);
-        setStatusConfirmationOpen(false);
-      }
-    } else {
-      setStatusConfirmationOpen(false);
-      setStatusDocument(null);
-    }
-  };
 
   const columns = useMemo<ColumnDef<DocumentType, any>[]>(
     () => [
@@ -157,12 +185,24 @@ const DocumentTable = ({ staticGroup, dictionary }: { staticGroup: any, dictiona
           <Typography>{(pageIndex == 0 ? 0 : pageIndex - 1) * pageSize + row.index + 1}</Typography>
         ),
       },
-      columnHelper.accessor('documentName', {
-header: dictionary['navigation'].documentName,
-        cell: ({ row }) => (
-          <Typography className='font-medium'>{row.original.documentName}</Typography>
-        ),
-      }),
+     columnHelper.accessor('documentName', {
+      header: dictionary['navigation'].documentName,
+      cell: ({ row }) => (
+        <>
+          <Typography className='font-medium'>
+            {row.original.documentName}
+          </Typography>
+          <Typography
+            variant='body2'
+            className='text-wrap'
+            style={{ color: 'green' }}
+          >
+            {row.original.type}
+          </Typography>
+        </>
+      ),
+    }),
+
       columnHelper.accessor('required', {
         header: dictionary['navigation'].required,
         cell: ({ row }) => (
@@ -226,6 +266,7 @@ header: dictionary['navigation'].documentName,
             <Switch
               checked={row.original.status}
               onChange={() => handleStatusToggle(row.original)} // Toggle status on switch change
+              disabled={isLockedDefaultDocument(row.original)}
               color={row.original.status ? 'success' : 'error'} // Use 'success' for active, 'error' for inactive
               sx={{
                 '& .MuiSwitch-switchBase': {
@@ -249,26 +290,25 @@ header: dictionary['navigation'].documentName,
         id: 'actions',
         header: dictionary['navigation'].actions,
         cell: ({ row }) => (
-          <OptionMenu
-            iconButtonProps={{ size: 'medium' }}
-            iconClassName='text-textSecondary'
-            options={[
-              {
-                text: dictionary['navigation'].Edit,
-                icon: 'tabler-pencil-minus',
-                menuItemProps: {
-                  onClick: () => handleEditClick(row.original),
+          isLockedDefaultDocument(row.original) ? (
+            <Typography variant='body2' color='text.secondary'>
+              -
+            </Typography>
+          ) : (
+            <OptionMenu
+              iconButtonProps={{ size: 'medium' }}
+              iconClassName='text-textSecondary'
+              options={[
+                {
+                  text: dictionary['navigation'].Edit,
+                  icon: 'tabler-pencil-minus',
+                  menuItemProps: {
+                    onClick: () => handleEditClick(row.original),
+                  },
                 },
-              },
-              {
-                text: dictionary['navigation'].Delete,
-                icon: 'tabler-trash',
-                menuItemProps: {
-                  onClick: () => handleDeleteClick(row.original),
-                },
-              },
-            ]}
-          />
+              ]}
+            />
+          )
         ),
         enableSorting: false,
       },
@@ -294,6 +334,15 @@ header: dictionary['navigation'].documentName,
   });
 
   const handleEditClick = (rowData: DocumentType) => {
+    if (isLockedDefaultDocument(rowData)) {
+      toast.error(
+        dictionary['navigation'].DefaultDriverProfileImageDocumentCannotBeModified ||
+          'Default Driver profile image document cannot be modified'
+      );
+
+return;
+    }
+
     if (checkDemoStatus()) {
       toast.error(dictionary['navigation'].editError);
 
@@ -305,13 +354,22 @@ header: dictionary['navigation'].documentName,
   };
 
   const handleDeleteClick = (original: DocumentType) => {
+    if (isLockedDefaultDocument(original)) {
+      toast.error(
+        dictionary['navigation'].DefaultDriverProfileImageDocumentCannotBeModified ||
+          'Default Driver profile image document cannot be modified'
+      );
+
+return;
+    }
+
     if (checkDemoStatus()) {
       toast.error(dictionary['navigation'].deleteError);
 
       return;
       }
 
-    setDeleteGroupDocumentId(original.id);
+    setDeleteGroupDocumentId(original._id);
     setDeleteConfirmationOpen(true);
   };
 
@@ -339,21 +397,28 @@ header: dictionary['navigation'].documentName,
       {
         const response = await deleteByDocumentById(deleteGroupDocumentId)
 
-        if (response.status === httpStatus.FORBIDDEN) {
-          setErrorMessage(response.msg);
-          setErrorDialogOpen(true);
-        }
-        else
-        {
-          setData(data.filter((groupDocument) => groupDocument.id !== deleteGroupDocumentId));
-        }
+        if(response){
+          toast.success(dictionary['navigation'].Documentdeletedsuccessfully || 'Document deleted successfully');
 
-        setErrorData(response.status);
+
+        const { results, totalResults } = await getDocumentByPagination(
+          pageSearch,
+          pageIndex + 1,
+          pageSize,
+          currentType === 'All' ? undefined : currentType,
+          selectedGroupDocumentId,
+          zoneId
+        );
+
+        setData(results);
+        setTotalResults(totalResults);
+
         setDeleteConfirmationOpen(false);
         setDeleteGroupDocumentId(null);
       }
+      }
       catch (error) {
-        toast.error(dictionary['navigation'].Anerroroccurredwhiledeletingthedocument);
+        toast.error((error as Error)?.message || dictionary['navigation'].Anerroroccurredwhiledeletingthedocument);
       }
     }
     else
@@ -369,30 +434,70 @@ header: dictionary['navigation'].documentName,
   };
 
   const handleSaveDocument = async (newDocument: any) => {
-    if (editData) {
-      const dataDocument = newDocument[0];
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { id, ...dataWithoutId } = dataDocument;
-      const update = await updateDocument(editData.id, dataWithoutId);
+    try {
+      if (editData) {
+        const dataDocument = newDocument[0];
 
-      setData(data.map((doc: { id: any }) => doc.id === editData.id ? { ...update, id: editData.id } : doc));
-    } else {
-      const dataDocument = await createDocument({ newDocument });
+        const dataWithoutId = {
+          documentName: dataDocument.documentName,
+          required: dataDocument.required,
+          identifier: dataDocument.identifier,
+          expiryDate: dataDocument.expiryDate,
+          issueDate: dataDocument.issueDate,
+          imageRequired: dataDocument.imageRequired,
+          documentId: dataDocument.documentId,
+          clientId: dataDocument.clientId,
+          status: dataDocument.status,
+        }
 
-      if (pageSize != data.length) {
-        setData([...data, ...dataDocument.map((doc: any) => ({ ...doc, id: doc.id }))]);
+        await updateDocument(editData.id || editData._id, dataWithoutId);
+        toast.success(dictionary['navigation'].Documentupdatedsuccessfully || 'Document updated successfully');
+
+        const { results, totalResults } = await getDocumentByPagination(
+          pageSearch,
+          1,
+          pageSize,
+          currentType === 'All' ? undefined : currentType,
+          selectedGroupDocumentId,
+          zoneId
+        );
+
+        setData(results);
+        setTotalResults(totalResults);
       } else {
-        handleAddPageChangeForAddRecord(totalResults, pageSize, handlePageChange);
+        await createDocument({ newDocument });
+        toast.success(dictionary['navigation'].Documentcreatedsuccessfully || 'Document created successfully');
+
+        const { results, totalResults } = await getDocumentByPagination(
+          pageSearch,
+          1,
+          pageSize,
+          currentType === 'All' ? undefined : currentType,
+          selectedGroupDocumentId,
+          zoneId
+        );
+
+        setData(results);
+        setTotalResults(totalResults);
+        setPageIndex(0);
       }
 
+      handleCloseDialog();
+    } catch (error: any) {
+      toast.error(error?.message || dictionary['navigation'].Anerroroccurredwhilecreatingthedocument);
     }
-
-    handleCloseDialog();
   };
 
   const handlePageChange = async (event: unknown, newPage: number) => {
     try {
-      const { results, totalResults } = await getDocumentByPagination(pageSearch, newPage, pageSize);
+      const { results, totalResults } = await getDocumentByPagination(
+        pageSearch,
+        newPage,
+        pageSize,
+        currentType === 'All' ? undefined : currentType,
+        selectedGroupDocumentId,
+        zoneId
+      );
 
       setData(results);
       setPageIndex(newPage);
@@ -403,10 +508,16 @@ header: dictionary['navigation'].documentName,
   };
 
   const handlePageSizeChange = async (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-
     const newPageSize = parseInt(event.target.value);
 
-    const { results, totalResults } = await getDocumentByPagination(pageSearch, 1, newPageSize);
+    const { results, totalResults } = await getDocumentByPagination(
+      pageSearch,
+      1,
+      newPageSize,
+      currentType === 'All' ? undefined : currentType,
+      selectedGroupDocumentId,
+      zoneId
+    );
 
     setPageSize(newPageSize);
     setData(results);
@@ -416,12 +527,15 @@ header: dictionary['navigation'].documentName,
 
 
   const handleSearch = useCallback(
-    async (searchTerm: string) => {
+    async (searchTerm: string, typeFilter: string = currentType) => {
       try {
         const result = await getDocumentByPagination(
           searchTerm,
-          1, // Reset to first page on new search
-          pageSize
+          pageIndex + 1,
+          pageSize,
+          typeFilter === 'All' ? undefined : typeFilter,
+          selectedGroupDocumentId,
+          zoneId
         );
 
         setPageSearch(searchTerm);
@@ -432,7 +546,15 @@ header: dictionary['navigation'].documentName,
         console.error("Error fetching search results:", error);
       }
     },
-    [pageSize]
+    [pageSize, currentType, selectedGroupDocumentId, zoneId]
+  );
+
+  const handleTypeFilter = useCallback(
+    async (typeFilter: 'All' | 'driver' | 'vehicle') => {
+      setCurrentType(typeFilter);
+      await handleSearch(pageSearch, typeFilter);
+    },
+    [handleSearch, pageSearch]
   );
 
 
@@ -469,6 +591,18 @@ header: dictionary['navigation'].documentName,
                 <MenuItem key={size} value={size}>{size}</MenuItem>
               ))}
             </CustomTextField>
+             <CustomTextField
+                        select
+                        fullWidth
+                        value={currentType}
+                        onChange={e => handleTypeFilter(e.target.value as 'All' | 'driver' | 'vehicle')}
+                        className='is-[140px] flex-auto'
+                        disabled={!!selectedGroupDocumentId}
+                      >
+                        <MenuItem value='All'>{dictionary['navigation'].All}</MenuItem>
+                        <MenuItem value='driver'>{dictionary['navigation'].driver}</MenuItem>
+                        <MenuItem value='vehicle'>{dictionary['navigation'].vehicle}</MenuItem>
+                      </CustomTextField>
             <ExportOptions
               data={data}
               tableContainerId="table-container"
@@ -568,6 +702,8 @@ header: dictionary['navigation'].documentName,
         onPageChange={handlePageChange}
         rowsPerPage={pageSize}
         dictionary={dictionary}
+        zoneId={zoneId}
+        selectedGroupDocumentId={selectedGroupDocumentId}
       />
       <ConfirmationDialogErrorHandle
         open={deleteConfirmationOpen}

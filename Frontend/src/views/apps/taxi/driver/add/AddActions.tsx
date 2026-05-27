@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 'use client'
 
@@ -45,7 +44,6 @@ interface FormData {
   email: string;
   phoneNumber: string;
   country: string;
-  gender: string;
   city: string;
   state: string;
   pincode: string;
@@ -59,7 +57,6 @@ interface FormData {
   serviceLocation: string;
   address: string;
   notes: string;
-  category: string;
   driverImage: File | null;
   referralCode: string;
 }
@@ -76,7 +73,6 @@ const defaultValues: FormData = {
   email: '',
   phoneNumber: '',
   country: '',
-  gender: '',
   city: '',
   state: '',
   pincode: '',
@@ -90,7 +86,6 @@ const defaultValues: FormData = {
   serviceLocation: '',
   address: '',
   notes: '',
-  category: '',
   driverImage: null,
   referralCode: '',
 };
@@ -141,7 +136,7 @@ const AddDriverForm: React.FC<AddDriverFormProps> = ({ lang, dictionary }: { lan
 
     return () => clearTimeout(timer);
 
-  }, []);
+  }, [dictionary]);
 
   // Helper function to add headers to the request
   const getClientId = async () => {
@@ -149,10 +144,9 @@ const AddDriverForm: React.FC<AddDriverFormProps> = ({ lang, dictionary }: { lan
     const session = await getSession();
 
     const clientId = session?.user?.image?.clientId; // Access clientId
-    const companyId = session?.user?.image?.companyId; // Access companyId
 
 
-    return { clientId, companyId };
+    return { clientId };
   };
 
 
@@ -200,6 +194,11 @@ const AddDriverForm: React.FC<AddDriverFormProps> = ({ lang, dictionary }: { lan
 
     const roles = await fetchRoles();
 
+    // Get current date and time
+    const currentDate = new Date();
+    const currentDateString = currentDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+    const currentTimeString = currentDate.toTimeString().split(' ')[0]; // HH:MM:SS format
+
     const filteredIds = roles
       .filter((item: { role: string }) => item.role === "Driver")
       .map((item: { id: any }) => item.id);
@@ -210,7 +209,6 @@ const AddDriverForm: React.FC<AddDriverFormProps> = ({ lang, dictionary }: { lan
     formData.append('phoneNumber', data.phoneNumber);
     formData.append('roleIds', filteredIds.join(','));
     formData.append('countryCode', data.country);
-    formData.append('gender', data.gender);
     formData.append('city', data.city);
     formData.append('state', data.state);
     formData.append('pincode', data.pincode);
@@ -220,9 +218,10 @@ const AddDriverForm: React.FC<AddDriverFormProps> = ({ lang, dictionary }: { lan
     formData.append('address', data.address)
     formData.append('serviceLocation', data.serviceLocation);
     formData.append('notes', data.notes);
-    formData.append('serviceCategory', data.category);
+    formData.append('serviceCategory', 'individual');
     formData.append('referralCode', data.referralCode);
-
+    formData.append('regDate', currentDateString);
+    formData.append('regTime', currentTimeString);
 
     if (data.driverImage) {
       formData.append('profilePic', data.driverImage);
@@ -304,7 +303,7 @@ const AddDriverForm: React.FC<AddDriverFormProps> = ({ lang, dictionary }: { lan
 
 
 
-            
+
             <Grid item xs={12} sm={6}>
               <Controller
                 name="phoneNumber"
@@ -400,22 +399,6 @@ const AddDriverForm: React.FC<AddDriverFormProps> = ({ lang, dictionary }: { lan
                     {...field}
                     error={!!errors.serviceLocation}
                     helperText={errors.serviceLocation?.message}
-                  />
-                )}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <Controller
-                name="category"
-                control={control}
-                rules={{ required: dictionary['navigation'].Servicecategoryisrequired }}
-                render={({ field }) => (
-                  <CustomTextField
-                    fullWidth
-                    label={dictionary['navigation'].Servicecategory}
-                    {...field}
-                    error={!!errors.category}
-                    helperText={errors.category?.message}
                   />
                 )}
               />

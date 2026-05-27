@@ -16,6 +16,7 @@ import {
   Grid,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
+import { toast } from 'react-toastify';
 
 interface VehicleDetailsProps {
   requestEtaData: any;
@@ -29,20 +30,18 @@ const VehicleDetails: React.FC<VehicleDetailsProps> = ({ requestEtaData, selecte
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedVehicleDetails, setSelectedVehicleDetails] = useState<any | null>(null);
 
-  const vehicles = requestEtaData.zoneTypePrice.map((vehicle: any) => ({
+
+  const vehicles = requestEtaData?.zoneTypePrice?.map((vehicle: any) => ({
     _id: vehicle.type_id,
     type: vehicle.type_name,
     price: vehicle.total_amount,
     distance: vehicle.distance,
-    extraDistance: vehicle.distance_km,
     promoAmount: vehicle.promoAmount,
     base_price: vehicle.base_price,
     base_distance: vehicle.base_distance,
     booking_fees: vehicle.booking_fees,
     price_per_distance: vehicle.price_per_distance,
-    distance_price: vehicle.distance_cost,
-    waiting_charge: vehicle.waiting_charge,
-    promoDiscount: vehicle.promoAmount
+    waiting_charge: vehicle.waiting_charge
   }));
 
   const modifiedTripDetails = transformTripDetails(tripDetails);
@@ -68,8 +67,8 @@ const VehicleDetails: React.FC<VehicleDetailsProps> = ({ requestEtaData, selecte
         <p>No vehicles available for this trip type.</p>
       ) : (
         vehicles.map((vehicle: any, index: number) => {
-          // const showPromo = vehicle.promoAmount !== null && vehicle.promoAmount !== 0;
-          const showPromo = vehicle.promoDiscount !== 0;
+          const showPromo = vehicle.promoAmount !== null && vehicle.promoAmount !== 0;
+
           
 return (
             <div
@@ -87,7 +86,7 @@ return (
                   <span className="font-medium">{vehicle.type}</span>
                 </div>
                 <span className="font-bold text-gray-700">
-                  {requestEtaData.currency_symbol} {showPromo ? vehicle.promoAmount.toFixed(2) : vehicle.price.toFixed(2)}
+                  ₹ {showPromo ? vehicle.promoAmount.toFixed(2) : vehicle.price.toFixed(2)}
                 </span>
               </div>
               {showPromo && (
@@ -136,35 +135,23 @@ return (
                 <Grid item xs={6}><Typography fontWeight="bold">Type :</Typography></Grid>
                 <Grid item xs={6} textAlign="right"><Typography>{selectedVehicleDetails.type}</Typography></Grid>
 
-                <Grid item xs={6}><Typography fontWeight="bold">Base Price :</Typography></Grid>
-                <Grid item xs={6} textAlign="right"><Typography>{requestEtaData.currency_symbol} {selectedVehicleDetails.base_price}</Typography></Grid>
-
-                <Grid item xs={6}><Typography fontWeight="bold">Base Distance ({requestEtaData.unit}):</Typography></Grid>
-                <Grid item xs={6} textAlign="right"><Typography> {selectedVehicleDetails.base_distance}</Typography></Grid>
-
-                <Grid item xs={6}><Typography fontWeight="bold">Rate Per Distance :</Typography></Grid>
-                <Grid item xs={6} textAlign="right"><Typography>{requestEtaData.currency_symbol} {selectedVehicleDetails.price_per_distance}</Typography></Grid>
-
-                { selectedVehicleDetails.distance_price !== 0 && (
-                <>
-                <Grid item xs={6}><Typography fontWeight="bold">Distance Price ({selectedVehicleDetails.price_per_distance} * {selectedVehicleDetails.extraDistance.toFixed(2)} {requestEtaData.unit}):</Typography></Grid>
-                <Grid item xs={6} textAlign="right"><Typography>{requestEtaData.currency_symbol} {selectedVehicleDetails.distance_price.toFixed(2)}</Typography></Grid>
-                </>
-                )}
+                <Grid item xs={6}><Typography fontWeight="bold">Rate Per Km :</Typography></Grid>
+                <Grid item xs={6} textAlign="right"><Typography>₹ {selectedVehicleDetails.price_per_distance}</Typography></Grid>
 
                 <Grid item xs={6}><Typography fontWeight="bold">Waiting Charge :</Typography></Grid>
-                <Grid item xs={6} textAlign="right"><Typography>{requestEtaData.currency_symbol} {selectedVehicleDetails.waiting_charge}</Typography></Grid>
+                <Grid item xs={6} textAlign="right"><Typography>₹ {selectedVehicleDetails.waiting_charge}</Typography></Grid>
 
-                
-                { selectedVehicleDetails.booking_fees && (
-                <>
-                <Grid item xs={6}><Typography fontWeight="bold">Booking Fees :</Typography></Grid>
-                <Grid item xs={6} textAlign="right"><Typography>{requestEtaData.currency_symbol} {selectedVehicleDetails.booking_fees}</Typography></Grid>
-                </>
-                )}
+                <Grid item xs={6}><Typography fontWeight="bold">Base Price :</Typography></Grid>
+                <Grid item xs={6} textAlign="right"><Typography>₹ {selectedVehicleDetails.base_price}</Typography></Grid>
 
-                <Grid item xs={6}><Typography fontWeight="bold">Total Distance ({requestEtaData.unit}):</Typography></Grid>
-                <Grid item xs={6} textAlign="right"><Typography>{selectedVehicleDetails.distance.toFixed(2)} {requestEtaData.unit}</Typography></Grid>
+                <Grid item xs={6}><Typography fontWeight="bold">Base Distance :</Typography></Grid>
+                <Grid item xs={6} textAlign="right"><Typography>₹ {selectedVehicleDetails.base_distance}</Typography></Grid>
+
+                <Grid item xs={6}><Typography fontWeight="bold">Admin Commission:</Typography></Grid>
+                <Grid item xs={6} textAlign="right"><Typography>₹ {selectedVehicleDetails.booking_fees}</Typography></Grid>
+
+                <Grid item xs={6}><Typography fontWeight="bold">Total Km (KM):</Typography></Grid>
+                <Grid item xs={6} textAlign="right"><Typography>{selectedVehicleDetails.distance.toFixed(2)} Km</Typography></Grid>
               </Grid>
 
               <Divider sx={{ my: 3 }} />
@@ -175,10 +162,9 @@ return (
                 </Grid>
                 <Grid item xs={6} textAlign="right">
                   <Typography fontWeight="bold" color="primary">
-                    {/* {requestEtaData.currency_symbol} {(selectedVehicleDetails.promoAmount !== null && selectedVehicleDetails.promoAmount !== 0
+                    ₹ {(selectedVehicleDetails.promoAmount !== null && selectedVehicleDetails.promoAmount !== 0
                       ? selectedVehicleDetails.promoAmount
-                      : selectedVehicleDetails.price).toFixed(2)} */}
-                      {requestEtaData.currency_symbol} {selectedVehicleDetails.price.toFixed(2)}
+                      : selectedVehicleDetails.price).toFixed(2)}
                   </Typography>
                   {selectedVehicleDetails.promoAmount !== null && selectedVehicleDetails.promoAmount !== 0 && (
                     <Typography variant="caption" color="success.main">
@@ -186,12 +172,6 @@ return (
                     </Typography>
                   )}
                 </Grid>
-                { selectedVehicleDetails.promoDiscount !== 0 && (
-                <>
-                <Grid item xs={6}><Typography fontWeight="bold">Promo Discount :</Typography></Grid>
-                <Grid item xs={6} textAlign="right"><Typography>-{requestEtaData.currency_symbol} {selectedVehicleDetails.promoDiscount.toFixed(2)}</Typography></Grid>
-                </>
-                )}
               </Grid>
             </Box>
           )}

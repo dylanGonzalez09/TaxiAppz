@@ -1,6 +1,6 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const ApiError = require('../../../utils/ApiError');
-const { SubScription } = require('../../../models');
+const { SubScription, Driver } = require('../../../models');
 
 /**
  * Create a SubScription
@@ -35,13 +35,27 @@ const getSubScriptionById = async (subScriptionId) => {
   return SubScription.findById(subScriptionId);
 };
 
-
 /**
  * Get subScription
  * @returns {Promise<SubScription>}
  */
-const getSubScription = async () => {
-  return SubScription.find();
+const getSubScription = async (filter = {}, driverId) => {
+  const driver = await Driver.findById(driverId);
+
+  if (!driver) {
+    throw new Error('Driver not found');
+  }
+
+  const zoneId = driver.serviceLocation;
+
+  // Merge filter with zoneId
+  const finalFilter = {
+    ...filter,
+    zoneId: zoneId,
+    status: true,
+  };
+
+  return SubScription.find(finalFilter);
 };
 
 /**
@@ -72,7 +86,7 @@ const deleteSubScriptionnById = async (subScriptionId) => {
     throw new ApiError(httpStatus.NOT_FOUND, 'subScription not found');
   }
   await subScriptionManage.deleteOne();
-  return {  msg:"data Deleted Successfully" };
+  return { msg: 'data Deleted Successfully' };
 };
 
 module.exports = {

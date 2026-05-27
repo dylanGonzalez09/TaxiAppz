@@ -3,12 +3,16 @@ const Joi = require('joi');
 const { objectId } = require('../../custom.validation');
 
 const createRating = {
-    body: Joi.object().keys({
-        userId: Joi.string().custom(objectId).optional(),
-        requestId: Joi.string().custom(objectId).optional(),
-        rating: Joi.number(),
-        feedback:Joi.string().optional()
-    }),
+  body: Joi.object().keys({
+    userId: Joi.string().custom(objectId).optional(),
+    requestId: Joi.string().custom(objectId).optional(),
+    rating: Joi.number(),
+    feedback: Joi.array().items(Joi.object().keys({
+      status: Joi.boolean().required(),
+      id: Joi.string().custom(objectId).required(),
+      question: Joi.string().required(),
+    })).optional(),
+  }),
 };
 
 // const getUserComplaints = {
@@ -43,9 +47,9 @@ const createRating = {
 // };
 
 module.exports = {
-    createRating,
-    // getUserComplaints,
-    // getUserComplaint,
-    // updateUserComplaint,
-    // deleteUserComplaint,
+  createRating,
+  // getUserComplaints,
+  // getUserComplaint,
+  // updateUserComplaint,
+  // deleteUserComplaint,
 };

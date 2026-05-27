@@ -1,7 +1,7 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
+const { log } = require('winston');
 const ApiError = require('../../../utils/ApiError');
 const { OutOfZone } = require('../../../models');
-const { log } = require('winston');
 
 /**
  * Create a outOfZone
@@ -22,8 +22,6 @@ const createOutOfZone = async (outOfZoneBody) => {
  * @returns {Promise<QueryResult>}
  */
 const queryOutOfZone = async (filter, options) => {
-  options.sortBy = options.sortBy || 'createdAt:desc';
-
   const outOfZone = await OutOfZone.paginate(filter, options);
 
   const { docs, totalDocs, ...rest } = outOfZone;
@@ -35,7 +33,6 @@ const queryOutOfZone = async (filter, options) => {
   };
 };
 
-
 /**
  * Get roles
  * @returns {Promise<OutOfZone>}
@@ -43,7 +40,6 @@ const queryOutOfZone = async (filter, options) => {
 const getOutOfZones = async () => {
   return OutOfZone.find();
 };
-
 
 /**
  * Get outOfZone by outOfZoneId
@@ -54,10 +50,6 @@ const getOutOfZoneById = async (outOfZoneId) => {
   return OutOfZone.findById(outOfZoneId);
 };
 
-
-
-
-
 /**
  * Update outOfZone by outOfZoneId
  * @param {ObjectId} outOfZoneId
@@ -65,7 +57,6 @@ const getOutOfZoneById = async (outOfZoneId) => {
  * @returns {Promise<OutOfZone>}
  */
 const updateOutOfZoneById = async (outOfZoneId, updateBody) => {
-  
   const outOfZone = await getOutOfZoneById(outOfZoneId);
   if (!outOfZone) {
     throw new ApiError(httpStatus.NOT_FOUND, 'outOfZone not found');
@@ -86,7 +77,7 @@ const deleteOutOfZoneById = async (outOfZoneId) => {
     throw new ApiError(httpStatus.NOT_FOUND, 'outOfZone not found');
   }
   await outOfZone.deleteOne();
-  return { status: "success",   msg:"data Deleted Successfully" };
+  return { status: 'success', msg: 'data Deleted Successfully' };
 };
 
 module.exports = {
@@ -94,7 +85,7 @@ module.exports = {
   queryOutOfZone,
   getOutOfZoneById,
   getOutOfZones,
-  
+
   updateOutOfZoneById,
   deleteOutOfZoneById,
 };

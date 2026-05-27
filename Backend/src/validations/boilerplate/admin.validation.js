@@ -20,7 +20,7 @@ const createAdmin = {
     social_unique_id: Joi.string(),
     mobile_application_type: Joi.string().valid('ANDROID', 'IOS'),
     token: Joi.string(),
-    
+
     country_code: Joi.string().custom(objectId),
     remember_token: Joi.string(),
     profile_pic: Joi.string(),
@@ -59,7 +59,6 @@ const getAdmin = {
     userId: Joi.string().custom(objectId),
   }),
 };
-
 
 const getAdminByRole = {
   params: Joi.object().keys({

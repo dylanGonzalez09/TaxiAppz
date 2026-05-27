@@ -1,29 +1,11 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const pick = require('../../../utils/pick');
 const ApiError = require('../../../utils/ApiError');
 const catchAsync = require('../../../utils/catchAsync');
 const { mobilerequestService,tokenService } = require('../../../services');
 const Response = require('../../../config/response');
-
-const getUserId = async (req) => {
-
-  let userId = '';
-
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    res.status(httpStatus.UNAUTHORIZED).send({ message: 'Authorization header is missing or invalid' });
-    return;
-  }
-  // Remove the 'Bearer ' prefix and get the token
-  const token = authHeader.substring(7);
-
-  const user = await tokenService.verifyTokenAndGetUser(token);
-
-  userId = user.id
-
-  return userId;
-}
+const { Settings } = require('../../../models');
+const {getUserId,getClientId,getDriverId} = require('../../../utils/commonFunction')
 
 const getLastTripHistory = catchAsync(async (req, res) => {
   const userId = req.user._id;
@@ -42,13 +24,39 @@ const getRequestsInProgress = catchAsync(async (req, res) => {
   if (!request) {
     throw new ApiError(httpStatus.NOT_FOUND, 'Request not found');
   }
+
+  const driverBlockWalletLimit = await Settings.findOne({ name: 'driverBlockWalletBalance' });
+  const referalRepeat = await Settings.findOne({ name: 'referalRepeat' });
+
+  if (driverBlockWalletLimit && driverBlockWalletLimit?.value) {
+
+      if(request[0]?.driver?.walletBalance < driverBlockWalletLimit?.value){
+         request[0].driver.blockWallet = true
+         request[0].driver.minimumWalletBalance = Number(driverBlockWalletLimit?.value)
+      }else{
+        request[0].driver.blockWallet = false
+      }
+  }
+
+  if(referalRepeat && referalRepeat?.value){
+    request[0].enableReferral = referalRepeat?.value === 'yes' ? true : false
+  }
+
+
   const response = Response(true, request[0], "Success");
+
   res.status(httpStatus.OK).send(response);
 });
 
 
 const userGetRequestsInProgress = catchAsync(async (req, res) => {
   const request = await mobilerequestService.geUserRequestInProgress(req);
+
+  const referalRepeat = await Settings.findOne({ name: 'referalRepeat' });
+
+  if(referalRepeat && referalRepeat?.value){
+    request[0].enableReferral = referalRepeat?.value === 'yes' ? true : false
+  }
 
   if (!request) {
     throw new ApiError(httpStatus.NOT_FOUND, 'Request not found');
@@ -91,6 +99,18 @@ const getPolygonLine = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).send(response);
 });
 
+const getAllPolygonLine = catchAsync(async (req, res) => {
+  const request = await mobilerequestService.getAllRoutePolylines(req);
+  const response = Response(true, request, "Success");
+  res.status(httpStatus.OK).send(response);
+});
+
+const getAllTravelTime = catchAsync(async (req, res) => {
+  const request = await mobilerequestService.getTravalTime(req);
+  const response = Response(true, request, "Success");
+  res.status(httpStatus.OK).send(response);
+});
+
 
 const getRequestsListView = catchAsync(async (req, res) => {
   const request = await mobilerequestService.getRequestListView(req);
@@ -104,18 +124,28 @@ const getRequestsListView = catchAsync(async (req, res) => {
 
 const getTypes = catchAsync(async (req, res) => {
   try {
-    const userId =await getUserId(req);
-    const request = await mobilerequestService.getRideTypes(userId, req);
+    const userId = await getUserId(req);
+    const result = await mobilerequestService.getRideTypes(userId, req);
 
-    const response = Response(true, request, 'eta retrieved successfully');
+    if (result?.status && result?.status !== 200) {
+      return res.status(result.status).json(result.data);
+    }
 
+
+    const response = Response(true, result, 'ETA retrieved successfully');
     return res.status(200).json(response);
-  } catch (error) {
-    const response = Response(true, error.message, error.message);
 
-    return res.status(403).json(response);
+  } catch (error) {
+    console.error('Error:', error);
+
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.message || 'Something went wrong',
+      code: error.statusCode || 500
+    });
   }
 });
+
 
 
 module.exports = {
@@ -128,5 +158,7 @@ module.exports = {
   checkPickUpZone,
   convertLatLngAddress,
   convertAddressLatLng,
-  getPolygonLine
+  getPolygonLine,
+  getAllPolygonLine,
+  getAllTravelTime
 };

@@ -38,7 +38,7 @@ import classnames from 'classnames';
 
 import type { Locale } from '@configs/i18n'
 
-import { useIsDemoUser } from '@/utils/demoUser'
+import { useIsDemoUser } from '@/utils/demoUser' 
 
 import OptionMenu from '@core/components/option-menu';
 import CustomTextField from '@core/components/mui/TextField';
@@ -77,7 +77,7 @@ const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
 const columnHelper = createColumnHelper<ClientType>();
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const ClientTable = ({ tableData, dictionary }: { tableData: any, dictionary: any }) => {
+const ClientTable = ({ tableData, dictionary,overrideZoneId }: { tableData: any, dictionary: any,overrideZoneId:any }) => {
   const [currentStatus, setCurrentStatus] = useState<'All' | 'Active' | 'Block'>('All');
   const [addClientOpen, setAddClientOpen] = useState(false);
   const [editClient, setEditClient] = useState<ClientType | null>(null);
@@ -88,18 +88,19 @@ const ClientTable = ({ tableData, dictionary }: { tableData: any, dictionary: an
   const [deleteClientId, setdeleteClientId] = useState<string | null>(null);
 
 
+  const [globalFilter, setGlobalFilter] = useState('');
   const [pageIndex, setPageIndex] = useState(tableData.page - 1);
   const [pageSearch, setPageSearch] = useState("");
   const [totalResults, setTotalResults] = useState(tableData.totalResults); // To track the total number of records
   const [data, setData] = useState(tableData.results);
+  const [filteredData, setFilteredData] = useState(data);
   const [pageSize, setPageSize] = useState(tableData.limit);
-  const [searchInput, setSearchInput] = useState('');
   const { isDemoUser, checkDemoStatus } = useIsDemoUser();
 
   const handleEditClick = (rowData: any) => {
     // if (checkDemoStatus()) {
     //   toast.error(dictionary['navigation'].editError);
-
+      
     //   return;
     //   }
 
@@ -110,11 +111,11 @@ const ClientTable = ({ tableData, dictionary }: { tableData: any, dictionary: an
   const handleDeleteClick = (clientId: any) => {
     if (checkDemoStatus()) {
       toast.error(dictionary['navigation'].deleteError);
-
+      
       return;
       }
 
-    setdeleteClientId(clientId);
+    setdeleteClientId(clientId);  
 
     setDeleteConfirmationOpen(true);
   };
@@ -131,7 +132,7 @@ const ClientTable = ({ tableData, dictionary }: { tableData: any, dictionary: an
         nativeEvent: {} as Event,
         bubbles: false,
       } as unknown as ChangeEvent<unknown>;
-
+  
       // Trigger onPageChange with the new page
       handlePageChange(dummyEvent, pageIndex);
     };
@@ -162,13 +163,13 @@ const ClientTable = ({ tableData, dictionary }: { tableData: any, dictionary: an
         setdeleteClientId(null);
 
         if (data.length != 1) {
-          setData((prevData: any[]) => prevData.filter(client => client._id !== deleteClientId));
+          setData((prevData: any[]) => prevData.filter(client => client._id !== deleteClientId)); 
           handlePagecurrentForAddRecord();       // Convert id to string for compariso
         } else {
           handlePageChangeForAddRecord();
         }
       } catch (error) {
-        console.log("error", error);
+        console.error("error", error);
 
         // Handle error (e.g., show an error message)
       }
@@ -183,15 +184,15 @@ const ClientTable = ({ tableData, dictionary }: { tableData: any, dictionary: an
     setstatusClient(client);
     setStatusConfirmationOpen(true);
   };
-
+  
   const handleConfirmStatus = async (confirmed: boolean) => {
-    if (confirmed && statusClient && statusClient._id) {
+    if (confirmed && statusClient && statusClient._id) { 
 
       const updatedClient = { ...statusClient, status: !statusClient.status };
-
+  
       try {
-        await updateClientStatus(statusClient._id, { status: updatedClient.status })
-        setData((prevData: any[]) =>
+        await updateClientStatus(statusClient._id, { status: updatedClient.status }) 
+        setData((prevData: any[]) => 
           prevData.map(client =>
             client._id === statusClient._id ? updatedClient : client
           )
@@ -211,7 +212,7 @@ const ClientTable = ({ tableData, dictionary }: { tableData: any, dictionary: an
       setstatusClient(null);
     }
   };
-
+  
 
   const handleConfirmEdit = async (client: ClientType) => {
     if (editClient) {
@@ -386,26 +387,18 @@ const ClientTable = ({ tableData, dictionary }: { tableData: any, dictionary: an
     [data]
   );
 
-  const displayData = useMemo(
-    () =>
-      data.filter((driver: { status: boolean }) => {
-        if (currentStatus === 'Active' && driver.status !== true) return false;
-        if (currentStatus === 'Block' && driver.status !== false) return false;
-
-        // 'All' or any other case → show all
-        return true;
-      }),
-    [data, currentStatus]
-  );
-
   const table = useReactTable({
-    data: displayData,
+    data: filteredData,  // Use filteredData here
     columns,
-    state: { rowSelection },
+    filterFns: { fuzzy: fuzzyFilter },
+    state: { rowSelection, globalFilter },
     initialState: { pagination: { pageSize: 25 } },
     enableRowSelection: true,
+    globalFilterFn: fuzzyFilter,
     onRowSelectionChange: setRowSelection,
     getCoreRowModel: getCoreRowModel(),
+    onGlobalFilterChange: setGlobalFilter,
+    getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel()
   });
@@ -414,7 +407,14 @@ const ClientTable = ({ tableData, dictionary }: { tableData: any, dictionary: an
     try {
       const { results, totalResults } = await getClientByPagination(pageSearch, newPage, pageSize);
 
-      setData(results);
+      const filteredResults = results.filter((driver: { status: boolean }) => {
+        if (currentStatus === 'Active' && driver.status !== true) return false;
+        if (currentStatus === 'Block' && driver.status !== false) return false;
+
+        return true;
+      });
+
+      setData(filteredResults);
       setPageIndex(newPage);
       setTotalResults(totalResults);
     } catch (error) {
@@ -454,20 +454,18 @@ const ClientTable = ({ tableData, dictionary }: { tableData: any, dictionary: an
     [pageSize]
   );
 
-  // Debounce search so typing feels fast and we don't call API on every key press
   useEffect(() => {
-    const trimmed = searchInput.trim();
-
-    const timer = setTimeout(() => {
-      // Optional: only hit API after at least 2 characters or when cleared
-      if (trimmed.length === 0 || trimmed.length >= 2) {
-        handleSearch(trimmed);
-      }
-    }, 400); // 400ms debounce
-
-    return () => clearTimeout(timer);
-  }, [searchInput, handleSearch]);
-
+    const filtered = data.filter((driver: { status: boolean }) => {
+      if (currentStatus === 'Active' && driver.status !== true) return false;
+      if (currentStatus === 'Block' && driver.status !== false) return false;
+      if (currentStatus === 'All') return true;  // Show all clients when the filter is "All"
+  
+      return true;
+    });
+  
+    setFilteredData(filtered);  
+  }, [currentStatus, data]); 
+  
   return (
     <>
       <Card>
@@ -476,9 +474,12 @@ const ClientTable = ({ tableData, dictionary }: { tableData: any, dictionary: an
             <CustomTextField
               variant="outlined"
               placeholder= {dictionary['navigation'].search}
-              value={searchInput}
+              value={globalFilter}
               onChange={(e) => {
-                setSearchInput(e.target.value);
+                const searchTerm = e.target.value;
+
+                setGlobalFilter(searchTerm);
+                handleSearch(searchTerm);
               }}
               className="flex-auto"
             />
@@ -557,7 +558,7 @@ const ClientTable = ({ tableData, dictionary }: { tableData: any, dictionary: an
                 </tr>
               ))}
             </thead>
-            {displayData.length === 0 ? (
+            {table.getFilteredRowModel()?.rows?.length === 0 ? (
               <tbody>
                 <tr>
                   <td colSpan={table.getVisibleFlatColumns().length} className="text-center">
@@ -589,7 +590,7 @@ const ClientTable = ({ tableData, dictionary }: { tableData: any, dictionary: an
             pageSize={pageSize}
             handlePageChange={handlePageChange}
             handlePageSizeChange={handlePageSizeChange}
-            dictionary={dictionary}
+            dictionary={dictionary} 
           />}
           count={totalResults}
           page={pageIndex}
@@ -613,6 +614,7 @@ const ClientTable = ({ tableData, dictionary }: { tableData: any, dictionary: an
         onPageChange={handlePageChange}
         rowsPerPage={pageSize}
         dictionary={dictionary}
+        overrideZoneId={overrideZoneId}
       />
       <ConfirmationDialog
         open={deleteConfirmationOpen}

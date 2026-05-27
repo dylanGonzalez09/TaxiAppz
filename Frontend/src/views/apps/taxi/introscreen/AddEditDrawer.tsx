@@ -18,7 +18,8 @@ import { useIsDemoUser } from '@/utils/demoUser';
 import CustomTextField from '@core/components/mui/TextField';
 import { BASE_IMAGE_URL } from '@apis/endpoint';
 import { createIntro, updateIntro } from '@/app/api/apps/taxi/intro';
-import { validateImage } from '@/utils/validation';
+import { validateImage,validateSentence} from '@/utils/validation';
+
 
 interface AddIntroDrawerProps {
   open: boolean;
@@ -170,7 +171,7 @@ const AddIntroDrawer: React.FC<AddIntroDrawerProps> = ({
                   if (!editData || (value && value.length > 0)) {
                     return validateImage(value, dictionary);
                   }
-                  
+
                   return true;
                 }
               }}
@@ -182,11 +183,11 @@ const AddIntroDrawer: React.FC<AddIntroDrawerProps> = ({
                   margin="normal"
                   inputRef={fileInputRef}
                   onChange={e => {
-                    
+
                     const input = e.target as HTMLInputElement;
-                    
+
                     onChange(input.files);
-                    
+
                     if (input.files && input.files[0]) {
                       setImagePreview(URL.createObjectURL(input.files[0]));
                     }
@@ -209,7 +210,9 @@ const AddIntroDrawer: React.FC<AddIntroDrawerProps> = ({
             <Controller
               name="title"
               control={control}
-              rules={{ required: dictionary['navigation'].Titleisrequired }}
+              rules={{ required: dictionary['navigation'].Titleisrequired,
+                validate:(value) => validateSentence(value,dictionary)
+               }}
               render={({ field: { onChange, value } }) => (
                 <CustomTextField
                   label={dictionary['navigation'].Title}
@@ -269,7 +272,7 @@ const AddIntroDrawer: React.FC<AddIntroDrawerProps> = ({
             />
           </Grid>
 
-          <div className="flex justify-end mt-4">
+          <div className="flex justify-end mt-4  gap-5">
             <Button
               type="submit"
               variant="contained"
@@ -282,7 +285,7 @@ const AddIntroDrawer: React.FC<AddIntroDrawerProps> = ({
             <Button
               onClick={handleDrawerClose}
               variant="outlined"
-              color="secondary"
+              color="error"
               style={{ marginLeft: '10px' }}
             >
               {dictionary['navigation'].Cancel}

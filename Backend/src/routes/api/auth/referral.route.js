@@ -2,11 +2,16 @@ const express = require('express');
 const auth = require('../../../middlewares/auth');
 const referralController = require('../../../controllers/api/auth/referral.controller');
 const referralAmountController = require('../../../controllers/api/auth/referralAmount.controller');
+const catchAsync = require('../../../utils/catchAsync');
 
 const router = express.Router();
 
-router.route('/getReferral').get(auth('Referral'), referralController.getReferralDriver);
-router.route('/getReferralCode').get(auth('Referral'),referralController.getReferralDriverCode);
+// router.route('/getReferral').get(auth('Referral'), referralController.getReferralDriver);
+// router.route('/getReferralCode').get(auth('Referral'),referralController.getReferralDriverCode);
+
+router.route('/getReferral').get(auth('Referral'), catchAsync(referralController.getReferralDriver));
+router.route('/getReferralCode').get(auth('Referral'), catchAsync(referralController.getReferralDriverCode));
+
 router.route('/create').post(auth('Referral'), referralController.createReferral);
 router.route('/update/:referralId').patch(auth('Referral'), referralController.updateReferral);
 
@@ -241,4 +246,3 @@ module.exports = router;
  *       404:
  *         description: SOS request not found
  */
-

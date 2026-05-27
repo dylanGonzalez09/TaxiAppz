@@ -1,18 +1,17 @@
 /* eslint-disable import/no-unresolved */
 import React, { useEffect, useState } from 'react';
 
-import { Drawer, Button, IconButton, Typography, Divider, MenuItem, InputAdornment } from '@mui/material';
+import { Drawer, Button, IconButton, Typography, Divider, InputAdornment, CircularProgress } from '@mui/material';
 import { useForm, Controller } from 'react-hook-form';
 import { toast } from 'react-toastify';
-
-import CircularProgress from '@mui/material/CircularProgress';
-
 import { getSession } from 'next-auth/react';
 
+import { dropDownListForAdmin } from '@apis/zone';
+
+// import { dropDownListForAdmin } from '@apis/zone';
 import CustomTextField from '@core/components/mui/TextField';
 
 // API Imports
-
 import { updateUser } from '@apis/user';
 
 import {
@@ -21,7 +20,11 @@ import {
 } from '@/utils/validation';
 
 import type { UsersType } from '@/types/apps/userTypes';
-import { ENDPOINTS } from '@/app/api/apps/taxi/endpoint';
+
+// AsyncDropdown Import
+import AsyncDropdown from '@/components/AsyncDropdown';
+import { getActiveLanguageByPagination } from '@/app/api/apps/taxi/language';
+import { getActiveCountryByPagination } from '@/app/api/apps/taxi/country';
 
 type Props = {
   open: boolean;
@@ -30,6 +33,7 @@ type Props = {
   dictionary: any;
   setData: (data: UsersType[]) => void;
   initialData: UsersType | null;
+  zoneId?: any;
 };
 
 export type UserStatus = 'active' | 'pending' | 'inactive';
@@ -42,52 +46,36 @@ type FormValidateType = {
   phoneNumber: string;
   language: string;
   country: string;
+  employeeId?: string;
 };
 
-const EditUserDrawer: React.FC<Props> = ({ open, handleClose, userData, setData, initialData, dictionary }) => {
-  const [languages, setLanguages] = useState<{ id: string; name: string }[]>([]);
-  const [countries, setCountries] = useState<{ id: string; name: string; dial_code: string; phoneLength: number }[]>([]);
-  const [loading, setLoading] = useState(false); // Loading state
+type CountryType = {
+  id: string;
+  name: string;
+  dial_code: string;
+  phoneLength: number;
+};
+
+
+
+const EditUserDrawer: React.FC<Props> = ({ open, handleClose, userData, setData, initialData, dictionary, zoneId }) => {
+  const [loading, setLoading] = useState(false);
   const [selectedPhoneLength, setSelectedPhoneLength] = useState<number | null>(null);
   const [selectedDialCode, setSelectedDialCode] = useState<string | null>(null);
+  const [ClientId, setClientId] = useState<string>("");
+  const [countries, setCountries] = useState<CountryType[]>([]);
 
   const getClientId = async () => {
     const session = await getSession();
     const clientId = session?.user?.image?.clientId;
-    const companyId = session?.user?.image?.companyId;
 
-    return { clientId, companyId };
+    setClientId(clientId || '');
+
+    return { clientId };
   };
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const DataKey = getClientId();
-        const clientId = (await DataKey).clientId;
-
-        if (clientId === undefined) {
-          throw new Error("ClientId is undefined");
-        }
-
-        const dropDownData = await fetch(ENDPOINTS.user.dropDownList(clientId));
-        const data = await dropDownData.json();
-
-        setLanguages(data.data.language);
-        setCountries(data.data.country);
-      } catch (error) {
-        toast.error('Failed to fetch data');
-      }
-    };
-
-    const timer = setTimeout(() => {
-      fetchData();
-    }, 4000);
-
-    return () => clearTimeout(timer);
-  }, []);
-
   // React Hook Form setup
-  const { control, handleSubmit, setValue, formState: { errors }, reset } = useForm<FormValidateType>({
+  const { control, handleSubmit, setValue, trigger, reset, getValues } = useForm<FormValidateType>({
     mode: 'all',
     defaultValues: {
       firstName: '',
@@ -95,37 +83,90 @@ const EditUserDrawer: React.FC<Props> = ({ open, handleClose, userData, setData,
       email: '',
       phoneNumber: '',
       language: '',
-      country: ''
+      country: '',
+
     }
   });
 
   useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const DataKey = await getClientId();
+        const clientId = DataKey.clientId;
+
+        if (!clientId) {
+          console.warn("ClientId is missing");
+
+          return;
+        }
+
+        // Roles or other static data can still be fetched here if needed
+        // const dropDownData = await dropDownListForAdmin(clientId, zoneId);
+        const dropDownData = await dropDownListForAdmin(clientId, zoneId);
+
+        setCountries(
+          dropDownData.data.country.sort((a: any, b: any) =>
+            a.name.localeCompare(b.name)
+          )
+        );
+      } catch (error) {
+        // toast.error('Failed to fetch data');
+      }
+    };
+
+    fetchData();
+  }, [zoneId]);
+
+  // Initialize form when initialData changes (Drawer opens)
+  useEffect(() => {
     if (initialData) {
-      setValue('firstName', initialData.firstName);
-      setValue('lastName', initialData.lastName);
-      setValue('email', initialData.email);
-      setValue('phoneNumber', initialData.phoneNumber);
-      setValue('language', initialData.language);
-      setValue('country', initialData.country);
+      setValue('firstName', initialData.firstName || '');
+      setValue('lastName', initialData.lastName || '');
+      setValue('email', initialData.email || '');
+      setValue('phoneNumber', initialData.phoneNumber || '');
 
-      // Set the country details based on initial data
-      const selectedCountry = countries.find(c => c.id === initialData.country);
+      // Set IDs for AsyncDropdowns
+      setValue('country', initialData.country || '');
+      setValue('language', initialData.language || '');
 
-      if (selectedCountry) {
-        setSelectedPhoneLength(selectedCountry.phoneLength);
-        setSelectedDialCode(selectedCountry.dial_code);
+      // NOTE: Since AsyncDropdown fetches data asynchronously, we cannot immediately find
+      // dial_code from a local 'countries' state array unless we fetch it separately.
+      // If you need the dial code to show up immediately on edit, you might need to
+      // fetch country details separately or assume the API returns full objects in initialData.
+      // For now, user selecting the country again will update the dial code.
+    } else {
+      reset(); // Reset if no data
+    }
+  }, [initialData, setValue, reset]);
+
+
+
+  const handleCountryChange = (value: any) => {
+    // Update the form value with the ID
+    // const countryId = value?._id || value?.id;
+
+    if (value) {
+      if (value.dial_code) setSelectedDialCode(value.dial_code);
+      if (value.phoneLength) setSelectedPhoneLength(value.phoneLength);
+    } else {
+      setSelectedDialCode(null);
+      setSelectedPhoneLength(null);
+    }
+
+    // Re-validate phone number when country changes
+    trigger('phoneNumber');
+  };
+
+  useEffect(() => {
+    if (initialData && countries.length > 0) {
+      const selected = countries.find(c => c.id === initialData.country);
+
+      if (selected) {
+        setSelectedDialCode(selected.dial_code);
+        setSelectedPhoneLength(selected.phoneLength);
       }
     }
-  }, [initialData, countries, setValue]);
-
-  const handleCountryChange = (countryId: string) => {
-    const selectedCountry = countries.find(c => c.id === countryId);
-
-    if (selectedCountry) {
-      setSelectedPhoneLength(selectedCountry.phoneLength);
-      setSelectedDialCode(selectedCountry.dial_code);
-    }
-  };
+  }, [initialData, countries]);
 
   const onSubmit = async (data: FormValidateType) => {
     setLoading(true);
@@ -134,12 +175,11 @@ const EditUserDrawer: React.FC<Props> = ({ open, handleClose, userData, setData,
       if (initialData) {
         const updatedUser = {
           firstName: data.firstName || '',
-
-          // lastName: data.lastName || '',
           email: data.email || '',
           phoneNumber: data.phoneNumber || '',
           country: data.country,
           language: data.language,
+
         };
 
         await updateUser(`${initialData.id}`, updatedUser);
@@ -165,7 +205,9 @@ const EditUserDrawer: React.FC<Props> = ({ open, handleClose, userData, setData,
 
   const handleReset = () => {
     handleClose();
+    reset();
     setSelectedDialCode(null);
+    setSelectedPhoneLength(null);
   };
 
   return (
@@ -186,6 +228,8 @@ const EditUserDrawer: React.FC<Props> = ({ open, handleClose, userData, setData,
       <Divider />
       <div>
         <form onSubmit={handleSubmit(onSubmit)} className='flex flex-col gap-6 p-6'>
+
+          {/* First Name */}
           <Controller
             name='firstName'
             control={control}
@@ -193,128 +237,145 @@ const EditUserDrawer: React.FC<Props> = ({ open, handleClose, userData, setData,
               required: dictionary['navigation'].FirstNameisrequired,
               validate: value => validateTextOnly(value, dictionary)
             }}
-            render={({ field }) => (
+            render={({ field, fieldState }) => (
               <CustomTextField
                 {...field}
                 fullWidth
                 label={`${dictionary['navigation'].firstName} *`}
                 placeholder={dictionary['navigation'].firstName}
-                error={!!errors.firstName}
-                helperText={errors.firstName?.message || dictionary['navigation'].invalidText}
+                error={!!fieldState.error}
+                helperText={fieldState.error?.message || dictionary['navigation'].invalidText}
               />
             )}
           />
-          {/* <Controller
-            name='lastName'
-            control={control}
-            rules={{
-              required: dictionary['navigation'].LastNameisrequired,
-              validate: value => validateTextOnly(value, dictionary)
-            }}
-            render={({ field }) => (
-              <CustomTextField
-                {...field}
-                fullWidth
-                label={dictionary['navigation'].LastName}
-                placeholder={dictionary['navigation'].Doe}
-                error={!!errors.lastName}
-                helperText={errors.lastName?.message}
-              />
-            )}
-          /> */}
+
+          {/* Email */}
           <Controller
             name='email'
             control={control}
             rules={{
-              validate: (value) => validateEmail(value, dictionary)
+              validate: (value) => validateEmail(value, dictionary),
+              required: dictionary['navigation'].Emailisrequired || "Emailisrequired"
             }}
-            render={({ field }) => (
+            render={({ field, fieldState }) => (
               <CustomTextField
                 {...field}
                 fullWidth
                 type='email'
-                label={dictionary['navigation'].email} // No * since optional
+                label={dictionary['navigation'].email}
                 placeholder={dictionary['navigation'].email}
-                error={!!errors.email}
-                helperText={errors.email?.message}
+                error={!!fieldState.error}
+                helperText={fieldState.error?.message}
               />
             )}
           />
-          <Controller
+
+          {/* Country - AsyncDropdown */}
+          {ClientId && (<Controller
             name='country'
             control={control}
-            render={({ field }) => (
-              <CustomTextField
-                {...field}
-                select
-                fullWidth
+            rules={{ required: dictionary['navigation'].Countryisrequired || "Countryisrequired" }}
+            render={({ field, fieldState }) => (
+              <AsyncDropdown
                 label={dictionary['navigation'].Country}
-                error={!!errors.country}
-                helperText={errors.country?.message}
-                onChange={e => {
-                  field.onChange(e);
-                  handleCountryChange(e.target.value);
+                apiFunction={getActiveCountryByPagination}
+                extraParams={[ClientId]}
+                value={field.value || null}
+                getOptionLabel={(option: any) => option?.name && option?.dial_code ? `${option?.name}(${option?.dial_code})` : option?.name || option?._id}
+                onChange={(value: any) => {
+                  const id = value?._id || value?.id;
+
+                  field.onChange(id); // Update form state with ID
+                  handleCountryChange(value); // Handle local state (dial code, etc)
                 }}
-              >
-                {countries.map(country => (
-                  <MenuItem key={country.id} value={country.id}>
-                    {country.name}
-                  </MenuItem>
-                ))}
-              </CustomTextField>
+                error={!!fieldState.error}
+                helperText={fieldState.error?.message}
+              />
             )}
-          />
+          />)}
+
+          {/* Phone Number */}
+
           <Controller
             name='phoneNumber'
             control={control}
             rules={{
-              required: dictionary['navigation'].PhoneNumberisrequired,
-              validate: value => validPhoneNumber(value, selectedPhoneLength, dictionary),
+              required: dictionary['navigation'].phoneNumberRequired,
+
+              validate: value => {
+                const digitsOnly = (value || '').replace(/\D/g, '');
+
+                //  block repeated numbers like 9999999999
+                if (/^(\d)\1+$/.test(digitsOnly)) {
+                  return 'Phone number cannot be all same digits';
+                }
+
+                const dialCodeDigits = (selectedDialCode || '').replace(/\D/g, '');
+
+                const phoneWithoutDialCode = digitsOnly.replace(
+                  new RegExp(`^${dialCodeDigits}`),
+                  ''
+                );
+
+                if (phoneWithoutDialCode && /^0+$/.test(phoneWithoutDialCode)) {
+                  return 'Enter a valid phone number';
+                }
+
+                return validPhoneNumber(value, selectedPhoneLength, dictionary);
+              }
             }}
-            render={({ field }) => (
+            render={({ field, fieldState }) => (
               <CustomTextField
                 {...field}
                 fullWidth
-                type='tel'
-                label={dictionary['navigation'].PhoneNumber}
-                placeholder='1234567890'
-                error={!!errors.phoneNumber}
-                helperText={errors.phoneNumber?.message}
+                label={`${dictionary['navigation'].phoneNumber} *`}
+                placeholder={dictionary['navigation'].enterPhoneNumber}
+                error={!!fieldState.error}
+                helperText={fieldState.error?.message}
+                onBlur={() => trigger('phoneNumber')}
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
-                      {selectedDialCode}
+                      {countries.find(c => c.id === getValues('country'))?.dial_code || ''}
                     </InputAdornment>
                   ),
                 }}
               />
             )}
           />
-          <Controller
+
+          {/* Language - AsyncDropdown */}
+          {ClientId && (<Controller
             name='language'
             control={control}
-            render={({ field }) => (
-              <CustomTextField
-                {...field}
-                select
-                fullWidth
+            rules={{
+              required: dictionary['navigation'].Languageisrequired || "Language is required",
+            }}
+            render={({ field, fieldState }) => (
+              <AsyncDropdown
                 label={dictionary['navigation'].Language}
-                error={!!errors.language}
-                helperText={errors.language?.message}
-              >
-                {languages.map(language => (
-                  <MenuItem key={language.id} value={language.id}>
-                    {language.name}
-                  </MenuItem>
-                ))}
-              </CustomTextField>
-            )}
-          />
+                apiFunction={getActiveLanguageByPagination}
+                extraParams={[ClientId]}
+                value={field.value || null}
+                getOptionLabel={(option: any) => option?.name || option?._id || ''}
 
-          <div className='flex items-center gap-4'>
+                onChange={(value: any) => {
+
+                  const id = value?._id || value?.id || value;
+
+                  field.onChange(id);
+                  
+                }}
+                error={!!fieldState.error}
+                helperText={fieldState.error?.message}
+              />
+            )}
+          />)}
+
+          <div className='flex items-center gap-5'>
             <Button variant='contained' type='submit' disabled={loading} sx={{ position: 'relative' }}>
               {loading ? dictionary['navigation'].Updating : dictionary['navigation'].Update}
-              {loading && <CircularProgress size={24} color="inherit" />}
+              {loading && <CircularProgress size={24} color="inherit" sx={{ position: 'absolute', right: '16px' }} />}
             </Button>
             <Button variant='outlined' color='error' onClick={handleReset}>
               {dictionary['navigation'].Cancel}

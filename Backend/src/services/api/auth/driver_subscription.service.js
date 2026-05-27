@@ -1,122 +1,70 @@
 const httpStatus = require('http-status');
 const ApiError = require('../../../utils/ApiError');
-const { DriverSubscription,SubScription,Driver } = require('../../../models');
-const { tokenService } = require('../../../services');
+const { DriverSubscription, SubScription, Driver } = require('../../../models');
 const ObjectId = require('mongoose').Types.ObjectId
-const { sendPushNotification } = require('../../../utils/commonFunction')
+const { sendPushNotification,getDriverId,getUserId,getClientId} = require('../../../utils/commonFunction')
 
-/**
-  from the mobile side they need to send Client Id and Code (Version code)
-  1. Check the Version Available or not if not redirect to update screen 
-  2. check the avaliable languages for client send the avaliable languages 
- */
-
-const getClientId = async (req) => {
-    clientId = '';
-    if (!req.headers.clientid) {
-        throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
-    } else {
-        clientId = req.headers.clientid;
-    }
-    return clientId;
-}
-
-
-
-const getUserId = async (req) => {
-    let userId = '';
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        res.status(httpStatus.UNAUTHORIZED).send({ message: 'Authorization header is missing or invalid' });
-        return;
-    }
-    // Remove the 'Bearer ' prefix and get the token
-    const token = authHeader.substring(7);
-    const user = await tokenService.verifyTokenAndGetUser(token);
-    userId = user.id
-    return userId;
-}
-
-
-const getDriverrId = async (req) => {
-
-    let userId = '';
-
-    let driverId = '';
-
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        res.status(httpStatus.UNAUTHORIZED).send({ message: 'Authorization header is missing or invalid' });
-        return;
-    }
-    // Remove the 'Bearer ' prefix and get the token
-    const token = authHeader.substring(7);
-
-    const user = await tokenService.verifyTokenAndGetUser(token);
-
-    userId = user.id
-
-    const driver = await Driver.find({ userId: userId })
-
-
-    driverId = driver[0]._id;
-
-    return driverId;
-}
 
 
 
 const createSubscription = async (req) => {
-    req.body.driverId = await getDriverrId(req);
-    let userId = await getUserId(req);
+    try {
+        const driverId = await getDriverId(req);
+        let userId = await getUserId(req);
 
-    // Validate required fields
-    if (!req.body.driverId) {
-        throw new Error('Driver ID is required');
-    }
-
-    // Verify driver exists
-    const driverExists = await Driver.exists({ _id: req.body.driverId });
-    if (!driverExists) {
-        throw new Error('Driver not found');
-    }
-
-    req.body.clientId = await getClientId(req);
-    req.body.Startdate = new Date(); // Set start date as current date
-
-    let subscription;
-    if (req.body.subScriptionId) {
-        subscription = await SubScription.findById(req.body.subScriptionId);
-        if (!subscription) {
-            throw new Error('Subscription not found');
+        // Validate required fields
+        if (!driverId) {
+            throw new ApiError(httpStatus.BAD_REQUEST, 'Driver ID is required');
         }
-        req.body.Enddate = calculateEndDate(req.body.Startdate, subscription);
-    }
 
-    // Set active status based on dates
-    req.body.status = req.body.Enddate ? new Date() < req.body.Enddate : true;
-
-    // Check if subscription exists for driver, then update; otherwise, create
-    const existingSubscription = await DriverSubscription.findOneAndUpdate(
-        { driverId: req.body.driverId }, // Filter by driverId
-        req.body,                       // Update with new data
-        { 
-            new: true,                   // Return the updated document
-            upsert: true,                // Create if not exists
-            runValidators: true          // Validate schema on update
+        // Verify driver exists
+        const driverExists = await Driver.exists({ _id: driverId });
+        if (!driverExists) {
+            throw new ApiError(httpStatus.NOT_FOUND, 'Driver not found');
         }
-    );
 
-    // Send push notification if subscription was applied
-    if (subscription && req.body.Enddate) {
-        sendPushNotification(userId, {
-            title: "Driver Subscription",
-            message: `You've subscribed to ${subscription.name} plan. Enjoy uninterrupted service until ${req.body.Enddate.toDateString()}.`
-        });
+        req.body.driverId = driverId;
+        req.body.clientId = await getClientId(req);
+        req.body.Startdate = new Date(); // Set start date as current date
+
+        let subscription;
+        if (req.body.subScriptionId) {
+            subscription = await SubScription.findById(req.body.subScriptionId);
+            if (!subscription) {
+                throw new ApiError(httpStatus.NOT_FOUND, 'Subscription not found');
+            }
+            req.body.Enddate = calculateEndDate(req.body.Startdate, subscription);
+        }
+
+        // Set active status based on dates
+        req.body.status = req.body.Enddate ? new Date() < req.body.Enddate : true;
+
+        const existingSubscription = await DriverSubscription.findOneAndUpdate(
+            { driverId: req.body.driverId },
+            req.body,
+            { returnDocument: 'after', upsert: true, runValidators: true }
+        );
+
+        // Send push notification if subscription was applied
+        if (subscription && req.body.Enddate) {
+            sendPushNotification(userId, {
+                title: "Driver Subscription",
+                message: `You've subscribed to ${subscription.name} plan. Enjoy uninterrupted service until ${req.body.Enddate.toDateString()}.`
+            });
+        }
+      return {
+        success: true,
+        message: 'Subscription created/updated successfully',
+        data: existingSubscription,
+      };
+
+    } catch (error) {
+        console.error('Error in creating/updating subscription:', error);
+        if (error instanceof ApiError) {
+            throw error;
+        }
+        throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to create or update subscription');
     }
-
-    return existingSubscription;
 };
 
 /**
@@ -136,7 +84,7 @@ const updateSubscriptionById = async (subscriptionId, updateData) => {
 
     // If updating subscription plan, recalculate end date
     if (updateData.subScriptionId) {
-         newSubscription = await SubScription.findById(updateData.subScriptionId);
+        newSubscription = await SubScription.findById(updateData.subScriptionId);
         if (!newSubscription) {
             throw new Error('New subscription plan not found');
         }
@@ -171,7 +119,7 @@ const updateSubscriptionById = async (subscriptionId, updateData) => {
     sendPushNotification(driverExists.userId, {
         title: "Driver Subscription",
         message: `You've subscribed to ${newSubscription.name} plan. Enjoy uninterrupted service until ${updateData.Enddate.toDateString()}.`
-      });
+    });
 
     return updated;
 };
@@ -184,7 +132,7 @@ const updateSubscriptionById = async (subscriptionId, updateData) => {
  */
 const calculateEndDate = (startDate, subscription) => {
     const endDate = new Date(startDate);
-    
+
     if (!subscription.validityPeriod || isNaN(subscription.validityPeriod)) {
         throw new Error('Invalid validity period in subscription');
     }

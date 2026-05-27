@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect,useMemo } from 'react';
 
 import Grid from '@mui/material/Grid';
 import CardContent from '@mui/material/CardContent';
@@ -24,32 +24,31 @@ const TableFilters = ({
   const [driver, setDriver] = useState<string>('');
   const [tripType, setTripType] = useState<string>('');
 
-  const previousFilteredDataRef = useRef<any[]>([]);
+  // const previousFilteredDataRef = useRef<any[]>([]);
 
-  useEffect(() => {
-    if (!filterData) return;
+const filteredData = useMemo(() => {
+  if (!filterData) return [];
 
-    const filteredData = filterData.filter(product => {
-      const productStartDate = new Date(product.startTime).getTime();
-      const productEndDate = new Date(product.endTime).getTime();
-      const filterStartDate = startDate ? startDate.getTime() : 0;
-      const filterEndDate = endDate ? endDate.getTime() : Infinity;
+  return filterData.filter(product => {
+    const productStartDate = new Date(product.startTime).getTime();
+    const productEndDate = new Date(product.endTime).getTime();
 
-      if (startDate && productStartDate < filterStartDate) return false;
-      if (endDate && productEndDate > filterEndDate) return false;
-      if (customer && product.customerName !== customer) return false;
-      if (driver && product.driverName !== driver) return false;
-      if (tripType && product.serviceType !== tripType) return false;
+    const filterStartDate = startDate ? startDate.getTime() : 0;
+    const filterEndDate = endDate ? endDate.getTime() : Infinity;
 
-      return true;
-    });
+    if (startDate && productStartDate < filterStartDate) return false;
+    if (endDate && productEndDate > filterEndDate) return false;
+    if (customer && product.customerName !== customer) return false;
+    if (driver && product.driverName !== driver) return false;
+    if (tripType && product.serviceType !== tripType) return false;
 
-    // Only set filtered data if it has changed
-    if (JSON.stringify(previousFilteredDataRef.current) !== JSON.stringify(filteredData)) {
-      setData(filteredData);
-      previousFilteredDataRef.current = filteredData; // Update ref to new filtered data
-    }
-  }, [startDate, endDate, customer, driver, tripType, filterData, setData]);
+    return true;
+  });
+}, [startDate, endDate, customer, driver, tripType, filterData]);
+
+useEffect(() => {
+  setData(filteredData);
+}, [filteredData, setData]);
 
   const uniqueCustomers = Array.from(new Set(filterData?.map(product => product.customerName))) || [];
   const uniqueDrivers = Array.from(new Set(filterData?.map(product => product.driverName))) || [];
@@ -120,7 +119,7 @@ const TableFilters = ({
             <MenuItem value=''>{dictionary['navigation'].AllTripTypes}</MenuItem>
             {uniqueTripTypes.map((type, index) => (
               <MenuItem key={index} value={type}>
-                {type}
+                {dictionary['navigation'][type]}
               </MenuItem>
             ))}
           </CustomTextField>

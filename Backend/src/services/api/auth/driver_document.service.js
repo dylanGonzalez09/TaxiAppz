@@ -1,4 +1,4 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const ApiError = require('../../../utils/ApiError');
 const { DriverDocument, Document } = require('../../../models');
 
@@ -8,61 +8,9 @@ const ObjectId = require('mongoose').Types.ObjectId
 const tokenService = require('../../token.service');
 const { required } = require('joi');
 
+const {getUserId,getClientId,getDriverId} = require('../../../utils/commonFunction')
 
 
-
-
-const getClientId = async (req) => {
-
-    clientId = '';
-
-    if (!req.headers.clientid) {
-
-        throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
-
-    } else {
-
-        clientId = req.headers.clientid;
-
-    }
-
-    return clientId;
-}
-
-
-
-const getUserId = async (req) => {
-
-    let userId = '';
-
-    let driverId = null;
-
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        res.status(httpStatus.UNAUTHORIZED).send({ message: 'Authorization header is missing or invalid' });
-        return;
-    }
-    // Remove the 'Bearer ' prefix and get the token
-    const token = authHeader.substring(7);
-
-    const user = await tokenService.verifyTokenAndGetUser(token);
-
-    userId = user.id
-  
-  
-    const driver = await Driver.find({ userId : userId })
-
-
-
-
-
-    if (driver.length > 0) {
-        driverId = driver[0]._id;
-    }
-
-    return driverId;
-}
 
 /**
  * Create a DriverDocument
@@ -77,166 +25,200 @@ const createDriverDocument = async (DriverDocumentBody) => {
  * @param {ObjectId} clientId
  * @returns {Promise<Object>}
  */
-const getDriverDocumentByDriver = async (req) => {
-    try {
+const getDriverDocumentByDriver = async (req, driverVehicleId = null) => {
 
-        let clientId = await getClientId(req);
-        let driverId = await getUserId(req);
+  try {
+    const clientId = await getClientId(req);
+    const driverId = await getDriverId(req);
 
-        const driverObjectId = new ObjectId(driverId);
-        const clientObjectId = new ObjectId(clientId);
+    const zoneData = await Driver.findOne({ _id: driverId }).select('serviceLocation').lean();
+    if (!zoneData) throw new ApiError(404, 'Driver zone not found');
 
-        // Aggregation to get document data along with group documents
-        const documentResults = await Document.aggregate([
+    const driverObjectId = new ObjectId(driverId);
+    const clientObjectId = new ObjectId(clientId);
+
+    const zoneObjectId = new ObjectId(zoneData.serviceLocation);
+    // Fetch all uploaded driver documents once for mapping
+    const driverDocuments = await DriverDocument.find({
+      driverId: driverObjectId,
+      clientId: clientObjectId,
+      driverVehicleId : driverVehicleId || null
+    }).lean();
+
+    const driverDocumentsMap = driverDocuments.reduce((map, doc) => {
+      map[doc.documentId.toString()] = doc;
+      return map;
+    }, {});
+
+    // Helper to format dates consistently
+    const formatDate = (date) => {
+      if (!date) return null;
+      const options = { day: '2-digit', month: '2-digit', year: 'numeric' };
+      return new Date(date).toLocaleDateString(undefined, options);
+    };
+
+    const currentDate = new Date();
+
+    // Aggregate documents (driver and vehicle separately) filtered by zone and client
+    const documentResults = await Document.aggregate([
+      {
+        $match: {
+          clientId: clientObjectId,
+          status: true
+        }
+      },
+      {
+        $lookup: {
+          from: 'groupdocuments',
+          localField: 'documentId',
+          foreignField: '_id',
+          as: 'groupDocumentDetails'
+        }
+      },
+      { $unwind: { path: '$groupDocumentDetails', preserveNullAndEmptyArrays: true } },
+      {
+        $match: {
+          'groupDocumentDetails.zoneId': zoneObjectId,
+          'groupDocumentDetails.type': { $in: ['driver', 'vehicle'] }
+        }
+      },
+      {
+        $facet: {
+          driverDocuments: [
+            { $match: { 'groupDocumentDetails.type': 'driver' } },
             {
-                $match: {
-                    clientId: clientObjectId,
-                    status: true
-                }
-            },
-            {
-                $lookup: {
-                    from: 'groupdocuments',
-                    localField: 'documentId',
-                    foreignField: '_id',
-                    as: 'groupDocumentDetails'
-                }
-            },
-            {
-                $unwind: {
-                    path: '$groupDocumentDetails',
-                    preserveNullAndEmptyArrays: true
-                }
-            },
-            {
-                $project: {
-                    _id: 1,
-                    documentName: 1,
-                    required: 1,
-                    identifier: 1,
-                    expiryDate: 1,
-                    issueDate: 1,
-                    imageRequired: 1,
-                    documentId: 1,
-                    documentStatus: 1,
-                    status: 1,
-                    clientId: 1,
-                    'groupDocumentDetails.name': 1
-                }
-            },
-            {
-                $replaceRoot: {
-                    newRoot: {
-                        $mergeObjects: [
-                            '$$ROOT',
-                            {
-                                categoryName: '$groupDocumentDetails.name'
-                            }
-                        ]
-                    }
-                }
-            },
-            {
-                $project: {
-                    groupDocumentDetails: 0
-                }
+              $project: {
+                _id: 1,
+                documentName: 1,
+                required: 1,
+                identifier: 1,
+                expiryDate: 1,
+                issueDate: 1,
+                imageRequired: 1,
+                documentId: 1,
+                documentStatus: 1,
+                status: 1,
+                clientId: 1,
+                'groupDocumentDetails.name': 1
+              }
             }
-        ]);
+          ],
+          vehicleDocuments: [
+            { $match: { 'groupDocumentDetails.type': 'vehicle' } },
+            {
+              $project: {
+                _id: 1,
+                documentName: 1,
+                required: 1,
+                identifier: 1,
+                expiryDate: 1,
+                issueDate: 1,
+                imageRequired: 1,
+                documentId: 1,
+                documentStatus: 1,
+                status: 1,
+                clientId: 1,
+                'groupDocumentDetails.name': 1
+              }
+            }
+          ]
+        }
+      }
+    ]);
 
-        // Fetch driver-specific documents
-        const driverDocuments = await DriverDocument.find({
-            driverId: driverObjectId,
-            clientId: clientObjectId
-        }).exec();
+    // Helper to group and annotate documents
+    const processDocuments = (documents) => {
+      return documents.reduce((acc, doc) => {
+        const driverDoc = driverDocumentsMap[doc._id.toString()] || {};
 
+        const driverDocumentImg = driverDoc.documentImage ? `/uploads/documentImage/${driverDoc.documentImage}` : null;
 
-        // Map driver documents by documentId
-        const driverDocumentsMap = driverDocuments.reduce((map, doc) => {
-            map[doc.documentId.toString()] = doc;
-            return map;
-        }, {});
+        const expiryDate = driverDoc.expiryDate ? new Date(driverDoc.expiryDate) : null;
+        const expiryStatus = expiryDate && expiryDate < currentDate;
 
-        // Helper function to format date
-        const formatDate = (date) => {
-            if (!date) return '';
-            const options = { day: '2-digit', month: '2-digit', year: 'numeric' };
-            return new Date(date).toLocaleDateString(undefined, options);
+        const getDocumentEntry = {
+          id: doc._id || null,
+          document_name: doc.documentName || '',
+          zone_id: zoneObjectId,
+          isRequired: doc.required,
+          isIdentifierRequired: doc.identifier,
+          isExpiryDateRequired: doc.expiryDate,
+          isImageRequired: doc.imageRequired,
+          status: doc.status,
+          group_by: doc.documentId,
+          is_uploaded: !!driverDoc.documentImage,
+          document_image: driverDocumentImg || '',
+          documentStatus: driverDoc.documentStatus || null,
+          expiryDate: driverDoc.expiryDate ? formatDate(driverDoc.expiryDate) : null,
+          issueDate: driverDoc.issueDate ? formatDate(driverDoc.issueDate) : null,
+          identifier: driverDoc.identifier || null,
+          expiryStatus: expiryStatus,
+          driverVehicleId: driverDoc.driverVehicleId || null  // Important for next step
         };
 
-        const currentDate = new Date();
+        if (!acc[doc.documentId]) {
+          acc[doc.documentId] = {
+            id: doc.documentId,
+            zone_id: zoneObjectId,
+            name: doc.groupDocumentDetails?.name || '',
+            status: 1,
+            document_count: 0,
+            upload_status: !!driverDoc.documentImage,
+            get_document: []
+          };
+        }
 
-        // Group documents by documentId
-        const groupedDocuments = documentResults.reduce((acc, doc) => {
+        acc[doc.documentId].get_document.push(getDocumentEntry);
+        acc[doc.documentId].document_count = acc[doc.documentId].get_document.length;
 
-            const driverDoc = driverDocumentsMap[doc._id.toString()] || {};
+        if (driverDoc.documentImage) {
+          acc[doc.documentId].upload_status = true;
+        }
 
-            let driverDocumentImg;
-            if (driverDoc.documentImage) {
-                driverDocumentImg = `/uploads/documentImage/${driverDoc.documentImage}`;
-            }
+        return acc;
+      }, {});
+    };
 
-            // Format expiry date and determine expiry status
-            const expiryDate = driverDoc.expiryDate ? new Date(driverDoc.expiryDate) : null;
-            const expiryDatedFormatted = expiryDate ? formatDate(expiryDate) : '0000-00-00';
-            const expiryStatus = expiryDate && expiryDate < currentDate;
+    let driverDocs = documentResults[0]?.driverDocuments || [];
+    let vehicleDocs = documentResults[0]?.vehicleDocuments || [];
 
-            const getDocumentEntry = {
-                id: doc._id || null,
-                document_name: doc.documentName || '',
-                zone_id: 1,
-                isRequired: doc.required,
-                isIdentifierRequired: doc.identifier,
-                isExpiryDateRequired: doc.expiryDate,
-                // isIssueDateRequired: doc.issueDate,
-                isImageRequired: doc.imageRequired,
-                status: doc.status,
-                group_by: doc.documentId,
-                is_uploaded: driverDoc.documentImage ? true : false,
-                document_image: driverDocumentImg || '',
-                documentStatus: driverDoc.documentStatus,
-                expiryDate: driverDoc.expiryDate ? formatDate(driverDoc.expiryDate) : null,
-                issueDate: driverDoc.issueDate ? formatDate(driverDoc.issueDate) : null,
-                identifier: driverDoc.identifier || null,
-                expiryStatus: expiryStatus
-            };
+    const groupedDriverDocuments = processDocuments(driverDocs);
+    const groupedVehicleDocuments = processDocuments(vehicleDocs);
 
-            if (!acc[doc.documentId]) {
-                acc[doc.documentId] = {
-                    id: doc.documentId,
-                    zone_id: 1,
-                    name: doc.categoryName || '',
-                    status: 1,
-                    document_count: 0,
-                    upload_status: driverDoc.documentImage ? true : false,
-                    get_document: []
-                };
-            }
-
-
-            acc[doc.documentId].get_document.push(getDocumentEntry);
-            acc[doc.documentId].document_count = acc[doc.documentId].get_document.length; // Update the document_count
-
-            return acc;
-        }, {});
-
-        return Object.values(groupedDocuments);
-    } catch (error) {
-        console.error('Error in aggregation or fetching driver documents:', error);
-        return { success: false, message: 'Error fetching documents.' };
+    // If driverVehicleId passed, mark which vehicle docs belong to it
+    if (driverVehicleId && Array.isArray(groupedVehicleDocuments)) {
+      for (const group of Object.values(groupedVehicleDocuments)) {
+        group.get_document = group.get_document.map(doc => {
+          doc.belongsToCurrentVehicle = (doc.driverVehicleId === driverVehicleId);
+          return doc;
+        });
+      }
     }
+
+    return {
+      driver: Object.values(groupedDriverDocuments),
+      vehicle: Object.values(groupedVehicleDocuments)
+    };
+
+  } catch (error) {
+    console.error('Error in fetching documents:', error);
+    throw error;
+  }
 };
+
 
 
 
 // Find a driver document
 const findDriverDocument = async (query) => {
-    return await DriverDocument.findOne(query);
+  const data = await DriverDocument.findOne(query);
+  return  data
   };
-  
+
   // Update a driver document
   const updateDriverDocument = async (query, updateData) => {
     return await DriverDocument.findOneAndUpdate(query, updateData, {
-      new: true, // Return the updated document
+      returnDocument: 'after', // Return the updated document
       upsert: false, // Do not create a new document if none is found
     });
   };

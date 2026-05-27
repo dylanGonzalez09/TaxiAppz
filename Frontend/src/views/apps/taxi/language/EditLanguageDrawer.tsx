@@ -115,6 +115,7 @@ const EditLanguageDrawer = (props: Props) => {
 
   const handleReset = () => {
     handleClose();
+    reset();
     setStatus(true);
   };
 
@@ -177,21 +178,21 @@ const EditLanguageDrawer = (props: Props) => {
               <MenuItem value="false">{dictionary['navigation'].Inactive}</MenuItem>
             </CustomTextField>
 
-            <div className="flex items-center gap-4">
-              
-              <Button
-          variant="contained"
-          color="primary"
-          onClick={handleSubmit(handleFormSubmit)} 
-           disabled={loading} // Disable button when loading
-          endIcon={loading && <CircularProgress size={20} color="inherit" />} // Show loading spinner
-        >
-          {loading ? dictionary['navigation'].Updating : dictionary['navigation'].Update}
-        </Button>
-              <Button variant="outlined" color="error" onClick={handleReset}>
-                {dictionary['navigation'].discard}
-              </Button>
-            </div>
+        <div className="flex justify-end gap-5">
+  <Button
+    type="submit"
+    variant="contained"
+    color="primary"
+    disabled={loading}
+    endIcon={loading && <CircularProgress size={20} color="inherit" />}
+  >
+    {loading ? dictionary['navigation'].Updating : dictionary['navigation'].Update}
+  </Button>
+
+  <Button variant="outlined" color="error" onClick={handleReset}>
+    {dictionary['navigation'].discard}
+  </Button>
+</div>
           </form>
         </div>
       </div>

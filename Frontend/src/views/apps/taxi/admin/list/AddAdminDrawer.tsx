@@ -13,21 +13,31 @@ import { useForm, Controller } from 'react-hook-form';
 
 import { getSession } from 'next-auth/react';
 
-import { useIsDemoUser } from '@/utils/demoUser' 
+import { useIsDemoUser } from '@/utils/demoUser'
 
 import CustomTextField from '@core/components/mui/TextField';
 
 import { createUser, updateUser } from '@apis/user';
+import { dropDownListForAdmin, getActiveZoneByPagination } from '@apis/zone';
 
 import CustomAutocomplete from '@core/components/mui/Autocomplete'
 
 import DialogCloseButton from '@/components/dialogs/DialogCloseButton';
 
+
+import AsyncDropdown from '@/components/AsyncDropdown';
+import { getActiveLanguageByPagination } from '@/app/api/apps/taxi/language';
+
+import { getActiveCountryByPagination } from '@/app/api/apps/taxi/country';
+
+
 import {
+  validatePasswordsMatch,
   validatePassword,
   validateTextOnly, validateEmail,
   validatePhoneNumber,
-  validPhoneNumber
+  validPhoneNumber,
+  validateAddress
 } from '@/utils/validation';
 import { ENDPOINTS } from '@/app/api/apps/taxi/endpoint';
 
@@ -83,6 +93,7 @@ interface AddAdminDrawerProps {
   onPageChange: (event: React.ChangeEvent<unknown>, newPage: number) => void
   rowsPerPage: number;
   dictionary?: any;
+  zoneId: string;
 }
 
 const AddAdminDrawer = ({
@@ -90,9 +101,10 @@ const AddAdminDrawer = ({
   page,
   onPageChange,
   rowsPerPage,
-  dictionary
+  dictionary,
+  zoneId
 }: AddAdminDrawerProps) => {
-  const { control, handleSubmit, setValue, reset, getValues, trigger,watch } = useForm<AddUserInfoData>({
+  const { control, handleSubmit, setValue, reset, getValues, trigger, watch } = useForm<AddUserInfoData>({
     mode: 'all',
     defaultValues: {
       firstName: '',
@@ -110,18 +122,23 @@ const AddAdminDrawer = ({
     }
   });
 
+  const password = watch('password');
+  const confirmPassword = watch('confirmPassword');
   const { isDemoUser, checkDemoStatus } = useIsDemoUser();
 
   const [roles, setRoles] = useState<{ id: string, role: string }[]>([]);
   const [languages, setLanguages] = useState<{ id: string, name: string }[]>([]);
-  const [countries, setCountries] = useState<{ id: string,name: any; dial_code: any ,phoneLength: any}[]>([]);
+  const [countries, setCountries] = useState<{ id: string, name: any; dial_code: any, phoneLength: any }[]>([]);
   const [isPasswordShown, setIsPasswordShown] = useState(false);
   const [loading, setLoading] = useState(false);
   const [selectedPhoneLength, setSelectedPhoneLength] = useState<number | null>(null);
-  const [primaryZones,setPrimaryZones] = useState<{ _id: string, zoneName: string }[]>([]);
+  const [primaryZones, setPrimaryZones] = useState<{ _id: string, zoneName: string }[]>([]);
+  const [ClientId, setClientId] = useState<string>("");
 
   const selectedRoles = watch('roleIds');
   const isAdminSelected = selectedRoles?.some((role: any) => role.role === 'Admin');
+  const [selectedDialCode, setSelectedDialCode] = useState<string | null>(null);
+
 
   useEffect(() => {
     const fetchData = async () => {
@@ -131,13 +148,16 @@ const AddAdminDrawer = ({
 
         if (!clientId) throw new Error("ClientId is undefined");
 
-        const dropDownData = await fetch(ENDPOINTS.user.dropDownList(clientId));
-        const data = await dropDownData.json();
+        const dropDownData = await dropDownListForAdmin(clientId, zoneId);
 
-        setRoles(data.data.role);
-        setLanguages(data.data.language);
-        setCountries(data.data.country);
-        setPrimaryZones(data.data.primaryZone);
+        setRoles(dropDownData.data.role);
+        setLanguages(dropDownData.data.language);
+
+        setCountries(
+          dropDownData.data.country.sort((a: any, b: any) =>
+            a.name.localeCompare(b.name)
+          )
+        ); setPrimaryZones(dropDownData.data.primaryZone);
       } catch (error) {
         toast.error(dictionary['navigation'].failedToFetchData);
         console.error('Error fetching data:', error);
@@ -167,6 +187,8 @@ const AddAdminDrawer = ({
   const getClientId = async () => {
     const session = await getSession();
     const clientId = session?.user?.image?.clientId;
+
+    setClientId(clientId || '');
 
     return { clientId };
   };
@@ -208,9 +230,9 @@ const AddAdminDrawer = ({
         firstName: formData.firstName,
         lastName: formData.lastName || '',
         email: formData.email || '',
-        
+
         // password: formData.password || '',
-        
+
         phoneNumber: formData.phoneNumber || '',
         emergencyNumber: formData.emergencyNumber || '',
         language: formData.language || '',
@@ -242,36 +264,36 @@ const AddAdminDrawer = ({
         const updatedAdminList = data.map((admin: AdminType) =>
           admin.id === editAdmin.id ? updatedAdmin : admin
         );
-        
+
         setData(updatedAdminList);
         toast.success(dictionary['navigation'].adminUpdated);
         reset();
         handleClose();
-      } 
-      
+      }
+
       else {
-        
+
         const password = formData.password || '';
-        
+
         const newData = {
           ...userData,
-        
+
           password
-       
+
         };
-       
-        const createData = await createUser(newData);
+
+        const createData = await createUser(newData, zoneId);
 
         if (createData.message) {
           toast.error(createData.message);
         } else {
-         
+
           const newAdmin = {
-            
+
             id: createData.id,
-            
+
             // ...userData,
-           
+
             ...newData,
             active: true,
           };
@@ -323,6 +345,12 @@ const AddAdminDrawer = ({
 
   const isSubmitDisabled = isDemoUser || loading;
 
+  useEffect(() => {
+    if (confirmPassword && password) {
+      trigger('confirmPassword');
+    }
+  }, [password, confirmPassword, trigger]);
+
   return (
     <Dialog
       fullWidth
@@ -345,7 +373,25 @@ const AddAdminDrawer = ({
               <Controller
                 name='firstName'
                 control={control}
-                rules={{ required: dictionary['navigation'].firstNameRequired, validate: value => validateTextOnly(value, dictionary) }}
+
+                rules={{
+                  required: dictionary['navigation'].firstNameRequired,
+                  validate: value => {
+                    const val = (value || '').trim();
+
+                    // existing text validation
+                    const textValidation = validateTextOnly(val, dictionary);
+
+                    if (textValidation !== true) return textValidation;
+
+                    //  block same characters (aaaa)
+                    if (/^([a-zA-Z])\1+$/.test(val)) {
+                      return 'First name cannot be repeated characters';
+                    }
+
+                    return true;
+                  }
+                }}
                 render={({ field, fieldState }) => (
                   <CustomTextField
                     {...field}
@@ -364,8 +410,23 @@ const AddAdminDrawer = ({
               <Controller
                 name='lastName'
                 control={control}
-                rules={{ required: dictionary['navigation'].lastNameRequired, validate: value => validateTextOnly(value, dictionary) }}
-                render={({ field, fieldState }) => (
+                rules={{
+                  required: dictionary['navigation'].lastNameRequired,
+                  validate: value => {
+                    const val = (value || '').trim();
+
+                    const textValidation = validateTextOnly(val, dictionary);
+
+                    if (textValidation !== true) return textValidation;
+
+                    // block same characters (bbbb)
+                    if (/^([a-zA-Z])\1+$/.test(val)) {
+                      return 'Last name cannot be repeated characters';
+                    }
+
+                    return true;
+                  }
+                }} render={({ field, fieldState }) => (
                   <CustomTextField
                     {...field}
                     fullWidth
@@ -403,7 +464,10 @@ const AddAdminDrawer = ({
                   <Controller
                     name='password'
                     control={control}
-                    rules={{ required: dictionary['navigation'].passwordRequired, validate: value => validatePassword(value, dictionary) }}
+                    rules={{
+                      required: dictionary['navigation'].passwordRequired,
+                      validate: value => validatePassword(value, dictionary)
+                    }}
                     render={({ field, fieldState }) => (
                       <CustomTextField
                         {...field}
@@ -425,7 +489,17 @@ const AddAdminDrawer = ({
                             </InputAdornment>
                           )
                         }}
-                        onBlur={() => trigger('password')} // Trigger validation on blur
+                        onChange={(e) => {
+                          field.onChange(e);
+
+
+                          // Trigger validation on confirm password if it has a value
+
+                          if (getValues('confirmPassword')) {
+                            setTimeout(() => trigger('confirmPassword'), 0);
+                          }
+                        }}
+                        onBlur={() => trigger('password')}
                       />
                     )}
                   />
@@ -435,7 +509,26 @@ const AddAdminDrawer = ({
                   <Controller
                     name='confirmPassword'
                     control={control}
-                    rules={{ required: dictionary['navigation'].confirmPasswordRequired, validate: (value) => value === getValues('password') || dictionary['navigation'].passwordsDoNotMatch }}
+
+                    rules={{
+
+                      required: dictionary['navigation'].confirmPasswordRequired,
+
+                      validate: (value) => {
+                        const currentPassword = getValues('password');
+
+                        if (!currentPassword) {
+                          return dictionary['navigation'].passwordRequired || 'Please enter password first';
+                        }
+
+                        if (value !== currentPassword) {
+                          return dictionary['navigation'].Confirmpasswordwasnotmatched || 'Confirm password was not matched';
+
+                        }
+
+                        return true;
+                      }
+                    }}
                     render={({ field, fieldState }) => (
                       <CustomTextField
                         {...field}
@@ -453,52 +546,83 @@ const AddAdminDrawer = ({
                                 edge='end'
                               >
                                 {isPasswordShown ? '🙈' : '👁️'}
+
                               </IconButton>
                             </InputAdornment>
                           )
                         }}
-                        onBlur={() => trigger('confirmPassword')} // Trigger validation on blur
+
+                        onChange={(e) => {
+                          field.onChange(e);
+
+                          // Trigger validation immediately
+
+                          setTimeout(() => trigger('confirmPassword'), 0);
+                        }}
+                        onBlur={() => trigger('confirmPassword')}
                       />
                     )}
                   />
                 </Grid>
               </>
             )}
-            <Grid item xs={12} sm={1.5}>
+            <Grid item xs={12} sm={2}>
               <Controller
                 name="country"
                 control={control}
                 rules={{ required: dictionary['navigation'].countryRequired }}
                 render={({ field, fieldState }) => (
-                  <CustomTextField
-                    {...field}
-                    select
-                    fullWidth
+                  <AsyncDropdown
                     label={`${dictionary['navigation'].country} *`}
-                    onChange={(e) => {
-                      field.onChange(e); // Update form value
-                      handleCountryChange(e.target.value); // Update phone length validation
+                    apiFunction={getActiveCountryByPagination}
+                    extraParams={[ClientId]}
+                    value={field.value || null}
+                    getOptionLabel={(option: any) =>
+                      option.name && option.dial_code
+                        ? `${option.name} (${option.dial_code})`
+                        : option.name || option._id
+                    }
+                    onChange={(value: any) => {
+                      const id = value?._id || value?.id
+
+                      field.onChange(id)
+                      handleCountryChange(id)
                     }}
                     error={!!fieldState.error}
                     helperText={fieldState.error?.message}
-                  >
-                    {countries.map((country) => (
-                      <MenuItem key={country.id} value={country.id}>
-                        {country.name}
-                      </MenuItem>
-                    ))}
-                  </CustomTextField>
+                  />
                 )}
               />
             </Grid>
 
-            <Grid item xs={12} sm={4.5}>
+            <Grid item xs={12} sm={4}>
               <Controller
                 name='phoneNumber'
                 control={control}
                 rules={{
                   required: dictionary['navigation'].phoneNumberRequired,
-                  validate: value => validPhoneNumber(value, selectedPhoneLength, dictionary),
+
+                  validate: value => {
+                    const digitsOnly = (value || '').replace(/\D/g, '');
+
+                    //  block repeated numbers like 9999999999
+                    if (/^(\d)\1+$/.test(digitsOnly)) {
+                      return 'Phone number cannot be all same digits';
+                    }
+
+                    const dialCodeDigits = (selectedDialCode || '').replace(/\D/g, '');
+
+                    const phoneWithoutDialCode = digitsOnly.replace(
+                      new RegExp(`^${dialCodeDigits}`),
+                      ''
+                    );
+
+                    if (phoneWithoutDialCode && /^0+$/.test(phoneWithoutDialCode)) {
+                      return 'Enter a valid phone number';
+                    }
+
+                    return validPhoneNumber(value, selectedPhoneLength, dictionary);
+                  }
                 }}
                 render={({ field, fieldState }) => (
                   <CustomTextField
@@ -525,7 +649,33 @@ const AddAdminDrawer = ({
               <Controller
                 name='emergencyNumber'
                 control={control}
-                rules={{ required: dictionary['navigation'].emergencyNumberRequired,validate: value => validatePhoneNumber(value, dictionary) }}
+                rules={{
+                  required: dictionary['navigation'].emergencyNumberRequired,
+                  validate: (value) => {
+                    const val = (value || "").trim();
+
+                    const digitsOnly = val.replace(/\D/g, '');
+                    const dialCodeDigits = (selectedDialCode || '').replace(/\D/g, '');
+
+                    const phoneWithoutDialCode = digitsOnly.replace(
+                      new RegExp(`^${dialCodeDigits}`),
+                      ''
+                    );
+
+
+                    //  Allow min 3 digits (for 108), max 15
+                    if (!/^[0-9]{3,15}$/.test(val)) {
+                      return 'Emergency number must be between 3 to 15 digits';
+                    }
+
+                    // Block all same digits (000, 1111, etc.)
+                    if (/^(\d)\1+$/.test(phoneWithoutDialCode || digitsOnly)) {
+                      return 'Emergency number cannot be repeated digits';
+                    }
+
+                    return true;
+                  },
+                }}
                 render={({ field, fieldState }) => (
                   <CustomTextField
                     {...field}
@@ -549,7 +699,10 @@ const AddAdminDrawer = ({
                   <CustomAutocomplete
                     multiple
                     limitTags={2}
-                    options={roles.filter(role => !["Superadmin", "Client", "User", "Driver"].includes(role.role))} // Filter out unwanted roles
+                    options={roles
+                      .filter(role => !["Superadmin", "Client", "User", "Driver"].includes(role.role))
+                      .sort((a, b) => a.role.localeCompare(b.role))
+                    }
                     id="autocomplete-roles"
                     getOptionLabel={(option) => option.role || ''}
                     value={field.value || []} // Ensure that the value is an array of role objects
@@ -573,27 +726,25 @@ const AddAdminDrawer = ({
               <Controller
                 name="language"
                 control={control}
-                rules={{ required: dictionary['navigation'].languageRequired }}
+                rules={{ required: dictionary['navigation'].languageRequired || "Language is required" }}
                 render={({ field, fieldState }) => (
-                  <CustomTextField
-                    {...field}
-                    select
-                    fullWidth
+
+                  <AsyncDropdown
                     label={`${dictionary['navigation'].language} *`}
+                    apiFunction={getActiveLanguageByPagination}
+                    extraParams={[ClientId]}
+
+                    //  multiple
+                    value={field.value || null}
+                    getOptionLabel={(option: any) =>
+                      option.name ? `${option.name}` : option._id
+                    }
+                    onChange={(value: any) => {
+                      field.onChange(value._id || value.id);
+                    }}
                     error={!!fieldState.error}
                     helperText={fieldState.error?.message}
-                    onBlur={() => trigger("language")} // Trigger validation on blur
-                  >
-                    {languages.length > 0 ? (
-                      languages.map((language) => (
-                        <MenuItem key={language.id} value={language.id}>
-                          {language.name}
-                        </MenuItem>
-                      ))
-                    ) : (
-                      <MenuItem disabled>{dictionary['navigation'].noLanguagesAvailable}</MenuItem>
-                    )}
-                  </CustomTextField>
+                  />
                 )}
               />
             </Grid>
@@ -602,36 +753,63 @@ const AddAdminDrawer = ({
               <Controller
                 name="zoneId"
                 control={control}
+                rules={{ required: dictionary['navigation'].zoneRequired || "Zone is required" }}
                 render={({ field, fieldState }) => (
-                  <CustomTextField
-                    {...field}
-                    select
-                    fullWidth
+                  <AsyncDropdown
                     label={`${dictionary['navigation'].primaryZone}`}
+                    apiFunction={getActiveZoneByPagination}
+                    extraParams={[]}
+
+                    //  multiple
+                    value={field.value || null}
+                    getOptionLabel={(option: any) =>
+                      option.zoneName ? `${option.zoneName}` : option._id
+                    }
+                    onChange={(value: any) => {
+                      field.onChange(value?._id || value?.id)
+                    }}
                     error={!!fieldState.error}
                     helperText={fieldState.error?.message}
-                    onBlur={() => trigger("zoneId")} // Trigger validation on blur
-                  >
-                    {primaryZones.length > 0 ? (
-                      primaryZones.map((zone) => (
-                        <MenuItem key={zone._id} value={zone._id}>
-                          {zone.zoneName}
-                        </MenuItem>
-                      ))
-                    ) : (
-                      <MenuItem disabled>{dictionary['navigation'].noZoneAvailable}</MenuItem>
-                    )}
-                  </CustomTextField>
+                  />
                 )}
               />
             </Grid>
-             {/* )} */}
+            {/* )} */}
             <Grid item xs={12} sm={6}>
               <Controller
                 name='address'
                 control={control}
-                rules={{ required: dictionary['navigation'].addressRequired }}
-                render={({ field, fieldState }) => (
+                rules={{
+                  required: dictionary['navigation'].newAddressRequired || "Address is required",
+                  validate: (value) => {
+                    const val = (value || '').trim();
+                    
+                   // ✅ Allow all language letters + numbers + common address characters
+                    if (!/^[\p{L}0-9\s,.\-/#()]+$/u.test(val)) {
+                      return 'Address contains invalid characters';
+                    }
+
+                    // remove spaces for strict repeat check
+                    const noSpaceVal = val.replace(/\s+/g, '');
+
+                   // ✅ Block repeated letters in all languages (aaa, அஅஅ, ممم)
+                   if (/([\p{L}])\1{2,}/u.test(noSpaceVal)) {
+                     return 'Address cannot contain repeated letters';
+                   }
+                   
+                    //  Block repeated numbers (1111, 999999)
+                    if (/(\d)\1{2,}/.test(noSpaceVal)) {
+                      return 'Address cannot contain repeated numbers';
+                    }
+
+                    //  Block repeated special chars (---, ///, ###)
+                    if (/([,.\-/#()])\1{2,}/.test(noSpaceVal)) {
+                      return 'Address cannot contain repeated special characters';
+                    }
+
+                    return true;
+                  }
+                }} render={({ field, fieldState }) => (
                   <CustomTextField
                     {...field}
                     fullWidth

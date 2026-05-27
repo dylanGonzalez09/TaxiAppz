@@ -2,9 +2,9 @@
 import { get, post, patch, del } from './apiService'
 import { ENDPOINTS } from './endpoint'
 
-export const fetchFaq = async () => {
+export const fetchFaq = async (overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.faq.list)
+    const response = await get(ENDPOINTS.faq.list, undefined, overrideZoneId)
 
     if (response.success) {
       return response.data
@@ -19,9 +19,9 @@ export const fetchFaq = async () => {
 }
 
 
-export const getByFaqByPagination = async (searchTerm: string, page: number, limit: number) => {
+export const getByFaqByPagination = async (searchTerm: string, page: number, limit: number, overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.faq.getByPagination(searchTerm, page, limit))
+    const response = await get(ENDPOINTS.faq.getByPagination(searchTerm, page, limit), undefined, overrideZoneId)
 
     if (response.success) {
 
@@ -38,9 +38,9 @@ export const getByFaqByPagination = async (searchTerm: string, page: number, lim
 }
 
 
-export const createFaq = async (faq: any) => {
+export const createFaq = async (faq: any, overrideZoneId?: any) => {
   try {
-    const response = await post(ENDPOINTS.faq.create, faq)
+    const response = await post(ENDPOINTS.faq.create, faq, overrideZoneId)
 
     if (response.success) {
       return response.data
@@ -54,9 +54,9 @@ export const createFaq = async (faq: any) => {
   }
 }
 
-export const updateFaq = async (id: any, faq: any) => {
+export const updateFaq = async (id: any, faq: any, overrideZoneId?: any) => {
   try {
-    const response = await patch(ENDPOINTS.faq.update(id), faq)
+    const response = await patch(ENDPOINTS.faq.update(id), faq, overrideZoneId)
 
     if (response.success) {
       return response.data
@@ -103,9 +103,9 @@ export const updateFaqStatus = async (id: string, faq: any) => {
   }
 };
 
-export const getFaqByLanguage = async (id: string,searchTerm: string, page: number, limit: number) => {
+export const getFaqByLanguage = async (id: string,searchTerm: string, page: number, limit: number,overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.faq.getFaqByLanguage(id,searchTerm, page, limit))
+    const response = await get(ENDPOINTS.faq.getFaqByLanguage(id,searchTerm, page, limit), undefined, overrideZoneId)
 
     if (response.success) {
       return response.data
@@ -116,4 +116,20 @@ export const getFaqByLanguage = async (id: string,searchTerm: string, page: numb
 
     return null
   }
+};
+
+/** POST `/faq/getFaqs/list/user` — body: `{ type: 'User', zoneId }` */
+export const postFaqsForUser = async (zoneId: string, overrideZoneId?: any) => {
+  const response = await post(ENDPOINTS.faq.listForUser, { type: 'User', zoneId }, overrideZoneId);
+
+  
+return response;
+};
+
+/** POST `/faq/getFaqs/list/driver` — body: `{ type: 'Driver', zoneId }` */
+export const postFaqsForDriver = async (zoneId: string, overrideZoneId?: any) => {
+  const response = await post(ENDPOINTS.faq.listForDriver, { type: 'Driver', zoneId }, overrideZoneId);
+
+  
+return response;
 };

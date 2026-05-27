@@ -1,8 +1,8 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const ApiError = require('../../../utils/ApiError');
-const { Client,SubScription,Role,CompanySubscription,Language } = require('../../../models');
+const { Client, SubScription, Role, Language } = require('../../../models');
 
-const ObjectId = require('mongoose').Types.ObjectId
+const { ObjectId } = require('mongoose').Types;
 
 /**
  * Create a Client
@@ -13,15 +13,9 @@ const createClient = async (clientBody) => {
   return Client.create(clientBody);
 };
 const getSuperAdminRoleAndPackage = async () => {
+  const [roles, languages] = await Promise.all([Role.find(), Language.find({ status: true, clientId: null })]);
 
-  const [companySubscription, roles,languages] = await Promise.all([
-    CompanySubscription.find({ status: true }),
-    Role.find(),
-    Language.find({ status: true, clientId: null })
-
-  ]);
-  
-  return { companySubscription, roles,languages };
+  return { roles, languages };
 };
 /**
  * Query for clients
@@ -58,7 +52,7 @@ const queryClients = async (filter, options) => {
       },
       {
         $project: {
-          Name:1,
+          Name: 1,
           clientCode: 1,
           Startdate: 1,
           Enddate: 1,
@@ -66,23 +60,20 @@ const queryClients = async (filter, options) => {
           noOfDrivers: 1,
           noOfUsers: 1,
           subScriptionId: 1,
-          taxiModules:1,
-          features:1,
+          taxiModules: 1,
+          features: 1,
           status: 1,
           createdAt: 1,
           firstName: { $ifNull: ['$userDetails.firstName', null] },
           lastName: { $ifNull: ['$userDetails.lastName', null] },
           email: { $ifNull: ['$userDetails.email', null] },
-          phoneNumber:  { $ifNull: ['$userDetails.phoneNumber', null] },
-          emergencyNumber:  { $ifNull: ['$userDetails.emergencyNumber', null] },
-          password:  { $ifNull: ['$userDetails.password', null] },
+          phoneNumber: { $ifNull: ['$userDetails.phoneNumber', null] },
+          emergencyNumber: { $ifNull: ['$userDetails.emergencyNumber', null] },
+          password: { $ifNull: ['$userDetails.password', null] },
           roleIds: { $ifNull: ['$userDetails.roleIds', null] },
           address: { $ifNull: ['$userDetails.address', null] },
           active: { $ifNull: ['$userDetails.active', null] },
-        
-          
         },
-
       },
       {
         $sort: { createdAt: -1 }, // Sorting in descending order (latest first)
@@ -93,12 +84,12 @@ const queryClients = async (filter, options) => {
       {
         $limit: limit, // Limit number of results per page
       },
-    ])
+    ]);
 
     const totalPages = Math.ceil(totalResults / limit);
 
     return {
-      results: results,
+      results,
       page,
       limit,
       totalPages,
@@ -110,8 +101,6 @@ const queryClients = async (filter, options) => {
   }
 };
 
-
-
 /**
  * Get clients
  * @returns {Promise<Client>}
@@ -120,9 +109,8 @@ const getClients = async () => {
   return Client.find();
 };
 
-
 /**
- * Get companys
+ * Get
  * @returns {Promise<Client>}
  */
 const getClientDetails = async () => {
@@ -149,7 +137,7 @@ const getClientDetails = async () => {
           Startdate: 1,
           Enddate: 1,
           noOfVehicle: 1,
-          subScriptionId:1,
+          subScriptionId: 1,
 
           status: 1,
           'userDetails._id': 1,
@@ -180,11 +168,11 @@ const getClientDetails = async () => {
                 password: '$userDetails.password',
                 roleIds: '$userDetails.roleIds',
                 address: '$userDetails.address',
-                active: '$userDetails.active'
-              }
-            ]
-          }
-        }
+                active: '$userDetails.active',
+              },
+            ],
+          },
+        },
       },
       {
         $project: {
@@ -217,7 +205,7 @@ const getClientsById = async (clientId) => {
 const getClientById = async (id) => {
   const results = await Client.aggregate([
     {
-      $match: { _id:new ObjectId(id)}, // Match the specific client ID
+      $match: { _id: new ObjectId(id) }, // Match the specific client ID
     },
     {
       $lookup: {
@@ -242,8 +230,8 @@ const getClientById = async (id) => {
         noOfVehicle: 1,
         subScriptionId: 1,
         status: 1,
-    
-         // Include userId from client
+
+        // Include userId from client
         'userDetails._id': 1,
         'userDetails.firstName': 1,
         'userDetails.lastName': 1,
@@ -262,7 +250,7 @@ const getClientById = async (id) => {
 };
 
 /**
- * Update client by id   
+ * Update client by id
  * @param {ObjectId} clientId
  * @param {Object} updateBody
  * @returns {Promise<Client>}
@@ -289,26 +277,23 @@ const deleteClientById = async (clientId) => {
     throw new ApiError(httpStatus.NOT_FOUND, 'client not found');
   }
   await client.deleteOne();
-  return { status: "success", msg: "data Deleted Successfully" };
+  return { status: 'success', msg: 'data Deleted Successfully' };
 };
-
-
 
 /**
  * Get roles
-  * @param {ObjectId} clientId
+ * @param {ObjectId} clientId
  * @returns {Promise<Role>}
  */
 const getDropDownsRoles = async (clientId) => {
+  const roleData = await Role.find({ clientId });
 
-  const roleData = await Role.find({ clientId: clientId });
-
-  const subscriptionData = await SubScription.find({ clientId: clientId, status: true });
+  const subscriptionData = await SubScription.find({ clientId, status: true });
 
   const data = {
     role: roleData,
-    subscription:subscriptionData
-  }
+    subscription: subscriptionData,
+  };
 
   return data;
 };

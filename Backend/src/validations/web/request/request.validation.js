@@ -79,7 +79,6 @@ const getRequestHistoryById = {
   }),
 };
 
-
 const updateRequest = {
   params: Joi.object({
     requestId: Joi.string().required(),
@@ -134,7 +133,7 @@ const updateRequest = {
     packageItemId: Joi.string().optional().allow(null),
     bookingFor: Joi.string().valid('MYSELF', 'OTHERS').optional().allow(null),
     othersUserId: Joi.string().optional().allow(null),
-  }).min(1),  // Ensure at least one field is being updated
+  }).min(1), // Ensure at least one field is being updated
 };
 
 const deleteRequest = {
@@ -149,5 +148,5 @@ module.exports = {
   getRequestById,
   updateRequest,
   deleteRequest,
-  getRequestHistoryById
+  getRequestHistoryById,
 };

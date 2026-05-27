@@ -1,14 +1,23 @@
 // Next Imports
+import { useEffect, useState } from 'react'
+
+
 import { useParams } from 'next/navigation'
+
+
 
 // MUI Imports
 import { useTheme } from '@mui/material/styles'
 
 // Third-party Imports
 import PerfectScrollbar from 'react-perfect-scrollbar'
+import { signOut } from 'next-auth/react'
+
+import Skeleton from '@mui/material/Skeleton'
+
+import { usePrivilegeStore } from '@/store/privilegeStore';
 
 // Type Imports
-import { signOut } from 'next-auth/react'
 
 import type { getDictionary } from '@/utils/getDictionary'
 import type { VerticalMenuContextProps } from '@menu/components/vertical-menu/Menu'
@@ -27,6 +36,7 @@ import menuItemStyles from '@core/styles/vertical/menuItemStyles'
 import menuSectionStyles from '@core/styles/vertical/menuSectionStyles'
 
 import { SCREEN_NAMES, ROLE } from '@/utils/screenNames'
+
 
 type RenderExpandIconProps = {
   open?: boolean
@@ -47,21 +57,83 @@ const RenderExpandIcon = ({ open, transitionDuration }: RenderExpandIconProps) =
 )
 
 const VerticalMenu = ({ dictionary, scrollMenu, privillageData, session }: Props) => {
+
   // Hooks
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [isClient, setIsClient] = useState(false)
+
   const theme = useTheme()
   const verticalNavOptions = useVerticalNav()
   const params = useParams()
   const { isBreakpointReached } = useVerticalNav()
   const clientId = session?.user?.image?.clientId;
+  const { loading } = usePrivilegeStore()
+
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
 
   // Vars
   const { transitionDuration } = verticalNavOptions
-  const { lang: locale } = params
+  const { lang: locale } = params as any
+  const zoneIdFromRoute = (params as any)?.zoneId as string | undefined
+
+  const zoneIdFromStorage =
+    typeof window !== 'undefined' ? (localStorage.getItem('defaultZoneId') || undefined) : undefined
+
+  const effectiveZoneId = zoneIdFromRoute || zoneIdFromStorage
+
+  const hasZone = Boolean(effectiveZoneId)
+
+  // For pages that can work even when no zone exists (common masters/config)
+  const noZoneOkHref = (pathWithoutZone: string, pathAfterZone?: string) => {
+    if (!hasZone) return `/${locale}${pathWithoutZone}`
+
+return `/${locale}/${effectiveZoneId}${pathAfterZone ?? pathWithoutZone}`
+  }
+
+  // For pages that truly require a zone. When no zone, we will disable the menu item by omitting href + setting disabled.
+  const zoneOnlyHref = (pathAfterZone: string) => {
+    if (!hasZone) return undefined
+
+return `/${locale}/${effectiveZoneId}${pathAfterZone}`
+  }
+
   const ScrollWrapper = isBreakpointReached ? 'div' : PerfectScrollbar
 
+  if (loading) {
+    return (
+      <div style={{ padding: 24 }}>
+        <Skeleton width="80%" height={32} animation="wave" style={{ marginTop: 12 }} />
+        <Skeleton width="60%" height={32} animation="wave" style={{ marginTop: 12 }} />
+        <Skeleton width="90%" height={32} animation="wave" style={{ marginTop: 12 }} />
+        <Skeleton width="80%" height={32} animation="wave" style={{ marginTop: 12 }} />
+        <Skeleton width="60%" height={32} animation="wave" style={{ marginTop: 12 }} />
+        <Skeleton width="90%" height={32} animation="wave" style={{ marginTop: 12 }} />
+        <Skeleton width="80%" height={32} animation="wave" style={{ marginTop: 12 }} />
+        <Skeleton width="60%" height={32} animation="wave" style={{ marginTop: 12 }} />
+        <Skeleton width="90%" height={32} animation="wave" style={{ marginTop: 12 }} />
+        <Skeleton width="80%" height={32} animation="wave" style={{ marginTop: 12 }} />
+        <Skeleton width="60%" height={32} animation="wave" style={{ marginTop: 12 }} />
+        <Skeleton width="90%" height={32} animation="wave" style={{ marginTop: 12 }} />
+        <Skeleton width="80%" height={32} animation="wave" style={{ marginTop: 12 }} />
+        <Skeleton width="60%" height={32} animation="wave" style={{ marginTop: 12 }} />
+        <Skeleton width="90%" height={32} animation="wave" style={{ marginTop: 12 }} />
+        <Skeleton width="80%" height={32} animation="wave" style={{ marginTop: 12 }} />
+        <Skeleton width="60%" height={32} animation="wave" style={{ marginTop: 12 }} />
+        <Skeleton width="90%" height={32} animation="wave" style={{ marginTop: 12 }} />
+
+        {/* Add more Skeletons as needed for menu look */}
+      </div>
+    )
+  }
 
   if (!privillageData || !Array.isArray(privillageData)) {
-    localStorage.removeItem('isDemoUser')
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('isDemoUser')
+    }
+
     signOut({ callbackUrl: process.env.NEXT_PUBLIC_APP_URL })
 
     return null
@@ -69,9 +141,8 @@ const VerticalMenu = ({ dictionary, scrollMenu, privillageData, session }: Props
 
   const normalizedPrivillageData = privillageData.map((privillage: string) => privillage.toLowerCase())
 
-  
-return (
-    <ScrollWrapper
+  return (
+       <ScrollWrapper
       {...(isBreakpointReached
         ? {
           className: 'bs-full overflow-y-auto overflow-x-hidden',
@@ -91,26 +162,25 @@ return (
         renderExpandedMenuItemIcon={{ icon: <i className='tabler-circle text-xs' /> }}
         menuSectionStyles={menuSectionStyles(verticalNavOptions, theme)}
       >
-     {normalizedPrivillageData.includes(SCREEN_NAMES.Dashboard) && (
-        <MenuItem
-          href={`/${locale}/dashboards/client`}
-          icon={<i className='tabler-layout-dashboard' />}
-          exactMatch={false}
-          activeUrl='/dashboards/client'
-        >
-          {dictionary['navigation'].dashboard}
-        </MenuItem>
-        )} 
+        {(normalizedPrivillageData.includes(SCREEN_NAMES.Dashboard)) && (
+          <MenuItem
+            href={zoneOnlyHref('/dashboards/client')}
+            disabled={!hasZone}
+            icon={<i className='tabler-layout-dashboard' />}
+          >
+            {dictionary['navigation'].dashboard || "dashboard"}
+          </MenuItem>
+        )}
 
         {(normalizedPrivillageData.includes(SCREEN_NAMES.Admin) || normalizedPrivillageData.includes(SCREEN_NAMES.User) || normalizedPrivillageData.includes(SCREEN_NAMES.Driver)) && (
           <MenuSection label={dictionary['navigation'].User}>
 
             {normalizedPrivillageData.includes(SCREEN_NAMES.Admin) && (
               <MenuItem
-                href={`/${locale}/apps/taxi/admin/list`}
+                href={zoneOnlyHref('/apps/taxi/admin/list')}
+                disabled={!hasZone}
                 icon={<i className='tabler-tower' />}
-                exactMatch={false}
-                activeUrl='/apps/taxi/admin/list'
+
               >
                 {dictionary['navigation'].adminManagement}
               </MenuItem>
@@ -118,13 +188,10 @@ return (
 
             {normalizedPrivillageData.includes(SCREEN_NAMES.User) && (
               <MenuItem
-                href={`/${locale}/apps/taxi/user/list`}
+                href={zoneOnlyHref('/apps/taxi/user/list')}
+                disabled={!hasZone}
                 icon={<i className='tabler-user' />}
-                exactMatch={false}
-                activeUrl={[
-                  `/apps/taxi/user/list`,
-                  `/apps/taxi/user/view`,
-                ]}
+
               >
                 {dictionary['navigation'].userManagement}
               </MenuItem>
@@ -132,60 +199,37 @@ return (
 
             {normalizedPrivillageData.includes(SCREEN_NAMES.Driver) && (
               <MenuItem
-                href={`/${locale}/apps/taxi/driver/list`}
+                href={zoneOnlyHref('/apps/taxi/driver/list')}
+                disabled={!hasZone}
                 icon={<i className='tabler-steering-wheel' />}
-                exactMatch={false}
-                activeUrl={[`/apps/taxi/driver/list`, `/apps/taxi/driver/view`, `/apps/taxi/driver/document`]}
               >
                 {dictionary['navigation'].driverManagement}
               </MenuItem>
 
             )}
 
-          </MenuSection>
-        )}
-         {(normalizedPrivillageData.includes(SCREEN_NAMES.FleetManagement)) && (
-          <MenuSection label={dictionary['navigation'].FleetManagement}>
-            {/* Dispatcher */}
-            {(normalizedPrivillageData.includes(SCREEN_NAMES.CorporateCompany)) && (
-            <MenuItem
-              href={`/${locale}/apps/taxi/corporatecompany`}
-              icon={<i className='tabler-creative-commons' />}
-              exactMatch={false}
-              activeUrl='/apps/taxi/corporatecompany'
-            >
-              {dictionary['navigation'].CorporateCompany}
-            </MenuItem>
-            )}
-          {normalizedPrivillageData.includes(SCREEN_NAMES.Company) && (
-            <MenuItem
-              href={`/${locale}/apps/taxi/company/list`}
-              icon={<i className='tabler-creative-commons' />}
-              exactMatch={false}
-              activeUrl='/apps/taxi/company/list'
-            >
-              {dictionary['navigation'].companyMaster}
-            </MenuItem>
-          )}
-          </MenuSection>
-        )}
-       {(normalizedPrivillageData.includes(SCREEN_NAMES.CompanyVehicle)) && (
+            {/* {normalizedPrivillageData.includes(SCREEN_NAMES.DemoClient) && ( */}
+              {/* <MenuItem
+                href={`/${locale}/${zoneId}/apps/taxi/demoClient/list`}
+                icon={<i className='tabler-user' />}
+                exactMatch={false}
+                activeUrl={`/${locale}/${zoneId}/apps/taxi/demoClient/list`}
+              >
+                {dictionary['navigation'].DemoClient || "Demo Client"}
+              </MenuItem> */}
 
-           <MenuItem
-              href={`/${locale}/apps/taxi/company/vehicle`}
-              icon={<i className='tabler-creative-commons' />}
-              exactMatch={false}
-              activeUrl='/apps/taxi/company/vehicle'
-            >
-              {dictionary['navigation'].companyVehicle}
-            </MenuItem>
-         )}
+            {/* )} */}
+
+          </MenuSection>
+        )}
+
 
         {(normalizedPrivillageData.includes(SCREEN_NAMES.Dispatcher)) && (
           <MenuSection label={dictionary['navigation'].createUser}>
-            {/* Dispatcher */}
             {(normalizedPrivillageData.includes(SCREEN_NAMES.Dispatcher)) && (
-              <MenuItem href={`/${locale}/apps/taxi/dispatcher/createTrip`}
+              <MenuItem
+                href={zoneOnlyHref('/apps/taxi/dispatcher/createTrip')}
+                disabled={!hasZone}
                 icon={<i className='tabler-folder-share' />}>
                 {dictionary['navigation'].Dispatch}
               </MenuItem>
@@ -194,35 +238,21 @@ return (
         )}
 
         {/* {(normalizedPrivillageData.includes(SCREEN_NAMES.Dispatcher) && session.user.image.role != ROLE.Dispatcher) && (
-          <MenuItem href={`/${locale}/apps/taxi/dispatcher/userCreate`}
+          <MenuItem href={`/${locale}/${zoneId}/apps/taxi/dispatcher/userCreate`}
             icon={<i className='tabler-user' />}>
             {dictionary['navigation'].createUser}
           </MenuItem>
         )} */}
 
-  
 
 
-  
-
-{/*        
-        {(normalizedPrivillageData.includes(SCREEN_NAMES.CompanySubsciption) && session.user.image.role == ROLE.SuperAdmin) && (
-          <MenuItem
-            href={`/${locale}/apps/taxi/package/list`}
-            icon={<i className='tabler-creative-commons' />}
-            exactMatch={false}
-            activeUrl='/apps/taxi/package/list'
-          >
-            {dictionary['navigation'].package}
-          </MenuItem>
-        )} */}
 
 
         {(normalizedPrivillageData.includes(SCREEN_NAMES.Client) && session.user.image.role == ROLE.SuperAdmin) && (
-          <MenuItem href={`/${locale}/apps/taxi/client/list`}
+          <MenuItem href={zoneOnlyHref('/apps/taxi/client/list')}
+            disabled={!hasZone}
             icon={<i className='tabler-user' />}
-            exactMatch={false}
-            activeUrl='/apps/taxi/client/list'
+
           >
             {dictionary['navigation'].client}
           </MenuItem>
@@ -231,29 +261,33 @@ return (
         {(normalizedPrivillageData.includes(SCREEN_NAMES.RentalList) || normalizedPrivillageData.includes(SCREEN_NAMES.Wallet) || normalizedPrivillageData.includes(SCREEN_NAMES.RideNow) || normalizedPrivillageData.includes(SCREEN_NAMES.RideLater)) && (
           <MenuSection label={dictionary['navigation'].requestList}>
 
-            {/* {normalizedPrivillageData.includes(SCREEN_NAMES.RentalList) && (
+            {normalizedPrivillageData.includes(SCREEN_NAMES.RentalList) && (
               <>
                 <MenuItem
-                  href={`/${locale}/apps/taxi/rental/rentallist`}
+                  href={zoneOnlyHref('/apps/taxi/rental/rentallist')}
+                  disabled={!hasZone}
                   icon={<i className='tabler-file-time' />}
-                  exactMatch={false}
-                  activeUrl='/apps/taxi/rental/rentallist'
+
                 >
                   {dictionary['navigation'].rentalList}
                 </MenuItem>
 
               </>
-            )} */}
+            )}
 
             {(normalizedPrivillageData.includes(SCREEN_NAMES.RideNow) || normalizedPrivillageData.includes(SCREEN_NAMES.RideLater)) && (
-              <SubMenu label={dictionary['navigation'].tripList} icon={<i className='tabler-device-ipad-horizontal-question' />}>
+              <SubMenu
+                label={dictionary['navigation'].tripList}
+                icon={<i className='tabler-device-ipad-horizontal-question' />}
+                disabled={!hasZone}
+              >
                 {normalizedPrivillageData.includes(SCREEN_NAMES.RideNow) && (
-                  <MenuItem href={`/${locale}/apps/taxi/request/ridenow`}>
+                  <MenuItem href={zoneOnlyHref('/apps/taxi/request/ridenow')} disabled={!hasZone}>
                     {dictionary['navigation'].rideNow}
                   </MenuItem>
                 )}
                 {normalizedPrivillageData.includes(SCREEN_NAMES.RideLater) && (
-                  <MenuItem href={`/${locale}/apps/taxi/request/ridelater`}>
+                  <MenuItem href={zoneOnlyHref('/apps/taxi/request/ridelater')} disabled={!hasZone}>
                     {dictionary['navigation'].rideLater}
                   </MenuItem>
                 )}
@@ -261,11 +295,11 @@ return (
             )}
 
             {normalizedPrivillageData.includes(SCREEN_NAMES.Wallet) && (
-              <SubMenu label={dictionary['navigation'].transaction} icon={<i className='tabler-credit-card-pay' />}>
-                <MenuItem href={`/${locale}/apps/taxi/wallet/user/list`}>
+              <SubMenu label={dictionary['navigation'].transaction} icon={<i className='tabler-credit-card-pay' />} disabled={!hasZone}>
+                <MenuItem href={zoneOnlyHref('/apps/taxi/wallet/user/list')} disabled={!hasZone}>
                   {dictionary['navigation'].user}
                 </MenuItem>
-                <MenuItem href={`/${locale}/apps/taxi/wallet/driver/list`}>
+                <MenuItem href={zoneOnlyHref('/apps/taxi/wallet/driver/list')} disabled={!hasZone}>
                   {dictionary['navigation'].driver}
                 </MenuItem>
               </SubMenu>
@@ -279,28 +313,22 @@ return (
 
             {normalizedPrivillageData.includes(SCREEN_NAMES.Admin) && (
               <SubMenu label={dictionary['navigation'].zoneManagement} icon={<i className='tabler-timezone' />}>
-                <MenuItem href={`/${locale}/apps/taxi/zone/list`}
-                  exactMatch={false}
-                  activeUrl={[
-                    `/apps/taxi/zone/edit`,
-                    `/apps/taxi/zone/list`,
-                    `/apps/taxi/zone/view`,
-                    `/apps/taxi/zone/add`,
-
-                  ]}>
+                <MenuItem
+                  href={hasZone ? zoneOnlyHref('/apps/taxi/zone/list') : `/${locale}/apps/taxi/zone/add`}
+                >
                   {dictionary['navigation'].zone}
                 </MenuItem>
-                <MenuItem href={`/${locale}/apps/taxi/zone/outofzone`}>
+                <MenuItem href={zoneOnlyHref('/apps/taxi/zone/outofzone')} disabled={!hasZone}>
                   {dictionary['navigation'].outOfZonePricing}
                 </MenuItem>
               </SubMenu>
             )}
             {normalizedPrivillageData.includes(SCREEN_NAMES.RentalList) && (
               <MenuItem
-                href={`/${locale}/apps/taxi/rentalmaster/rentalzonelist`}
+                href={zoneOnlyHref('/apps/taxi/rentalmaster/rentalzonelist')}
+                disabled={!hasZone}
                 icon={<i className='tabler-clock-hour-3' />}
-                exactMatch={false}
-                activeUrl='/apps/taxi/rentalmaster/rentalzonelist'
+
               >
                 {dictionary['navigation'].rentalManagement}
               </MenuItem>
@@ -319,17 +347,17 @@ return (
               {(normalizedPrivillageData.includes(SCREEN_NAMES.Category) || normalizedPrivillageData.includes(SCREEN_NAMES.Vehicle) || normalizedPrivillageData.includes(SCREEN_NAMES.VehicleModel)) && (
                 <SubMenu label={dictionary['navigation'].vehicleMaster} icon={<i className='tabler-car-suv' />}>
                   {/* {normalizedPrivillageData.includes(SCREEN_NAMES.Category) && (
-                    <MenuItem href={`/${locale}/apps/taxi/master/category`}>
+                    <MenuItem href={`/${locale}/${zoneId}/apps/taxi/master/category`}>
                       {dictionary['navigation'].category}
                     </MenuItem>
                   )} */}
                   {normalizedPrivillageData.includes(SCREEN_NAMES.Vehicle) && (
-                    <MenuItem href={`/${locale}/apps/taxi/master/vehicle`}>
+                    <MenuItem href={noZoneOkHref('/apps/taxi/master/vehicle', '/apps/taxi/master/vehicle')}>
                       {dictionary['navigation'].vehicle}
                     </MenuItem>
                   )}
                   {/*{normalizedPrivillageData.includes(SCREEN_NAMES.VehicleModel) && (
-                    <MenuItem href={`/${locale}/apps/taxi/master/vehicle-model`}>
+                    <MenuItem href={`/${locale}/${zoneId}/apps/taxi/master/vehicle-model`}>
                       {dictionary['navigation'].vehicleModel}
                     </MenuItem>
                   )}*/}
@@ -338,21 +366,25 @@ return (
               {/* document and groupDocument */}
               {(normalizedPrivillageData.includes(SCREEN_NAMES.GroupDocument) || normalizedPrivillageData.includes(SCREEN_NAMES.Document)) && (
 
-                <SubMenu label={dictionary['navigation'].documentMaster} icon={<i className='tabler-clipboard-text' />}>
+                <SubMenu
+                  label={dictionary['navigation'].documentMaster}
+                  icon={<i className='tabler-clipboard-text' />}
+                  disabled={!hasZone}
+                >
                   {normalizedPrivillageData.includes(SCREEN_NAMES.GroupDocument) && (
-                    <MenuItem href={`/${locale}/apps/taxi/master/group-document`}>
+                    <MenuItem href={zoneOnlyHref('/apps/taxi/master/group-document')} disabled={!hasZone}>
                       {dictionary['navigation'].groupDocument}
                     </MenuItem>
                   )}
-                  {normalizedPrivillageData.includes(SCREEN_NAMES.Document) && (
-                    <MenuItem href={`/${locale}/apps/taxi/master/document`}>
+                  {/* {normalizedPrivillageData.includes(SCREEN_NAMES.Document) && (
+                    <MenuItem href={zoneOnlyHref('/apps/taxi/master/document')} disabled={!hasZone}>
                       {dictionary['navigation'].document}
                     </MenuItem>
-                  )}
+                  )} */}
                   <MenuItem
-                    href={`/${locale}/apps/taxi/driver/documentExpiry/zone`}
-                    exactMatch={false}
-                    activeUrl='/apps/taxi/driver/documentExpiry/zone'
+                    href={zoneOnlyHref('/apps/taxi/driver/documentExpiry/zone')}
+                    disabled={!hasZone}
+
                   >
                     {dictionary['navigation'].documentExpiry}
                   </MenuItem>
@@ -360,7 +392,7 @@ return (
               )}
             </MenuSection>
           )}
-        {(normalizedPrivillageData.includes(SCREEN_NAMES.SupScription) ||
+        {(normalizedPrivillageData.includes(SCREEN_NAMES.Subscription) ||
           normalizedPrivillageData.includes(SCREEN_NAMES.IntroScreen) ||
           normalizedPrivillageData.includes(SCREEN_NAMES.Language) ||
           normalizedPrivillageData.includes(SCREEN_NAMES.ProjectVersion) ||
@@ -371,42 +403,40 @@ return (
             <MenuSection label={dictionary['navigation'].configuration}>
               {/* <SubMenu label={dictionary['navigation'].configuration} icon={<i className='tabler-basket-cog' />}> */}
               {/* {normalizedPrivillageData.includes(SCREEN_NAMES.SupScription) && (
-                <MenuItem href={`/${locale}/apps/taxi/subscription/list`}>
+                <MenuItem href={`/${locale}/${zoneId}/apps/taxi/subscription/list`}>
                   {dictionary['navigation'].subscription}
                 </MenuItem>
               )} */}
               {/* Language-related Menu Items */}
 
               {normalizedPrivillageData.includes(SCREEN_NAMES.IntroScreen) && (
-                <MenuItem href={`/${locale}/apps/taxi/introscreen`}
+                <MenuItem href={zoneOnlyHref('/apps/taxi/introscreen')} disabled={!hasZone}
                   icon={<i className='tabler-clipboard-text' />}
                 >
                   {dictionary['navigation'].introscreen}
                 </MenuItem>
               )}
-              {normalizedPrivillageData.includes(SCREEN_NAMES.Language) && (
+              {normalizedPrivillageData.includes(SCREEN_NAMES.Language) && session.user.image.role === ROLE.Client && (
                 <>
 
                   <MenuItem
-                    href={`/${locale}/apps/taxi/country/list/${clientId}`}
+                    href={noZoneOkHref(`/apps/taxi/country/list/${clientId}`, `/apps/taxi/country/list/${clientId}`)}
                     icon={<i className='tabler-world' />}
-                    exactMatch={false}
-                    activeUrl='/apps/taxi/country/list'
+
                   >
                     {dictionary['navigation'].countryMaster}
                   </MenuItem>
 
                   <MenuItem
-                    href={`/${locale}/apps/taxi/language/list/${clientId}`}
+                    href={noZoneOkHref(`/apps/taxi/language/list/${clientId}`, `/apps/taxi/language/list/${clientId}`)}
                     icon={<i className='tabler-language' />}
-                    exactMatch={false}
-                    activeUrl='/apps/taxi/language/list'
+
                   >
                     {dictionary['navigation'].languageMaster}
                   </MenuItem>
 
                   {/* <MenuItem
-                    href={`/${locale}/apps/taxi/translation/list`}
+                    href={`/${locale}/${zoneId}/apps/taxi/translation/list`}
                     icon={<i className='tabler-transaction-yen' />}
                     exactMatch={false}
                     activeUrl='/apps/taxi/translation/list'
@@ -419,10 +449,9 @@ return (
               {/* Other Menu Items */}
               {normalizedPrivillageData.includes(SCREEN_NAMES.ProjectVersion) && (
                 <MenuItem
-                  href={`/${locale}/apps/taxi/version/list`}
+                  href={noZoneOkHref('/apps/taxi/version/list', '/apps/taxi/version/list')}
                   icon={<i className='tabler-versions' />}
-                  exactMatch={false}
-                  activeUrl='/apps/taxi/version/list'
+
                 >
                   {dictionary['navigation'].projectVersion}
                 </MenuItem>
@@ -431,10 +460,10 @@ return (
 
               {normalizedPrivillageData.includes(SCREEN_NAMES.Cancellation) && (
                 <MenuItem
-                  href={`/${locale}/apps/taxi/cancellation/list`}
+                  href={zoneOnlyHref('/apps/taxi/cancellation/list')}
+                  disabled={!hasZone}
                   icon={<i className='tabler-circle-letter-x' />}
-                  exactMatch={false}
-                  activeUrl='/apps/taxi/cancellation/list'
+
                 >
                   {dictionary['navigation'].cancellation}
                 </MenuItem>
@@ -442,10 +471,10 @@ return (
 
               {normalizedPrivillageData.includes(SCREEN_NAMES.Faq) && (
                 <MenuItem
-                  href={`/${locale}/apps/taxi/translationMaster/faq`}
+                  href={zoneOnlyHref('/apps/taxi/translationMaster/faq')}
+                  disabled={!hasZone}
                   icon={<i className='tabler-help-hexagon' />}
-                  exactMatch={false}
-                  activeUrl='/apps/taxi/translationMaster/faq'
+
                 >
                   {dictionary['navigation'].faq}
                 </MenuItem>
@@ -454,20 +483,19 @@ return (
               {normalizedPrivillageData.includes(SCREEN_NAMES.Invoice) && (
 
                 <MenuItem
-                  href={`/${locale}/apps/taxi/translationMaster/invoice/list`}
+                  href={zoneOnlyHref('/apps/taxi/translationMaster/invoice/list')}
+                  disabled={!hasZone}
                   icon={<i className='tabler-file-invoice' />}
-                  exactMatch={false}
-                  activeUrl='/apps/taxi/translationMaster/invoice/list'
+
                 >
                   {dictionary['navigation'].FeedBack}
                 </MenuItem>
               )}
 
               <MenuItem
-                href={`/${locale}/apps/taxi/translationMaster/translation/list`}
+                href={noZoneOkHref('/apps/taxi/translationMaster/translation/list', '/apps/taxi/translationMaster/translation/list')}
                 icon={<i className='tabler-transaction-yen' />}
-                exactMatch={false}
-                activeUrl='/apps/taxi/translationMaster/translation/list'
+
               >
                 {dictionary['navigation'].trabslation}
 
@@ -479,7 +507,9 @@ return (
         {(normalizedPrivillageData.includes(SCREEN_NAMES.Ticket)) && (
           <MenuSection label={dictionary['navigation'].ticket}>
 
-            <MenuItem href={`/${locale}/apps/taxi/translationMaster/complaints`}
+            <MenuItem
+              href={zoneOnlyHref('/apps/taxi/translationMaster/complaints')}
+              disabled={!hasZone}
               icon={<i className='tabler-message-circle' />}
             >
               {dictionary['navigation'].complaints}
@@ -487,10 +517,10 @@ return (
 
             {normalizedPrivillageData.includes(SCREEN_NAMES.Ticket) && (
               <MenuItem
-                href={`/${locale}/apps/taxi/ticket`}
+                href={zoneOnlyHref('/apps/taxi/ticket')}
+                disabled={!hasZone}
                 icon={<i className='tabler-ticket' />}
-                exactMatch={false}
-                activeUrl='/apps/taxi/ticket'
+
               >
                 {dictionary['navigation'].ticket}
               </MenuItem>
@@ -505,19 +535,27 @@ return (
 
             {normalizedPrivillageData.includes(SCREEN_NAMES.Promo) && (
               <MenuItem
-                href={`/${locale}/apps/taxi/promo`}
+                href={zoneOnlyHref('/apps/taxi/promo')}
+                disabled={!hasZone}
                 icon={<i className='tabler-rosette-discount' />}
-                exactMatch={false}
-                activeUrl='/apps/taxi/promo'
+
               >
                 {dictionary['navigation'].PromoCode}
               </MenuItem>
             )}
-            <SubMenu label={dictionary['navigation'].push} icon={<i className='tabler-cloud-up' />}>
-              <MenuItem href={`/${locale}/apps/taxi/notification/${clientId}`}>
+            <MenuItem
+              href={zoneOnlyHref('/apps/taxi/advertisement')}
+              disabled={!hasZone}
+              icon={<i className='tabler-rosette-discount' />}
+
+            >
+              {dictionary['navigation'].advertisement}
+            </MenuItem>
+            <SubMenu label={dictionary['navigation'].push} icon={<i className='tabler-cloud-up' />} disabled={!hasZone}>
+              <MenuItem href={zoneOnlyHref(`/apps/taxi/notification/${clientId}`)} disabled={!hasZone}>
                 {dictionary['navigation'].notification}
               </MenuItem>
-              <MenuItem href={`/${locale}/apps/taxi/mail`}>
+              <MenuItem href={zoneOnlyHref('/apps/taxi/mail')} disabled={!hasZone}>
                 {dictionary['navigation'].email}
               </MenuItem>
             </SubMenu>
@@ -545,17 +583,17 @@ return (
                   normalizedPrivillageData.includes(SCREEN_NAMES.Privillage)) && (
                     <SubMenu label={dictionary['navigation'].privilegeManagement} icon={<i className='tabler-stack-forward' />}>
                       {normalizedPrivillageData.includes(SCREEN_NAMES.Roles) && (
-                        <MenuItem href={`/${locale}/apps/taxi/role/list`}>
+                        <MenuItem href={noZoneOkHref('/apps/taxi/role/list', '/apps/taxi/role/list')}>
                           {dictionary['navigation'].roles}
                         </MenuItem>
                       )}
                       {/* {normalizedPrivillageData.includes(SCREEN_NAMES.Permission) && (
-                        <MenuItem href={`/${locale}/apps/taxi/permission/list`}>
+                        <MenuItem href={`/${locale}/${zoneId}/apps/taxi/permission/list`}>
                           {dictionary['navigation'].permissions}
                         </MenuItem>
                       )} */}
                       {normalizedPrivillageData.includes(SCREEN_NAMES.Privillage) && (
-                        <MenuItem href={`/${locale}/apps/taxi/privillage`}>
+                        <MenuItem href={noZoneOkHref('/apps/taxi/privillage', '/apps/taxi/privillage')}>
                           {dictionary['navigation'].privillege}
                         </MenuItem>
                       )}
@@ -565,7 +603,7 @@ return (
                 {/* {normalizedPrivillageData.includes(SCREEN_NAMES.Invoice) && (
 
                   <MenuItem
-                    href={`/${locale}/apps/taxi/invoice/list`}
+                    href={`/${locale}/${zoneId}/apps/taxi/invoice/list`}
                     icon={<i className='tabler-file-invoice' />}
                     exactMatch={false}
                     activeUrl='/apps/taxi/invoice/list'
@@ -576,7 +614,7 @@ return (
 
                 {/* {normalizedPrivillageData.includes(SCREEN_NAMES.Faq) && (
                   <MenuItem
-                    href={`/${locale}/apps/taxi/faq`}
+                    href={`/${locale}/${zoneId}/apps/taxi/faq`}
                     icon={<i className='tabler-help-hexagon' />}
                     exactMatch={false}
                     activeUrl='/apps/taxi/faq'
@@ -596,50 +634,50 @@ return (
                   normalizedPrivillageData.includes(SCREEN_NAMES.InvoiceQuestion) ||
                   normalizedPrivillageData.includes(SCREEN_NAMES.PromoUseReports)
                 ) && (
-                    <SubMenu label={dictionary['navigation'].reports} icon={<i className='tabler-report' />}>
+                    <SubMenu label={dictionary['navigation'].reports} icon={<i className='tabler-report' />} disabled={!hasZone}>
 
                       {normalizedPrivillageData.includes(SCREEN_NAMES.DriverSummary) && (
-                        <MenuItem href={`/${locale}/apps/taxi/reports/driversummary`}>
+                        <MenuItem href={zoneOnlyHref('/apps/taxi/reports/driversummary')} disabled={!hasZone}>
                           {dictionary['navigation'].driverSummary}
                         </MenuItem>)}
 
                       {normalizedPrivillageData.includes(SCREEN_NAMES.CompletedLocalTrip) && (
-                        <MenuItem href={`/${locale}/apps/taxi/reports/completedlocaltrip`}>
+                        <MenuItem href={zoneOnlyHref('/apps/taxi/reports/completedlocaltrip')} disabled={!hasZone}>
                           {dictionary['navigation'].completedLocalTrip}
                         </MenuItem>)}
 
                       {normalizedPrivillageData.includes(SCREEN_NAMES.CompletedRentalTrip) && (
-                        <MenuItem href={`/${locale}/apps/taxi/reports/completedrentaltrip`}>
+                        <MenuItem href={zoneOnlyHref('/apps/taxi/reports/completedrentaltrip')} disabled={!hasZone}>
                           {dictionary['navigation'].completedRentalTrip}
                         </MenuItem>)}
 
                       {normalizedPrivillageData.includes(SCREEN_NAMES.DriverReports) && (
-                        <MenuItem href={`/${locale}/apps/taxi/reports/driverreports`}>
+                        <MenuItem href={zoneOnlyHref('/apps/taxi/reports/driverreports')} disabled={!hasZone}>
                           {dictionary['navigation'].deriverReports}
                         </MenuItem>)}
 
                       {normalizedPrivillageData.includes(SCREEN_NAMES.TripReports) && (
-                        <MenuItem href={`/${locale}/apps/taxi/reports/tripreports`}>
+                        <MenuItem href={zoneOnlyHref('/apps/taxi/reports/tripreports')} disabled={!hasZone}>
                           {dictionary['navigation'].tripReports}
                         </MenuItem>)}
 
                       {normalizedPrivillageData.includes(SCREEN_NAMES.TripWiseReports) && (
-                        <MenuItem href={`/${locale}/apps/taxi/reports/tripwisereports`}>
+                        <MenuItem href={zoneOnlyHref('/apps/taxi/reports/tripwisereports')} disabled={!hasZone}>
                           {dictionary['navigation'].tripWiseReports}
                         </MenuItem>)}
 
                       {normalizedPrivillageData.includes(SCREEN_NAMES.DriverWallet) && (
-                        <MenuItem href={`/${locale}/apps/taxi/reports/driverwallet`}>
+                        <MenuItem href={zoneOnlyHref('/apps/taxi/reports/driverwallet')} disabled={!hasZone}>
                           {dictionary['navigation'].driverWallet}
                         </MenuItem>)}
-{/* 
+
                       {normalizedPrivillageData.includes(SCREEN_NAMES.InvoiceQuestion) && (
-                        <MenuItem href={`/${locale}/apps/taxi/reports/invoicequestion`}>
+                        <MenuItem href={zoneOnlyHref('/apps/taxi/reports/invoicequestion')} disabled={!hasZone}>
                           {dictionary['navigation'].invoiceQuestion}
-                        </MenuItem>)} */}
+                        </MenuItem>)}
 
                       {normalizedPrivillageData.includes(SCREEN_NAMES.PromoUseReports) && (
-                        <MenuItem href={`/${locale}/apps/taxi/reports/promoreports`}>
+                        <MenuItem href={zoneOnlyHref('/apps/taxi/reports/promoreports')} disabled={!hasZone}>
                           {dictionary['navigation'].promoUseReports}
                         </MenuItem>)}
 
@@ -655,28 +693,31 @@ return (
 
 
 
-       {normalizedPrivillageData.includes(SCREEN_NAMES.Settings) && (
+
+        {(normalizedPrivillageData.includes(SCREEN_NAMES.Settings)) && (
+
+          <MenuItem
+            href={noZoneOkHref(`/apps/taxi/settings/${clientId}`, `/apps/taxi/settings/${clientId}`)}
+            icon={<i className='tabler-settings' />}
+          >
+            {dictionary['navigation'].setting}
+          </MenuItem>
+        )}
+
+{/* 
+        {(normalizedPrivillageData.includes(SCREEN_NAMES.Subscription)) && (
+
+          <MenuItem href={zoneOnlyHref('/apps/taxi/subscription/list')}
+            disabled={!hasZone}
+            icon={<i className='tabler-creative-commons' />}
+
+          >
+            {dictionary['navigation'].subscription}
+          </MenuItem>
+        )} */}
 
 
-        <MenuItem href={`/${locale}/apps/taxi/settings/${clientId}`} icon={<i className='tabler-settings' />}>
-          {dictionary['navigation'].setting}
-        </MenuItem>
-        )} 
-
-
-      {normalizedPrivillageData.includes(SCREEN_NAMES.SupScription) || session.user.image.role != ROLE.Client || session.user.image.role != ROLE.Dispatcher && (
-         
-        <MenuItem href={`/${locale}/apps/taxi/subscription/list`}
-          icon={<i className='tabler-creative-commons' />}
-          exactMatch={false}
-          activeUrl='/apps/taxi/subscription/list'
-        >
-          {dictionary['navigation'].subscription}
-        </MenuItem>
-        )} 
-
-
-        {/* <MenuItem href={`/${locale}/apps/taxi/subscription/list`}
+        {/* <MenuItem href={`/${locale}/${zoneId}/apps/taxi/subscription/list`}
           icon={<i className='tabler-creative-commons' />}
           exactMatch={false}
           activeUrl='/apps/taxi/subscription/list'
@@ -685,6 +726,7 @@ return (
         </MenuItem> */}
       </Menu>
     </ScrollWrapper>
+
   )
 }
 

@@ -2,9 +2,31 @@
 import { get, post, patch, del } from './apiService'
 import { ENDPOINTS } from './endpoint'
 
-export const fetchDocument = async () => {
+const getApiErrorMessage = (error: any, fallback: string) => {
+  const responseData = error?.response?.data
+
+  if (typeof responseData?.message === 'string' && responseData.message.trim()) {
+    return responseData.message
+  }
+
+  if (Array.isArray(responseData?.message) && responseData.message.length > 0) {
+    return String(responseData.message[0])
+  }
+
+  if (typeof responseData?.msg === 'string' && responseData.msg.trim()) {
+    return responseData.msg
+  }
+
+  if (typeof error?.message === 'string' && error.message.trim()) {
+    return error.message
+  }
+
+  return fallback
+}
+
+export const fetchDocument = async (overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.document.list)
+    const response = await get(ENDPOINTS.document.list, undefined, overrideZoneId)
 
 
     if (response.success) {
@@ -19,9 +41,20 @@ export const fetchDocument = async () => {
   }
 }
 
-export const getDocumentByPagination = async (searchTerm: string, page: number, limit: number) => {
+export const getDocumentByPagination = async (
+  searchTerm: string,
+  page: number,
+  limit: number,
+  type?: string,
+  groupDocumentId?: string,
+  overrideZoneId?: any
+) => {
   try {
-    const response = await get(ENDPOINTS.document.getByPagination(searchTerm, page, limit))
+    const response = await get(
+      ENDPOINTS.document.getByPagination(searchTerm, page, limit, type, groupDocumentId),
+      undefined,
+      overrideZoneId
+    )
 
     if (response.success) {
 
@@ -38,41 +71,37 @@ export const getDocumentByPagination = async (searchTerm: string, page: number, 
 }
 
 
-export const createDocument = async (document: any) => {
+export const createDocument = async (document: any, overrideZoneId?: any) => {
   try {
-    const response = await post(ENDPOINTS.document.create, document)
+    const response = await post(ENDPOINTS.document.create, document, overrideZoneId)
 
     if (response.success) {
       return response.data
     } else {
-      return null
+      throw new Error(response?.message || 'Error creating document')
     }
   } catch (error) {
-    console.error('Error creating document:', error)
-
-    return null
+    throw new Error(getApiErrorMessage(error, 'Error creating document'))
   }
 }
 
-export const updateDocument = async (id: string, document: any) => {
+export const updateDocument = async (id: string, document: any, overrideZoneId?: any) => {
   try {
-    const response = await patch(ENDPOINTS.document.update(id), document)
+    const response = await patch(ENDPOINTS.document.update(id), document, overrideZoneId)
 
     if (response.success) {
       return response.data
     } else {
-      return null
+      throw new Error(response?.message || 'Error updating document')
     }
   } catch (error) {
-    console.error('Error updating document:', error)
-
-    return null
+    throw new Error(getApiErrorMessage(error, 'Error updating document'))
   }
 }
 
-export const getByDocumentId = async (id: string) => {
+export const getByDocumentId = async (id: string, overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.document.getById(id))
+    const response = await get(ENDPOINTS.document.getById(id), undefined, overrideZoneId)
 
     if (response.success) {
       return response.data
@@ -86,34 +115,30 @@ export const getByDocumentId = async (id: string) => {
   }
 }
 
-export const deleteByDocumentById = async (id: string) => {
+export const deleteByDocumentById = async (id: string, overrideZoneId?: any) => {
   try {
-    const response = await del(ENDPOINTS.document.deleteById(id))
+    const response = await del(ENDPOINTS.document.deleteById(id), overrideZoneId)
 
     if (response.success) {
       return response.data
     } else {
-      return null
+      throw new Error(response?.message || 'Error deleting document')
     }
   } catch (error) {
-    console.error('Error deleting document by ID:', error)
-
-    return null
+    throw new Error(getApiErrorMessage(error, 'Error deleting document'))
   }
 }
 
-export const updateDocumentStatus = async (id: string, document: any) => {
+export const updateDocumentStatus = async (id: string, document: any, overrideZoneId?: any) => {
   try {
-    const response = await patch(ENDPOINTS.document.updateStatus(id), document);
+    const response = await patch(ENDPOINTS.document.updateStatus(id), document, overrideZoneId);
 
     if (response.success) {
       return response.data;
     } else {
-      return null;
+      throw new Error(response?.message || 'Error updating document status');
     }
   } catch (error) {
-    console.error('Error updating vehicleModel:', error);
-
-    return null;
+    throw new Error(getApiErrorMessage(error, 'Error updating document status'));
   }
 };

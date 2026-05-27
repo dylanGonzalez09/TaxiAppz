@@ -36,9 +36,12 @@ import CustomTextField from '@core/components/mui/TextField'; // Adjust path as 
 
 import { validateTextOnly } from '@/utils/validation';
 import { fetchZone } from '@/app/api/apps/taxi/zone';
-import { fetchUsers } from '@/app/api/apps/taxi/user';
+import { getUserByPagination , getByUser } from '@/app/api/apps/taxi/user';
 import CustomAutocomplete from '@/@core/components/mui/Autocomplete';
 import { createPromoCode, updatePromoCode } from '@/app/api/apps/taxi/promoCode';
+import AsyncDropdown from '@/components/AsyncDropdown';
+import { fetchVehicle } from '@/app/api/apps/taxi/vehicle'
+
 
 
 
@@ -54,12 +57,13 @@ interface AddPromoCodeModelDrawerProps {
   page: number;
   onPageChange: (event: React.ChangeEvent<unknown>, newPage: number) => void
   rowsPerPage: number;
+  zoneId?:any
 }
 
 interface FormValues {
-  
+
   // image: FileList | null;
-  
+
   description: string;
   zoneId: string;
   Type: string;
@@ -74,6 +78,7 @@ interface FormValues {
   newUser: boolean;
   fromDate: Date | string;
   endDate: Date | string;
+  vehicleType: string[]
 }
 
 const generatePromoCode = () => {
@@ -90,11 +95,13 @@ const AddPromoCodeModelDrawer: React.FC<AddPromoCodeModelDrawerProps> = ({
   setData, count,
   page,
   onPageChange,
-  rowsPerPage
+  rowsPerPage,
+  zoneId
 
 }) => {
   const [zones, setZones] = useState<any[]>([]);
-  const [users, setUsers] = useState<any[]>([]); // Assuming you have a users API
+
+  // const [users, setUsers] = useState<any[]>([]);
   // const [vehicleImagePreview, setVehicleImagePreview] = useState<string | null>(null);
   // const [logo, setLogo] = useState<File | null>(null);
   const [promoCode, setPromoCode] = React.useState(generatePromoCode());
@@ -102,24 +109,28 @@ const AddPromoCodeModelDrawer: React.FC<AddPromoCodeModelDrawerProps> = ({
   const { checkDemoStatus } = useIsDemoUser();
   const isSubmitDisabled = checkDemoStatus() || loading;
   const [selectedCurrency, setCurrency] = useState<string | null>(null);
+  const [vehicles, setVehicles] = useState<any[]>([])
+
+  const isExpired = (editData?.toDate && new Date(editData.toDate) < new Date()) || false ;
 
   const { handleSubmit, control, reset, setValue, watch, getValues, formState: { errors } } = useForm<FormValues>({
     mode: 'all',
     defaultValues: {
       description: '',
-      zoneId: '',
+      zoneId: zoneId,
       Type: '',
       PromoType: '',
       userIds: [],
       promoCode: '',
       totalCount: 1,
-      reuseCount: 0,
+      reuseCount: 1,
       minAmount: 1,
       promoAmount: 1,
       promoPercentage: 1,
       newUser: false,
       fromDate: '',
       endDate: '',
+      vehicleType: []
     },
   });
 
@@ -164,7 +175,7 @@ const AddPromoCodeModelDrawer: React.FC<AddPromoCodeModelDrawerProps> = ({
   useEffect(() => {
     const fetchZonesData = async () => {
       try {
-        const response = await fetchZone();
+        const response = await fetchZone(zoneId);
 
 
         setZones(response);
@@ -173,18 +184,37 @@ const AddPromoCodeModelDrawer: React.FC<AddPromoCodeModelDrawerProps> = ({
       }
     };
 
-    const fetchUsersData = async () => {
-      try {
-        const response = await fetchUsers();
+    // const getUserByPaginationData = async () => {
+    //   try {
+    //     const response = await getUserByPagination("", 1, 10, zoneId);
+    //     setUsers(response.results);
+    //   } catch (error) {
+    //     toast.error(dictionary['navigation'].Failedtoloadusers);
+    //   }
+    // };
 
-        setUsers(response.results);
+        const fetchVehiclesData = async () => {
+      try {
+        const response = await fetchVehicle()
+
+        // Handle different response formats
+        const vehiclesData = Array.isArray(response) ? response : response?.data || response || []
+
+        // Filter only active vehicles if status field exists
+        const activeVehicles = vehiclesData.filter((v: any) => v.status !== false && v.active !== false)
+
+        setVehicles(activeVehicles.length > 0 ? activeVehicles : vehiclesData)
       } catch (error) {
-        toast.error(dictionary['navigation'].Failedtoloadusers);
+        console.error('Error fetching vehicles:', error)
+        toast.error('Failed to load vehicles')
+        setVehicles([])
       }
-    };
+    }
 
     fetchZonesData();
-    fetchUsersData();
+    fetchVehiclesData()
+
+    // getUserByPaginationData();
 
     if (editData) {
       setValue('description', editData.description || '');
@@ -198,14 +228,16 @@ const AddPromoCodeModelDrawer: React.FC<AddPromoCodeModelDrawerProps> = ({
       setValue('minAmount', editData.targetAmount || 0);
       setValue('promoAmount', editData.amount || 0);
       setValue('promoPercentage', editData.percentage || 0);
-      setValue('fromDate', editData.fromDate ? new Date(editData.fromDate).toISOString().split('T')[0] : '');
-      
-      setValue('endDate', editData.toDate ? new Date(editData.toDate).toISOString().split('T')[0] : '');
-      
+
+      // setValue('fromDate', editData.fromDate ? new Date(editData.fromDate).toISOString().split('T')[0] : '');
+
+      // setValue('endDate', editData.toDate ? new Date(editData.toDate).toISOString().split('T')[0] : '');
+
       // setVehicleImagePreview(editData.banner ? `${BASE_IMAGE_URL}${editData.banner}` : null);
-      
+
       setValue('fromDate', editData.fromDate ? new Date(editData.fromDate) : '');
       setValue('endDate', editData.toDate ? new Date(editData.toDate) : '');
+      setValue('vehicleType', editData.vehicleType || '')
       setCurrency(editData.currency);
     } else {
       reset();
@@ -213,7 +245,7 @@ const AddPromoCodeModelDrawer: React.FC<AddPromoCodeModelDrawerProps> = ({
 
       // setVehicleImagePreview(null);
     }
-  }, [editData, setValue, reset, dictionary]);
+  }, [zoneId,editData, setValue, reset, dictionary]);
 
   const selectedType = watch('Type');
   const selectedPromoType = watch('PromoType');
@@ -222,7 +254,7 @@ const AddPromoCodeModelDrawer: React.FC<AddPromoCodeModelDrawerProps> = ({
     // Additional validation to ensure end date is after start date
     if (new Date(data.endDate) <= new Date(data.fromDate)) {
       toast.error(dictionary['navigation'].EndDateMustBeAfterStartDate || 'End date must be after start date');
-      
+
 return;
     }
 
@@ -232,7 +264,7 @@ return;
       const formData = new FormData();
 
       formData.append('description', data.description || '');
-      formData.append('zoneId', data.zoneId || '');
+      formData.append('zoneId',zoneId || '');
       formData.append('promoType', data.Type || '');
       formData.append('promoCodeType', data.PromoType || '');
       formData.append('promoCode', data.promoCode || promoCode || '');
@@ -240,22 +272,24 @@ return;
       formData.append('promoReuseCount', data.reuseCount.toString());
       formData.append('targetAmount', data.minAmount.toString());
       formData.append('newUser', data.newUser ? 'true' : 'false');
-      
+
       // Format dates properly
-      const fromDateStr = data.fromDate instanceof Date 
-        ? data.fromDate.toISOString().split('T')[0] 
+      const fromDateStr = data.fromDate instanceof Date
+        ? data.fromDate.toISOString()
         : typeof data.fromDate === 'string' ? data.fromDate : '';
-        
-      const endDateStr = data.endDate instanceof Date 
-        ? data.endDate.toISOString().split('T')[0] 
+
+      const endDateStr = data.endDate instanceof Date
+        ? data.endDate.toISOString()
         : typeof data.endDate === 'string' ? data.endDate : '';
-        
+
       formData.append('fromDate', fromDateStr);
       formData.append('toDate', endDateStr);
 
       if (data.userIds && data.userIds.length > 0) {
-        data.userIds.forEach(userId => {
-          formData.append('userId', userId); 
+        data.userIds.forEach((user: any) => {
+          const id = typeof user === "string" ? user : user._id || user.id;
+
+          formData.append("userId", id);
         });
       }
 
@@ -265,14 +299,18 @@ return;
         formData.append('percentage', data.promoPercentage.toString());
       }
 
+      if (data.PromoType !== 'newUser' && data.vehicleType) {
+        // formData.append('vehicleType', data.vehicleType)
+        data.vehicleType.forEach((id) => {
+            formData.append('vehicleType', id)
+        })
+      }
+
       // if (data.image?.[0]) {
       //   formData.append('image', data.image[0]);
       // }
 
 
-      for (const [key, value] of formData.entries()) {
-        console.log(`${key}: ${value}`);
-      }
 
       let response;
 
@@ -287,7 +325,7 @@ return;
 
          if (response.error) {
         toast.error(response.error);
-        
+
 return;
       }
 
@@ -330,7 +368,7 @@ return;
         throw new Error('API response error');
       }
     } catch (error) {
-      
+
       toast.error(dictionary['navigation'].ErrorsavingpromocodePleasetryagain);
     } finally {
       setLoading(false);
@@ -353,13 +391,13 @@ return;
   //     reader.readAsDataURL(file);
   //   }
   // };
-  
+
   const selectedZoneId = watch('zoneId');
 
   useEffect(() => {
     if (selectedZoneId && zones.length > 0) {
       const selectedZone = zones.find(zone => zone._id === selectedZoneId);
-      
+
       if (selectedZone?.currency) {
         setCurrency(selectedZone.currency);
       } else {
@@ -398,7 +436,7 @@ return;
           <Grid container spacing={1}>
 
             {/* Zone Selection */}
-            <Grid item xs={12} sm={6} p={4}>
+            {/* <Grid item xs={12} sm={6} p={4}>
               <Controller
                 name='zoneId'
                 control={control}
@@ -421,7 +459,7 @@ return;
                   </CustomTextField>
                 )}
               />
-            </Grid>
+            </Grid> */}
 
             {/* Promo Type Dropdown */}
             <Grid item xs={12} sm={6} p={4}>
@@ -435,6 +473,15 @@ return;
                     select
                     fullWidth
                     label={dictionary['navigation'].PromoType}
+                    onChange={(e) => {
+                      field.onChange(e)
+
+
+                      // Clear vehicleType when switching to newUser
+                      if (e.target.value === 'newUser') {
+                        setValue('vehicleType', [])
+                      }
+                    }}
                     error={!!errors.PromoType}
                     helperText={errors.PromoType?.message}
                   >
@@ -445,79 +492,118 @@ return;
                 )}
               />
             </Grid>
-
-            {/* Conditionally Rendered Fields */}
-            {selectedPromoType === 'individual' && (
+             {selectedPromoType && selectedPromoType !== 'newUser' && (
               <Grid item xs={12} sm={6} p={4}>
                 <Controller
-                  name="userIds"
+                  name="vehicleType"
                   control={control}
-                  rules={{ required: dictionary['navigation'].AtleastoneUserisrequired }}
-                  render={({ field, fieldState }) => (
+                  render={({ field ,fieldState}) => (
                     <CustomAutocomplete
-                      multiple
-                      options={users}
-                      id="autocomplete-user-ids"
-                      getOptionLabel={(option) => option.firstName || ''}
-                      isOptionEqualToValue={(option, value) => option.id === value.id}
-                      renderInput={(params) => (
-                        <CustomTextField
-                          {...params}
-                          label={dictionary['navigation'].AvailableUsers}
-                          placeholder={dictionary['navigation'].Type}
-                          error={Boolean(fieldState.error)}
-                          helperText={fieldState.error?.message || ''}
-                        />
-                      )}
-                      renderTags={(tagValue, getTagProps) =>
-                        tagValue.map((option, index) => (
-                          <Chip
-                            label={option.firstName}
-                            {...getTagProps({ index })}
-                            key={option.id}
-                            size="small"
-                          />
-                        ))
-                      }
-                      onChange={(event, value) => {
-                        // Set only IDs in the field
-                        field.onChange(value.map(user => user.id));
-                      }}
-                      value={users.filter(user => field.value.includes(user.id))}
-                    />
+                       multiple
+                       limitTags={2}
+                       options={vehicles}
+                       getOptionLabel={(option: any) => option.vehicleName || ''}
+
+                       value={vehicles.filter(v =>
+                         (field.value || []).includes(v._id || v.id)
+                       )}
+
+                       onChange={(_, selected) => {
+                         field.onChange(selected.map(v => v._id || v.id))
+                       }}
+
+                       renderInput={(params) => (
+                         <CustomTextField
+                           {...params}
+                           label="Vehicle Type"
+                           error={Boolean(fieldState.error)}
+                           helperText={fieldState.error?.message || ''}
+                         />
+                       )}
+                     />
                   )}
                 />
               </Grid>
             )}
 
-            <Grid item xs={12} sm={6} p={4}>
+            {/* Conditionally Rendered Fields */}
+            {selectedPromoType === 'individual' && (
+              <Grid item xs={12} sm={6} p={4}>
+               <Controller
+                 name="userIds"
+                 control={control}
+                 rules={{
+                   validate: (value) => {
+                     if (!value || value.length === 0) {
+                       return dictionary['navigation'].AtleastoneUserisrequired;
+                     }
+
+
+return true;
+                   }
+                 }}
+                 render={({ field, fieldState }) => (
+                   <AsyncDropdown
+                     label={dictionary['navigation'].AvailableUsers}
+                     apiFunction={getUserByPagination}
+                     extraParams={[zoneId]}
+                     multiple
+                     value={field.value || []}
+                     getOptionLabel={(option:any) =>
+                     option.firstName
+                       ? `${option.firstName} (${option.phoneNumber})`
+                       : option._id
+                   }
+                     onChange={(value: any[]) => {
+                       field.onChange(value);
+                     }}
+                     error={!!fieldState.error}
+                     helperText={fieldState.error ? fieldState.error.message : ''}
+                   />
+                 )}
+               />
+             </Grid>
+           )}
+
+          <Grid item xs={12} sm={6} p={4}>
               <Controller
-                name='promoCode'
-                control={control}
-                render={({ field }) => (
-                  <CustomTextField
-                    {...field}
-                    fullWidth
-                    label={dictionary['navigation'].PromoCode}
-                    placeholder={dictionary['navigation'].EnterPromoCode}
-                    InputProps={{
-                      endAdornment: (
-                        <InputAdornment position='end'>
-                          <IconButton edge='end' color='primary' onClick={handleGeneratePromoCode}>
-                            <Icon360 />
-                          </IconButton>
-                        </InputAdornment>
-                      ),
-                    }}
-                    error={!!errors.promoCode}
-                    helperText={errors.promoCode?.message}
-                    disabled={!!editData}  
-                  />
-                )}
-              />
-            </Grid>
+               name='promoCode'
+               control={control}
+               rules={{
+                 required: 'Promo code is required',
+                 pattern: {
+                   value: /^[A-Za-z0-9]+$/,
+                   message: 'Only letters and numbers are allowed'
+                 }
+               }}
+               render={({ field }) => (
+                 <CustomTextField
+                   {...field}
+                   fullWidth
+                   label={dictionary['navigation'].PromoCode}
+                   placeholder={dictionary['navigation'].EnterPromoCode}
 
-
+                   InputProps={{
+                     endAdornment: (
+                       <InputAdornment position='end'>
+                         <IconButton
+                           edge='end'
+                           color='primary'
+                           onClick={handleGeneratePromoCode}
+                           disabled={editData ? true : false}
+                         >
+                           <Icon360 />
+                         </IconButton>
+                       </InputAdornment>
+                     ),
+                   }}
+                   error={!!errors.promoCode}
+                   helperText={errors.promoCode?.message}
+                   disabled={!!editData}
+                 />
+               )}
+             />
+           </Grid>
             {/* <Grid item xs={12} sm={6} p={4}>
               <Controller
                 name="image" // No validation for required
@@ -615,16 +701,16 @@ return;
               <Controller
                 name='endDate'
                 control={control}
-                rules={{ 
+                rules={{
                   required: dictionary['navigation'].Enddateisrequired,
                   validate: value => {
                     const fromDateValue = getValues('fromDate');
 
                     if (!fromDateValue) return true; // If start date is not set, don't validate yet
-                    
+
                     // Ensure end date is greater than start date
-                    return new Date(value) > new Date(fromDateValue) || 
-                      dictionary['navigation'].EndDateMustBeAfterStartDate || 
+                    return new Date(value) > new Date(fromDateValue) ||
+                      dictionary['navigation'].EndDateMustBeAfterStartDate ||
                       'End date must be after start date';
                   }
                 }}
@@ -673,24 +759,39 @@ return;
               />
             </Grid>
 
-            <Grid item xs={12} sm={6} p={4}>
-              <Controller
-                name='reuseCount'
-                control={control}
-                rules={{ required: dictionary['navigation'].Reusecountisrequired }}
-                render={({ field }) => (
-                  <CustomTextField
-                    {...field}
-                    fullWidth
-                    type='number'
-                    label={dictionary['navigation'].ReuseCount}
-                    error={!!errors.reuseCount}
-                    helperText={errors.reuseCount?.message}
-                  />
-                )}
-              />
-            </Grid>
+         <Grid item xs={12} sm={6} p={4}>
+  <Controller
+    name='reuseCount'
+    control={control}
+    rules={{
+    required: dictionary['navigation'].Reusecountisrequired,
 
+     pattern: {
+       value: /^[1-9]\d*$/,
+       message: 'Only positive numbers are allowed'
+     },
+     min: {
+       value: 1,
+       message: 'Minimum value is 1'
+     },
+     max: {
+       value: 99,
+       message: 'Maximum value is 99'
+     }
+   }}
+    render={({ field }) => (
+      <CustomTextField
+        {...field}
+        fullWidth
+        type='number'
+        label={dictionary['navigation'].ReuseCount}
+        error={!!errors.reuseCount}
+        helperText={errors.reuseCount?.message}
+        inputProps={{ min: 1 }}
+      />
+    )}
+  />
+</Grid>
             {/* Promo Type Dropdown */}
             <Grid item xs={12} sm={6} p={4}>
               <Controller
@@ -724,12 +825,12 @@ return;
                 }}
 
                 render={({ field }) => (
-                  
+
                   <CustomTextField
                   InputProps={{
                       endAdornment: selectedCurrency ? (
                         <InputAdornment position="end">{selectedCurrency}</InputAdornment>
-                      ) : "$",
+                      ) : "",
                     }}
                     {...field}
                     fullWidth
@@ -738,7 +839,7 @@ return;
                     error={!!errors.minAmount}
                     helperText={errors.minAmount?.message}
                    inputProps={{ min: 1 }}
-              
+
                   />
                 )}
               />
@@ -759,6 +860,7 @@ return;
                       label={dictionary['navigation'].PromoAmount}
                       error={!!errors.promoAmount}
                       helperText={errors.promoAmount?.message}
+                      inputProps={{ min: 1 }}
                     />
                   )}
                 />
@@ -774,7 +876,7 @@ return;
                 required: dictionary['navigation'].Promopercentageisrequiredforpercentagepromotype,
                 min: { value: 1, message:  dictionary['navigation'].Promopercentagevalidationmin },
                 max: { value: 100, message: dictionary['navigation'].Promopercentagevalidationmax }
-              }}             
+              }}
                       render={({ field }) => (
                     <CustomTextField
                       {...field}
@@ -798,7 +900,8 @@ return;
                 control={control}
                 rules={{
                   required: dictionary['navigation'].Descriptionisrequired,
-                  validate: value => validateTextOnly(value, dictionary),
+
+                  // validate: value => validateTextOnly(value, dictionary),
                 }}
                 render={({ field }) => (
                   <CustomTextField
@@ -817,15 +920,28 @@ return;
           </Grid>
 
           {/* Submit Button */}
-          <div className='flex items-center gap-4'>
+          <div className='flex justify-end gap-5'>
             <Button
               type='submit'
               variant='contained'
               color='primary'
-              disabled={isSubmitDisabled} // Disable button when loading
+
+              // disabled={isSubmitDisabled || isExpired} // Disable button when loading
               endIcon={loading && <CircularProgress size={20} color="inherit" />} // Show loading spinner
             >
               {editData ? (loading ? dictionary['navigation'].Updating : dictionary['navigation'].Update) : (loading ? dictionary['navigation'].Creating : dictionary['navigation'].Create)}
+            </Button>
+            <Button
+            variant='outlined'
+            color='error'
+            onClick={
+              ()=>{
+                reset()
+                handleClose()
+              }
+            }
+            >
+           {dictionary['navigation'].Cancel}
             </Button>
           </div>
         </form>
@@ -835,5 +951,3 @@ return;
 };
 
 export default AddPromoCodeModelDrawer;
-
-

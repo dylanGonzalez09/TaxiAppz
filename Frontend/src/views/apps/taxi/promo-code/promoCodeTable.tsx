@@ -63,7 +63,7 @@ const fuzzyFilter: FilterFn<PromoDataType> = (row, columnId, filterValue) => {
 
 const columnHelper = createColumnHelper<PromoDataType>();
 
-const PromoCodeTable = ({ promoData, dictionary }: { promoData: any, dictionary: any}) => {
+const PromoCodeTable = ({ promoData, dictionary,zoneId }: { promoData: any, dictionary: any,zoneId:any}) => {
   const [addVehicleOpen, setAddVehicleOpen] = useState(false);
   const [editData, setEditData] = useState<PromoDataType | undefined>(undefined);
   const [rowSelection, setRowSelection] = useState({});
@@ -154,6 +154,17 @@ const PromoCodeTable = ({ promoData, dictionary }: { promoData: any, dictionary:
     }
   };
 
+const isPromoActive = (toDate: string) => {
+  const today = new Date();
+  const expiry = new Date(toDate);
+
+  // Remove time for accurate comparison
+  today.setHours(0, 0, 0, 0);
+  expiry.setHours(0, 0, 0, 0);
+
+  return expiry >= today;
+};
+
   const columns = useMemo<ColumnDef<PromoDataType, any>[]>(
     () => [
       {
@@ -199,33 +210,68 @@ const PromoCodeTable = ({ promoData, dictionary }: { promoData: any, dictionary:
           </Typography>
         ),
       }),
-      columnHelper.accessor('status', {
-        header: dictionary['navigation'].Status,
-        cell: ({ row }) => (
-          <div className='flex items-center gap-3'>
-            <Switch
-              checked={row.original.status}
-              onChange={() => handleStatusToggle(row.original)} // Toggle status on switch change
-              color={row.original.status ? 'success' : 'error'} // Use 'success' for active, 'error' for inactive
-                disabled={!row.original.status}
-              sx={{
-                '& .MuiSwitch-switchBase': {
-                  color: row.original.status ? 'green' : 'red', // Color for unchecked state
-                },
-                '& .MuiSwitch-switchBase.Mui-checked': {
-                  color: row.original.status ? 'green' : 'red', // Color for checked state
-                },
-                '& .MuiSwitch-thumb': {
-                  backgroundColor: 'white', // Inner knob color
-                },
-                '& .MuiSwitch-track': {
-                  backgroundColor: row.original.status ? 'green' : 'red', // Track color
-                },
-              }}
-            />
-          </div>
-        )
-      }),
+
+      // columnHelper.accessor('status', {
+      //   header: dictionary['navigation'].Status,
+      //   cell: ({ row }) => (
+      //     <div className='flex items-center gap-3'>
+      //       <Switch
+      //         checked={row.original.status}
+      //         onChange={() => handleStatusToggle(row.original)} // Toggle status on switch change
+      //         color={row.original.status ? 'success' : 'error'} // Use 'success' for active, 'error' for inactive
+      //           disabled={!row.original.status}
+      //         sx={{
+      //           '& .MuiSwitch-switchBase': {
+      //             color: row.original.status ? 'green' : 'red', // Color for unchecked state
+      //           },
+      //           '& .MuiSwitch-switchBase.Mui-checked': {
+      //             color: row.original.status ? 'green' : 'red', // Color for checked state
+      //           },
+      //           '& .MuiSwitch-thumb': {
+      //             backgroundColor: 'white', // Inner knob color
+      //           },
+      //           '& .MuiSwitch-track': {
+      //             backgroundColor: row.original.status ? 'green' : 'red', // Track color
+      //           },
+      //         }}
+      //       />
+      //     </div>
+      //   )
+      // }),
+columnHelper.accessor('status', {
+  header: dictionary['navigation'].Status,
+  cell: ({ row }) => {
+    const isActiveByDate = isPromoActive(row.original.toDate);
+
+    // Final status logic
+    const finalStatus = isActiveByDate ? row.original.status : false;
+
+    return (
+      <div className='flex items-center gap-3'>
+        <Switch
+          checked={finalStatus}
+          onChange={() => handleStatusToggle(row.original)}
+          color={finalStatus ? 'success' : 'error'}
+          disabled={!isActiveByDate} // disable only if expired
+          sx={{
+            '& .MuiSwitch-switchBase': {
+              color: finalStatus ? 'green' : 'red',
+            },
+            '& .MuiSwitch-switchBase.Mui-checked': {
+              color: finalStatus ? 'green' : 'red',
+            },
+            '& .MuiSwitch-thumb': {
+              backgroundColor: 'white',
+            },
+            '& .MuiSwitch-track': {
+              backgroundColor: finalStatus ? 'green' : 'red',
+            },
+          }}
+        />
+      </div>
+    );
+  }
+}),
       {
         id: 'actions',
         header: dictionary['navigation'].actions,
@@ -242,9 +288,10 @@ const PromoCodeTable = ({ promoData, dictionary }: { promoData: any, dictionary:
                     onClick: () => handleEditClick(row.original),
                   },
                 },
-                 {
+                {
                   text: dictionary['navigation'].Delete,
                   icon: 'tabler-trash',
+                  hidden: true,
                   menuItemProps: {
                     onClick: () => handleDeleteClick(row.original),
                   },
@@ -348,7 +395,7 @@ const PromoCodeTable = ({ promoData, dictionary }: { promoData: any, dictionary:
 
   const handlePageChange = async (event: unknown, newPage: number) => {
     try {
-      const { results, totalResults } = await getPromoWithPagination(pageSearch, newPage, pageSize);
+      const { results, totalResults } = await getPromoWithPagination(pageSearch, newPage, pageSize,zoneId);
 
       setData(results);
       setPageIndex(newPage);
@@ -362,7 +409,7 @@ const PromoCodeTable = ({ promoData, dictionary }: { promoData: any, dictionary:
 
     const newPageSize = parseInt(event.target.value);
 
-    const { results, totalResults } = await getPromoWithPagination(pageSearch, 1, newPageSize);
+    const { results, totalResults } = await getPromoWithPagination(pageSearch, 1, newPageSize,zoneId);
 
     setPageSize(newPageSize);
     setData(results);
@@ -377,7 +424,8 @@ const PromoCodeTable = ({ promoData, dictionary }: { promoData: any, dictionary:
         const result = await getPromoWithPagination(
           searchTerm,
           1, // Reset to first page on new search
-          pageSize
+          pageSize,
+          zoneId
         );
 
         setPageSearch(searchTerm);
@@ -524,6 +572,7 @@ const PromoCodeTable = ({ promoData, dictionary }: { promoData: any, dictionary:
         page={pageIndex}
         onPageChange={handlePageChange}
         rowsPerPage={pageSize}
+        zoneId={zoneId}
       />
       <ConfirmationDialogErrorHandle
         open={deleteConfirmationOpen}

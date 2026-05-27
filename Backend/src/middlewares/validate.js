@@ -1,9 +1,12 @@
 const Joi = require('joi');
-const httpStatus = require('http-status');
+const httpStatus = require('../utils/httpStatus.js');
 const pick = require('../utils/pick');
 const ApiError = require('../utils/ApiError');
 
 const validate = (schema) => (req, res, next) => {
+  if (typeof next !== 'function') {
+    return res.status(500).json({ message: 'Invalid middleware configuration' });
+  }
   const validSchema = pick(schema, ['params', 'query', 'body']);
   const object = pick(req, Object.keys(validSchema));
   const { value, error } = Joi.compile(validSchema)

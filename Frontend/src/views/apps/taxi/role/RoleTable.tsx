@@ -59,7 +59,7 @@ import EditRoleDrawer from './EditRoleDrawer';
 
 import ExportOptions from '@/utils/ExportOptions';
 import OptionMenu from '@/@core/components/option-menu';
-import { useIsDemoUser } from '@/utils/demoUser'
+import { useIsDemoUser } from '@/utils/demoUser' 
 
 import TablePaginationComponent from '@/components/CustomTablePaginationComponent';
 
@@ -154,13 +154,6 @@ const RoleTable = ({ roleData, dictionary }: { roleData: any, dictionary: any })
                   menuItemProps: {
                     onClick: () => handleEditClick(row.original),
                   },
-                },
-                {
-                  text: dictionary['navigation'].Delete,
-                  icon: 'tabler-trash',
-                  menuItemProps: {
-                    onClick: () => handleDeleteClick(row.original),
-                  },
                 }
               ]}
             />
@@ -207,7 +200,7 @@ const RoleTable = ({ roleData, dictionary }: { roleData: any, dictionary: any })
   const handleEditClick = (rowData: roleType) => {
     if (checkDemoStatus()) {
      toast.error(dictionary['navigation'].editError);
-
+      
       return;
       }
 
@@ -218,7 +211,7 @@ const RoleTable = ({ roleData, dictionary }: { roleData: any, dictionary: any })
   const handleDeleteClick = (original: roleType) => {
     if (checkDemoStatus()) {
      toast.error(dictionary['navigation'].deleteError);
-
+      
       return;
       }
 
@@ -226,26 +219,36 @@ const RoleTable = ({ roleData, dictionary }: { roleData: any, dictionary: any })
     setDeleteConfirmationOpen(true);
   };
 
-  const handleConfirmDelete = async (confirmed: boolean) => {
-    if (confirmed && deleteRoleId) {
-      try {
-        await deleteByRoleId(deleteRoleId);
 
-        if (data.length != 1) {
-          setData(data.filter((role: { id: string; }) => role.id !== deleteRoleId));
+const handleConfirmDelete = async (confirmed: boolean) => {
+  if (confirmed && deleteRoleId) {
+    try {
+      const result = await deleteByRoleId(deleteRoleId);
+
+      if (result.success) {
+        // Role deleted successfully
+        toast.success('Role deleted successfully.');
+
+        if (data.length !== 1) {
+          setData(data.filter((role: { id: string }) => role.id !== deleteRoleId));
           handlePagecurrentForAddRecord();
         } else {
           handlePageChangeForAddRecord();
         }
-      } catch (error) {
-        // Handle error, e.g., show an error message
-        console.error("Error deleting role:", error);
+      } else {
+        // API returned a message like "role assigned to users"
+        toast.error(result.message || 'Unable to delete role.');
       }
+    } catch (error) {
+      console.error("Error deleting role:", error);
+      toast.error('Something went wrong while deleting the role.');
     }
+  }
 
-    setDeleteConfirmationOpen(false);
-    setdeleteRoleId(null);
-  };
+  setDeleteConfirmationOpen(false);
+  setdeleteRoleId(null);
+};
+
 
   const handlePageChange = async (event: unknown, newPage: number) => {
     try {

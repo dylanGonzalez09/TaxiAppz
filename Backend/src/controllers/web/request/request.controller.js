@@ -1,48 +1,21 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const pick = require('../../../utils/pick');
 const ApiError = require('../../../utils/ApiError');
 const catchAsync = require('../../../utils/catchAsync');
-const { requestService,tokenService } = require('../../../services');
-const {ErrorLog} = require('../../../models');
+const { requestService, tokenService } = require('../../../services');
 const Response = require('../../../config/response');
+const { getAllZoneIdsFromPrimary } = require('../../../utils/zoneUtils');
+
+const { User, Driver, Message } = require('../../../models');
+
 const { getByTotalEarnings } = require('../../../services/web/request/request.service');
 
-
-
-const sendError = (message, data, code) => ({
-    success: false,
-    message,
-    data,
-    code,
-});
-const getUserId = async (req) => {
-
-  let userId = '';
-
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    res.status(httpStatus.UNAUTHORIZED).send({ message: 'Authorization header is missing or invalid' });
-    return;
-  }
-  // Remove the 'Bearer ' prefix and get the token
-  const token = authHeader.substring(7);
-
-  const user = await tokenService.verifyTokenAndGetUser(token);
-
-  userId = user.id
-
-  return userId;
-}
-
-
-
+const { getUserId, getClientId, getDriverId } = require('../../../utils/commonFunction');
 
 const createRequest = catchAsync(async (req, res) => {
-
   if (!req.headers.clientid) {
     throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
-  }else{
+  } else {
     req.body.clientId = req.headers.clientid;
   }
 
@@ -51,12 +24,10 @@ const createRequest = catchAsync(async (req, res) => {
   res.status(httpStatus.CREATED).send(response);
 });
 
-
 const createRequestPlace = catchAsync(async (req, res) => {
-
   if (!req.headers.clientid) {
     throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
-  }else{
+  } else {
     req.body.clientId = req.headers.clientid;
   }
 
@@ -73,7 +44,6 @@ const getRequests = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).send(response);
 });
 
-
 const getRequestsWithOutPagination = catchAsync(async (req, res) => {
   if (!req.headers.clientid) {
     throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
@@ -83,7 +53,7 @@ const getRequestsWithOutPagination = catchAsync(async (req, res) => {
   if (!request) {
     throw new ApiError(httpStatus.NOT_FOUND, 'Request not found');
   }
-  const response = Response(true, request, "Success");
+  const response = Response(true, request, 'Success');
   res.status(httpStatus.OK).send(response);
 });
 
@@ -92,25 +62,22 @@ const getRequestsWithPagination = catchAsync(async (req, res) => {
 
   const options = pick(req.query, ['sortBy', 'limit', 'page']);
 
-  if(req.query.search)
-  {
-    filter.requestNumber = {$regex: req.query.search,$options: 'i'}
+  if (req.query.search) {
+    filter.requestNumber = { $regex: req.query.search, $options: 'i' };
   }
 
   const result = await requestService.getRequestpagination(req, filter, options);
 
-  const response = Response(true, result, "Success");
+  const response = Response(true, result, 'Success');
   res.status(httpStatus.OK).send(response);
 });
-
-
 
 const getRequestsHistory = catchAsync(async (req, res) => {
   const request = await requestService.getRequesHistoryList(req);
   if (!request) {
     throw new ApiError(httpStatus.NOT_FOUND, 'Request not found');
   }
-  const response = Response(true, request, "Success");
+  const response = Response(true, request, 'Success');
   res.status(httpStatus.OK).send(response);
 });
 
@@ -123,16 +90,14 @@ const getRequestById = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).send(response);
 });
 
-
 const getRequestsByUserId = catchAsync(async (req, res) => {
   const request = await requestService.getRequestByUserId(req);
   if (!request) {
     throw new ApiError(httpStatus.NOT_FOUND, 'Request not found');
   }
-  const response = Response(true, request, "Success");
+  const response = Response(true, request, 'Success');
   res.status(httpStatus.OK).send(response);
 });
-
 
 const updateRequest = catchAsync(async (req, res) => {
   const request = await requestService.updateRequestById(req.params.requestId, req.body);
@@ -150,18 +115,158 @@ const deleteRequest = catchAsync(async (req, res) => {
 });
 
 const getTypes = catchAsync(async (req, res) => {
-  try {
-    const userId =await getUserId(req);
+    const userId = await getUserId(req);
     const request = await requestService.getRideTypes(userId, req);
-
     const response = Response(true, request, 'eta retrieved successfully');
+    return res.status(httpStatus.OK).send(response);
+});
 
-    return res.status(200).json(response);
+const getTripReports = catchAsync(async (req, res) => {
+  try {
+    const { date } = req.query;
+    const zoneId = req.headers.zoneid;
+
+    if (!zoneId) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Missing zoneId in headers');
+    }
+    const zoneIds = await getAllZoneIdsFromPrimary(zoneId);
+
+    const reports = await requestService.getTripByReports(date, zoneIds);
+
+    const response = {
+      success: true,
+      data: reports,
+      message: 'Reports received successfully',
+    };
+
+    res.status(200).send(response);
   } catch (error) {
-    console.error('Error in rideController:', error);
-    return res.status(400).json(sendError('Error occurred', error.message, 400));
+    console.error('Error fetching trip reports:', error);
+    res.status(500).json({ message: 'Internal Server Error' });
   }
 });
+
+const getTripCount = catchAsync(async (req, res) => {
+  // Fetch dashboard counts using the provided clientId
+  let clientId;
+
+  if (!req.headers.clientid) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
+  } else {
+    clientId = req.headers.clientid;
+  }
+  const data = await requestService.getByTripCount(clientId);
+
+  // Check if data is not found
+  if (!data || Object.keys(data).length === 0) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Data not found');
+  }
+
+  // Send the response with the dashboard data
+  const response = Response(true, data, 'Success');
+  res.status(httpStatus.OK).send(response);
+});
+
+const getLastTrips = catchAsync(async (req, res) => {
+  try {
+    if (!req.headers.zoneid) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'ZoneId not found');
+    }
+    const zoneId = req.headers.zoneid;
+
+    const zoneIds = await getAllZoneIdsFromPrimary(zoneId);
+
+    const lastTrip = await requestService.getLastTrips(req, zoneIds);
+    const response = Response(true, lastTrip, 'Last Trip reports retrieved successfully');
+    res.status(httpStatus.OK).json(response);
+  } catch (error) {
+    console.error('Error fetching trip reports:', error);
+    res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ message: 'Internal Server Error' });
+  }
+});
+
+const getLogisticsEarnings = catchAsync(async (req, res) => {
+  if (!req.headers.clientid) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
+  }
+
+  const clientId = req.headers.clientid;
+
+  try {
+    const totalEarnings = await requestService.getLogisticsByEarnings(clientId);
+    const response = Response(true, totalEarnings, 'Total Earnings retrieved successfully');
+    res.status(httpStatus.OK).json(response);
+  } catch (error) {
+    console.error('Error fetching Total Earning reports:', error);
+    res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ message: 'Internal Server Error' });
+  }
+});
+const getTotalEarnings = catchAsync(async (req, res) => {
+  if (!req.headers.clientid) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
+  }
+
+  const clientId = req.headers.clientid;
+
+  try {
+    const totalEarnings = await requestService.getByTotalEarnings(clientId);
+    const response = Response(true, totalEarnings, 'Total Earnings retrieved successfully');
+    res.status(httpStatus.OK).json(response);
+  } catch (error) {
+    console.error('Error fetching Total Earning reports:', error);
+    res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ message: 'Internal Server Error' });
+  }
+});
+
+const getUserTrips = async (req, res) => {
+  const { userId } = req.params;
+
+  const trips = await requestService.getUserTrips(userId);
+  const response = Response(true, trips, 'Request get successfully');
+  res.status(httpStatus.CREATED).send(response);
+};
+const getTripsByDriver = async (req, res) => {
+  // Check if clientId is present in headers
+
+  if (!req.headers.clientid) {
+    return res.status(httpStatus.BAD_REQUEST).json({
+      success: false,
+      message: 'ClientID not found in the request headers',
+    });
+  }
+
+  if (!req.headers.zoneid) {
+    return res.status(httpStatus.BAD_REQUEST).json({
+      success: false,
+      message: 'ZoneId not found in the request headers',
+    });
+  }
+
+  const clientId = req.headers.clientid;
+  const zoneId = req.headers.zoneid;
+
+  const zoneIds = await getAllZoneIdsFromPrimary(zoneId);
+
+  try {
+    // Fetch trips by driver based on clientId
+    const trips = await requestService.getTripsByDriver(clientId, zoneIds, zoneId);
+
+    // If no trips are found, return a message
+    if (!trips || trips.length === 0) {
+      return res.status(404).json({
+        success: true,
+        message: 'No trips found for the given clientId',
+      });
+    }
+
+    res.status(200).json({ success: true, data: trips });
+  } catch (error) {
+    console.error('Error fetching driver summaries:', error);
+    res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ message: 'Internal Server Error' });
+  }
+};
+
+
 
 /**
  * Get ETA for web (no clientId required)
@@ -234,394 +339,317 @@ const cancelWebRequest = catchAsync(async (req, res) => {
   }
 });
 
-const getTripReports = catchAsync(async (req, res) => {
-  try {
-    const { date } = req.query; // expected in MM/DD/YYYY format
-    const reports = await requestService.getTripByReports(date);
-    const response = Response(true, reports, 'Reports received successfully');
-   
-    return res.status(200).json(response);
-  } catch (error) {
-    console.error('Error in rideController:', error);
-    return res.status(400).json(sendError('Error occurred', error.message, 400));
-  }
-});
-   
-const getTripCount = catchAsync(async (req, res) => {
-  
-    // Fetch dashboard counts using the provided clientId
-    let clientId;
-  
-    if (!req.headers.clientid) {
-      throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
-    } else {
-      clientId = req.headers.clientid;
-    }
-    let data = await requestService.getByTripCount(clientId)
-  
-
-  
-    // Check if data is not found
-    if (!data || Object.keys(data).length === 0) {
-      throw new ApiError(httpStatus.NOT_FOUND, 'Data not found');
-    }
-  
-    // Send the response with the dashboard data
-    const response = Response(true, data, "Success");
-    res.status(httpStatus.OK).send(response);
-  
-});
-
-const getLastTrips= catchAsync(async (req, res) => {
-  try {
-    const lastTrip = await requestService.getLastTrips();
-    const response = Response(true, lastTrip, 'Last Trip reports retrieved successfully');
-    res.status(httpStatus.OK).json(response);
-  } catch (error) {
-    console.error('Error fetching trip reports:', error);
-    res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ message: 'Internal Server Error' });
-  }
-});
-
-const getLogisticsEarnings = catchAsync(async (req, res) => {
-  if (!req.headers.clientid) {
-      throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
-  }
-
-  const clientId = req.headers.clientid;
-
-  try {
-      const totalEarnings = await requestService.getLogisticsByEarnings(clientId);
-      const response = Response(true, totalEarnings, 'Total Earnings retrieved successfully');
-      res.status(httpStatus.OK).json(response);
-  } catch (error) {
-      console.error('Error fetching Total Earning reports:', error);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ message: 'Internal Server Error' });
-  }
-});
-const getTotalEarnings = catchAsync(async (req, res) => {
-  if (!req.headers.clientid) {
-      throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
-  }
-
-  const clientId = req.headers.clientid;
-
-  try {
-      const totalEarnings = await requestService.getByTotalEarnings(clientId);
-      const response = Response(true, totalEarnings, 'Total Earnings retrieved successfully');
-      res.status(httpStatus.OK).json(response);
-  } catch (error) {
-      console.error('Error fetching Total Earning reports:', error);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ message: 'Internal Server Error' });
-  }
-});
-
-const getUserTrips = async (req, res) => {
-
-    const { userId } = req.params;
-
-    const trips = await requestService.getUserTrips(userId);
-    const response = Response(true, trips, 'Request get successfully');
-    res.status(httpStatus.CREATED).send(response);
-
-};
-const getTripsByDriver = async (req, res) => {
-  // Check if clientId is present in headers
-  const clientId = req.headers.clientid;
-
-  if (!clientId) {
-    return res.status(httpStatus.BAD_REQUEST).json({
-      success: false,
-      message: 'ClientID not found in the request headers'
-    });
-  }
-
-  try {
-    // Fetch trips by driver based on clientId
-    const trips = await requestService.getTripsByDriver(clientId);
-
-    // If no trips are found, return a message
-    if (!trips || trips.length === 0) {
-      return res.status(404).json({
-        success: true,
-        message: 'No trips found for the given clientId'
-      });
-    }
-
-    res.status(200).json({ success: true, data: trips });
-  } catch (error) {
-    console.error("Error fetching driver summaries:", error);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ message: 'Internal Server Error' });
-  }
-};
 
 const getTripsByUser = async (req, res) => {
   // Check if clientId is present in headers
-  const clientId = req.headers.clientid;
 
-  if (!clientId) {
-   throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
-    
+  if (!req.headers.clientid) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
   }
+
+  if (!req.headers.zoneid) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'ZoneId not found');
+  }
+
+  const clientId = req.headers.clientid;
+  const zoneId = req.headers.zoneid;
 
   try {
     // Fetch trips by driver based on clientId
-    const trips = await requestService.getTripsByUser(clientId);
+    const trips = await requestService.getTripsByUser(clientId, zoneId);
     // If no trips are found, return a message
     if (!trips || trips.length === 0) {
-     throw new ApiError(httpStatus.NOT_FOUND, 'No trips found for the given clientId');
-     
+      throw new ApiError(httpStatus.NOT_FOUND, 'No trips found for the given clientId');
     }
 
-     const response = Response(true, trips, 'User trip count retrieved successfully');
-      res.status(httpStatus.OK).send(response);
+    const response = Response(true, trips, 'User trip count retrieved successfully');
+    res.status(httpStatus.OK).send(response);
   } catch (error) {
     throw new Error('Failed to fetch user trip count report');
- }
+  }
 };
 
-
 const getDriverTrips = async (req, res) => {
-
   const { userId } = req.params;
 
   const trips = await requestService.getDriverRequestTrips(userId);
   const response = Response(true, trips, 'Request get successfully');
   res.status(httpStatus.CREATED).send(response);
-
 };
 
 const getDriverSummaries = async (req, res) => {
   try {
-      const summaries = await requestService.getDriverSummary();
-      const response = Response(true,summaries,'Success');
-      res.status(httpStatus.CREATED).send(response);
+    const zoneId = req.headers.zoneid;
+    // const clientId = req.headers.clientid;
+
+    if (!zoneId) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'ZoneId not found');
+    }
+
+    const zoneIds = await getAllZoneIdsFromPrimary(zoneId);
+
+    const summaries = await requestService.getDriverSummary(zoneIds);
+    const response = {
+      success: true,
+      data: summaries,
+      message: 'Success',
+    };
+    res.status(201).send(response);
   } catch (error) {
-      console.error("Error fetching driver summaries:", error);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ message: 'Internal Server Error' });
+    console.error('Error fetching driver summaries:', error);
+    res.status(500).json({ message: 'Internal Server Error' });
   }
 };
+
 const getTripWiseReports = catchAsync(async (req, res) => {
- 
-    try {
-      const { date } = req.query; // expected in MM/DD/YYYY format
-      const reports = await requestService.getTripWiseReports(date);
-      const response = Response(true, reports, 'Reports received successfully');
-     
-      return res.status(200).json(response);
-    } catch (error) {
-      console.error('Error in rideController:', error);
-      return res.status(400).json(sendError('Error occurred', error.message, 400));
+  try {
+    const { date } = req.query;
+    const zoneId = req.headers.zoneid;
+
+    if (!zoneId) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Missing zoneId in headers');
     }
-  });
 
+    const zoneIds = await getAllZoneIdsFromPrimary(zoneId);
 
+    const reports = await requestService.getTripWiseReports(date, zoneIds);
+
+    const response = {
+      success: true,
+      data: reports,
+      message: 'Reports received successfully',
+    };
+
+    return res.status(200).json(response);
+  } catch (error) {
+    console.error('Error in rideController:', error);
+    return res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
 
 const getCompletedLocalTrip = async (req, res) => {
   try {
-      const summaries = await requestService.getCompletedLocalTrip();
-      if (!summaries) {
-        throw new ApiError(httpStatus.NOT_FOUND, 'Request not found');
-      }
-      const response = Response(true, summaries, 'Trip reports retrieved successfully');
-      res.status(httpStatus.OK).json(response);
+    const zoneId = req.headers.zoneid;
+    // const clientId = req.headers.clientid;
+
+    if (!zoneId) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'ZoneId not found');
+    }
+    const zoneIds = await getAllZoneIdsFromPrimary(zoneId);
+
+    const summaries = await requestService.getCompletedLocalTrip(zoneIds);
+    if (!summaries) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Request not found');
+    }
+    const response = Response(true, summaries, 'Trip reports retrieved successfully');
+    res.status(httpStatus.OK).json(response);
   } catch (error) {
-      console.error("Error fetching completed local trip:", error);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ message: 'Internal Server Error' });
+    console.error('Error fetching completed local trip:', error);
+    res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ message: 'Internal Server Error' });
   }
 };
 
 const getCompletedRentalTrip = async (req, res) => {
   try {
-      const summaries = await requestService.getCompletedRentalTrip();
-      const response = Response(true, summaries, 'Trip reports retrieved successfully');
-      res.status(httpStatus.OK).json(response);
+    const zoneId = req.headers.zoneid;
+    // const clientId = req.headers.clientid;
+
+    if (!zoneId) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'ZoneId not found');
+    }
+    const zoneIds = await getAllZoneIdsFromPrimary(zoneId);
+    const summaries = await requestService.getCompletedRentalTrip(zoneIds);
+    const response = Response(true, summaries, 'Trip reports retrieved successfully');
+    res.status(httpStatus.OK).json(response);
   } catch (error) {
-      console.error("Error fetching completed local trip:", error);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ message: 'Internal Server Error' });
+    console.error('Error fetching completed local trip:', error);
+    res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ message: 'Internal Server Error' });
   }
 };
 
-const getRentalList = async(req,res) => {
+const getRentalList = async (req, res) => {
   try {
-      const rentalList = await requestService.getRentalList();
-      if(!rentalList)
-      {
-        throw new ApiError(httpStatus.NOT_FOUND,'No request found');
-      }
-      const response = Response(true, rentalList, 'Rental List retrieved successfully');
-      res.status(httpStatus.OK).json(response);
+    const rentalList = await requestService.getRentalList(req);
+    if (!rentalList) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'No request found');
+    }
+    const response = Response(true, rentalList, 'Rental List retrieved successfully');
+    res.status(httpStatus.OK).json(response);
   } catch (error) {
-      console.error("Error fetching completed local trip:", error);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ message: 'Internal Server Error' });
+    console.error('Error fetching completed local trip:', error);
+    res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ message: error.message });
   }
 };
 
 const getTodayEarnings = catchAsync(async (req, res) => {
   if (!req.headers.clientid) {
-      throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
+    throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
+  }
+
+  if (!req.headers.zoneid) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'ZoneId not found');
   }
 
   const clientId = req.headers.clientid;
+  const zoneId = req.headers.zoneid;
 
+  const zoneIds = await getAllZoneIdsFromPrimary(zoneId);
   try {
-      const totalEarnings = await requestService.getTodayEarnings(clientId);
-      const response = Response(true, totalEarnings, 'Total Earnings retrieved successfully');
-      res.status(httpStatus.OK).json(response);
+    const totalEarnings = await requestService.getTodayEarnings(req, clientId, zoneIds, zoneId);
+    const response = Response(true, totalEarnings, 'Total Earnings retrieved successfully');
+    res.status(httpStatus.OK).json(response);
   } catch (error) {
-      console.error('Error fetching Total Earning reports:', error);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ message: 'Internal Server Error' });
+    console.error('Error fetching Total Earning reports:', error);
+    res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ message: 'Internal Server Error' });
   }
 });
 
 const getTodayReport = catchAsync(async (req, res) => {
   if (!req.headers.clientid) {
-      throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
+    throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
+  }
+
+  if (!req.headers.zoneid) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'ZoneId not found');
   }
 
   const clientId = req.headers.clientid;
+  const zoneId = req.headers.zoneid;
 
   try {
-      const totalEarnings = await requestService.getTodayReport(clientId);
-      const response = Response(true, totalEarnings, 'Total Earnings retrieved successfully');
-      res.status(httpStatus.OK).json(response);
+    const totalEarnings = await requestService.getTodayReport(req, clientId, zoneId);
+    const response = Response(true, totalEarnings, 'Total Earnings retrieved successfully');
+    res.status(httpStatus.OK).json(response);
   } catch (error) {
-      console.error('Error fetching Total Earning reports:', error);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ message: 'Internal Server Error' });
+    console.error('Error fetching Total Earning reports:', error);
+    res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ message: 'Internal Server Error' });
   }
 });
 
-const getWeeklyReport = catchAsync(async (req,res) => {
+const getWeeklyReport = catchAsync(async (req, res) => {
   if (!req.headers.clientid) {
     throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
   }
 
+  if (!req.headers.zoneid) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'ZoneId not found');
+  }
+
   const clientId = req.headers.clientid;
+  const zoneId = req.headers.zoneid;
 
   try {
-      const filter = pick(req.query, ['search']);
-      const totalEarnings = await requestService.getWeeklyReport(clientId,filter);
-      const response = Response(true, totalEarnings, 'weekly report retrieved successfully');
-      res.status(httpStatus.OK).send(response);
+    const filter = pick(req.query, ['search']);
+    const totalEarnings = await requestService.getWeeklyReport(req, clientId, filter, zoneId);
+    const response = Response(true, totalEarnings, 'weekly report retrieved successfully');
+    res.status(httpStatus.OK).send(response);
   } catch (error) {
-      console.error('Error fetching weekly report:', error);
-      throw new Error("Failed to fetch weekly reports");
+    console.error('Error fetching weekly report:', error);
+    throw new Error('Failed to fetch weekly reports');
   }
 });
 
-const getMonthlyReport = catchAsync(async (req,res) => {
+const getMonthlyReport = catchAsync(async (req, res) => {
   if (!req.headers.clientid) {
     throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
   }
 
+  if (!req.headers.zoneid) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'ZoneId not found');
+  }
+
   const clientId = req.headers.clientid;
+  const zoneId = req.headers.zoneid;
 
   try {
-      const filter = pick(req.query, ['search']);
-      const totalEarnings = await requestService.getMonthlyReport(clientId,filter);
-      const response = Response(true, totalEarnings, 'monthly report retrieved successfully');
-      res.status(httpStatus.OK).send(response);
+    const filter = pick(req.query, ['search']);
+
+    const totalEarnings = await requestService.getMonthlyReport(req, clientId, filter, zoneId);
+
+    const response = Response(true, totalEarnings, 'monthly report retrieved successfully');
+
+    res.status(httpStatus.OK).send(response);
   } catch (error) {
-      console.error('Error fetching monthly report:', error);
-      throw new Error("Failed to fetch monthly reports");
+    console.error('Error fetching monthly report:', error);
+    throw new Error('Failed to fetch monthly reports');
   }
 });
 
 const getYearlyRevenue = async (req, res) => {
   // Check if clientId is present in headers
-  const clientId = req.headers.clientid;
 
-  if (!clientId) {
-   throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
-    
+  if (!req.headers.clientid) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
   }
+  if (!req.headers.zoneid) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'ZoneId not found');
+  }
+
+  const clientId = req.headers.clientid;
+  const zoneId = req.headers.zoneid;
 
   try {
     // Fetch trips by driver based on clientId
-    const trips = await requestService.getYearlyRevenue(clientId);
-
+    const trips = await requestService.getYearlyRevenue(req, clientId, zoneId);
     // If no trips are found, return a message
     if (!trips || trips.length === 0) {
-     throw new ApiError(httpStatus.NOT_FOUND, 'No trips found for the given clientId');
-     
+      throw new ApiError(httpStatus.NOT_FOUND, 'No trips found for the given clientId');
     }
 
-     const response = Response(true, trips, 'User trip count retrieved successfully');
-      res.status(httpStatus.OK).send(response);
+    const response = Response(true, trips, 'User trip count retrieved successfully');
+    res.status(httpStatus.OK).send(response);
   } catch (error) {
     throw new Error('Failed to fetch user trip count report');
- }
+  }
 };
 
-
-const getErrorLogs = catchAsync(async (req, res) => {
-  const filter = pick(req.query, ['statusCode', 'method', 'url']); // example filter fields
-  const options = pick(req.query, ['sortBy', 'limit', 'page']);
-
-  // Optional: add search over message or url fields
-  if (req.query.search) {
-    filter.$or = [
-      { message: { $regex: req.query.search, $options: 'i' } },
-      { url: { $regex: req.query.search, $options: 'i' } },
-    ];
-  }
-
-  const result = await queryErrorLogs(filter, options);
-  const response = Response(true, result, 'Success');
-  res.status(httpStatus.OK).send(response);
-});
-
-const queryErrorLogs = async (filter, options) => {
+const getChatHistory = async (req, res) => {
   try {
-    const limit = parseInt(options.limit, 10) || 10;
-    const page = parseInt(options.page, 10) || 1;
+    const { requestNumber} = req.query;
+    const messages = await Message.find({ requestNumber });
+    const enrichedMessages = await Promise.all(
+      messages.map(async (msg) => {
+        let sender;
+        let receiver;
 
-    // Count total matching documents for pagination info
-    const totalResults = await ErrorLog.countDocuments(filter);
 
-    // Default sorting: newest first
-    options.sortBy = options.sortBy || 'timestamp:desc';
-
-    // Parse sortBy to build sort object
-    const [sortField, sortOrder] = options.sortBy.split(':');
-    const sort = {};
-    sort[sortField] = sortOrder === 'asc' ? 1 : -1;
-
-    // Aggregation pipeline for filtering, sorting, pagination
-    const results = await ErrorLog.aggregate([
-      { $match: filter },
-
-      // Project only needed fields (customize as needed)
-      {
-        $project: {
-          message: 1,
-          stack: 1,
-          url: 1,
-          method: 1,
-          body: 1,
-          user: 1,
-          statusCode: 1,
-          timestamp: 1,
+        if (msg.senderType === 'Users') {
+          sender = await User.findById(msg.senderNumber).lean();
+        } else if (msg.senderType === 'Driver') {
+          sender = await Driver.findById(msg.senderNumber).lean();
         }
-      },
 
-      { $sort: sort },
-      { $skip: (page - 1) * limit },
-      { $limit: limit },
-    ]);
+        if (msg.receiverType === 'Users') {
+          receiver = await User.findById(msg.receiverNumber).lean();
+        } else if (msg.receiverType === 'Driver') {
+          receiver = await Driver.findById(msg.receiverNumber).lean();
+        }
 
-    const totalPages = Math.ceil(totalResults / limit);
+        return {
+          _id: msg._id,
+          message: msg.message,
+          createdAt: msg.createdAt,
+          sender: {
+            _id: msg.senderNumber,
+            type: msg.senderType,
+          },
+          receiver: {
+            _id: msg.receiverNumber,
+            type: msg.receiverType,
+          },
+        };
+      }),
+    );
 
-    return {
-      results,
-      page,
-      limit,
-      totalPages,
-      totalResults,
-    };
+    return res.status(200).json({
+      success: true,
+      messages: enrichedMessages,
+    });
   } catch (error) {
-    console.error('Error in querying error logs:', error);
-    throw error;
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to fetch chat history',
+    });
   }
 };
 
@@ -636,9 +664,6 @@ module.exports = {
   getRequestsByUserId,
   getRequestsHistory,
   getTypes,
-  getWebTypes,
-  createWebRequest,
-  getWebRequestStatus,
   getRequestsWithPagination,
   getTripReports,
   getTripCount,
@@ -653,12 +678,15 @@ module.exports = {
   getCompletedLocalTrip,
   getCompletedRentalTrip,
   getRentalList,
+  getChatHistory,
   getTodayEarnings,
   getTodayReport,
   getWeeklyReport,
   getMonthlyReport,
   getYearlyRevenue,
   getTripsByUser,
-  getErrorLogs,
-  cancelWebRequest
+  cancelWebRequest,
+  getWebRequestStatus,
+  createWebRequest,
+  getWebTypes
 };

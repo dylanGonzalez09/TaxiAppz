@@ -1,4 +1,4 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const ApiError = require('../../../utils/ApiError');
 const { ZonePrice } = require('../../../models');
 
@@ -25,15 +25,13 @@ const queryZonePrice = async (filter, options) => {
   return zonePrize;
 };
 
-
 /**
  * @param {ObjectId} clientId
  * @returns {Promise<ZonePrice>}
  */
 const getZonePrice = async (clientId) => {
-  return ZonePrice.find({clientId:clientId});
+  return ZonePrice.find({ clientId });
 };
-
 
 /**
  * @param {ObjectId} id
@@ -43,21 +41,17 @@ const getZonePriceById = async (id) => {
   return ZonePrice.findById(id);
 };
 
-
 /**
  * Update role by id
  * @param {ObjectId} zonePriceId
  * @param {Object} updateBody
  * @returns {Promise<ZonePrice>}
  */
-const updateZonePriceById = async (zonePriceId, updateBody,zoneId) => {
-
-  
+const updateZonePriceById = async (zonePriceId, updateBody, zoneId) => {
   let zonePrice = await getZonePriceById(zonePriceId);
 
   if (!zonePrice) {
     updateBody.zoneId = zoneId;
-
 
     zonePrice = await createZonePrice(updateBody);
     return zonePrice;
@@ -79,7 +73,7 @@ const deleteZonePriceById = async (zonePriceId) => {
     throw new ApiError(httpStatus.NOT_FOUND, 'Zone not found');
   }
   await zonePrice.deleteOne();
-  return { status: "success",   msg:"data Deleted Successfully" };
+  return { status: 'success', msg: 'data Deleted Successfully' };
 };
 
 module.exports = {

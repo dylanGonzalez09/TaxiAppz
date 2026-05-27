@@ -4,8 +4,10 @@ const { objectId } = require('../../custom.validation');
 
 const createSOS = {
   body: Joi.object().keys({
-    phoneNumber: Joi.string().trim().optional(),
-    title: Joi.string().trim().optional(),
+    phoneNumber: Joi.string().trim().required(),
+    countryCode: Joi.string().trim().required(),
+    dialCode: Joi.string().trim().optional(),
+    title: Joi.string().trim().required(),
     status: Joi.number().default(1),
   }),
 };
@@ -27,11 +29,15 @@ const updateSOS = {
   params: Joi.object().keys({
     sosId: Joi.string().custom(objectId).required(),
   }),
-  body: Joi.object().keys({
-    phoneNumber: Joi.string().trim().optional(),
-    title: Joi.string().trim().optional(),
-    status: Joi.number().optional(),
-  }).min(1),
+  body: Joi.object()
+    .keys({
+      phoneNumber: Joi.string().trim().optional(),
+      countryCode: Joi.string().trim().optional(),
+      dialCode: Joi.string().trim().optional(),
+      title: Joi.string().trim().optional(),
+      status: Joi.number().optional(),
+    })
+    .min(1),
 };
 
 const deleteSOS = {

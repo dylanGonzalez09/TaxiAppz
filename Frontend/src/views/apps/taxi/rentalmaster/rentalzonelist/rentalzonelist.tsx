@@ -4,13 +4,18 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 
+import Link from 'next/link';
+
 import { useParams } from 'next/navigation';
 
 import type { TextFieldProps } from '@mui/material/TextField';
 import TablePagination from '@mui/material/TablePagination';
 import {createColumnHelper, flexRender, useReactTable, getCoreRowModel, getFilteredRowModel, getSortedRowModel, getPaginationRowModel } from '@tanstack/react-table';
-import { MenuItem, Typography, Card , Link } from '@mui/material';
+import { MenuItem, Typography, Card, IconButton  } from '@mui/material';
 import type { ColumnDef, FilterFn } from '@tanstack/react-table';
+
+import type { Locale } from '@configs/i18n'
+import { getLocalizedUrl } from '@/utils/i18n'
 
 
 import CustomTextField from '@core/components/mui/TextField';
@@ -20,6 +25,7 @@ import tableStyles from '@core/styles/table.module.css';
 
 type rentalZoneList = {
   _id: string;
+  id?: string;
   zoneName: string;
   status: boolean;
   action: any;
@@ -66,7 +72,8 @@ const rentalZoneListTable = ({ staticGroup, dictionary }: { staticGroup: rentalZ
   const [rowSelection, setRowSelection] = useState({});
   const [data, setData] = useState<rentalZoneList[]>(staticGroup);
   const [globalFilter, setGlobalFilter] = useState('');
-  const { lang: locale } = useParams();
+  const { lang: locale,zoneId } = useParams();
+  const zoneIdString = Array.isArray(zoneId) ? zoneId[0] : zoneId;
 
   const columns = useMemo<ColumnDef<rentalZoneList, any>[]>(() => [
     {
@@ -91,20 +98,25 @@ const rentalZoneListTable = ({ staticGroup, dictionary }: { staticGroup: rentalZ
     }),
     columnHelper.accessor('status', {
       header: dictionary['navigation'].status,
-      cell: ({ row }) => <Typography className='font-medium'> {`${row.original.status == true ? 'Active' : 'Inactive'} `}</Typography>,
+      cell: ({ row }) => <Typography className={ `font-medium ${row.original.status === true ? 'text-green-600' : 'text-red-600'} `}>
+         {`${row.original.status == true ? dictionary['navigation'].Active || 'Active' : dictionary['navigation'].Inactive ||'Inactive'} `}
+         </Typography>,
     }),
     columnHelper.accessor('action', {
       header: dictionary['navigation'].Action,
-      cell: ({ row }) => (
+      cell: ({ row }) => {
+        return (
         <div className='flex items-center'>
-          <Link href={`/apps/taxi/rentalmaster/rentalmaster/${row.original._id}`} className='flex'>
+          <IconButton>
+          <Link href={getLocalizedUrl(`/${zoneIdString}/apps/taxi/rentalmaster/rentalmaster/${row.original._id || row.original.id }`,locale as Locale)} className='flex'>
             <i className='tabler-eye text-textSecondary' />
           </Link>
+          </IconButton>
         </div>
-      ),
+      )},
       enableSorting: false,
     }),
-  ], [ dictionary]);
+  ], [ zoneIdString,dictionary]);
 
   const table = useReactTable({
     data,

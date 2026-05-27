@@ -2,7 +2,6 @@
 export const SCREEN_NAMES = {
   Admin: 'admin',
   User: 'user',
-  Company: 'company',
   Driver: 'driver',
   Pakage: 'pakage',
   Sidemnu: "sidemenu",
@@ -20,7 +19,7 @@ export const SCREEN_NAMES = {
   Translation: 'translation',
   ProjectVersion: 'projectversion',
   Client: 'client',
-  SupScription: 'subscription',
+  Subscription: 'subscription',
   IntroScreen: "introscreen",
   RideNow: "ridenow",
   RideLater: "ridelater",
@@ -42,20 +41,16 @@ export const SCREEN_NAMES = {
   Dispatcher: "dispatcher",
   Dispatch: "dispatch",
   Invoice: "invoice",
-  CompanySubsciption: 'companysubscription',
   RentalList: 'rentallist',
-  CorporateCompany: 'corporatecompany',
-  TaxiCompany: 'TaxiCompany',
-  CompanyVehicle: 'companyvehicle',
   Rental: "rental",
   Faq: "faq",
   Ticket: "ticket",
   Wallet: "wallet",
   Complaints: "complaints",
-  CompanyTaxi: "CompanyTaxi",
   TranslationMaster:"translationmaster",
   Settings: "settings",
   FleetManagement: "fleetmanagement",
+  DemoClient : "demoClient"
 };
 
 

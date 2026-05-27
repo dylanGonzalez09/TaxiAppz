@@ -18,8 +18,9 @@ const cardData: any[] = [
 ];
 
 const RoleCards = ({ roleData = [], dictionary }: { roleData?: any[], dictionary: any }) => {
-  const { lang: locale } = useParams()
+  const { lang: locale,zoneId } = useParams();
 
+  const zoneIdString = Array.isArray(zoneId) ? zoneId[0] : zoneId;
 
   return (
     <Grid container spacing={6}>
@@ -41,7 +42,7 @@ const RoleCards = ({ roleData = [], dictionary }: { roleData?: any[], dictionary
                     <Button
                       color="primary"
                       component={Link}
-                      href={getLocalizedUrl(`apps/taxi/role/edit-role/${item.id}`, locale as Locale)}
+                      href={getLocalizedUrl(`${zoneIdString}/apps/taxi/role/edit-role/${item.id}`, locale as Locale)}
                     >
                       {dictionary['navigation'].EditRole}
                     </Button>

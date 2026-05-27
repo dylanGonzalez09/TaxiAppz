@@ -14,11 +14,14 @@ router.route('/list').get(zoneController.getZoneWithOutPagination);
 router.route('/getZones/:zoneId').get(auth('Zone'), validate(zoneValidation.getZone), zoneController.getZone);
 router.route('/updateZones/:zoneId').patch(zoneController.updateZone);
 router.route('/deleteZones/:zoneId').delete(auth('Zone'), validate(zoneValidation.deleteZone), zoneController.deleteZone);
-router.patch('/updateZoneStatus/:zoneId', auth('Zone'), validate(zoneValidation.updateZoneStatus), zoneController.updateZoneStatus);
-
+router.patch(
+  '/updateZoneStatus/:zoneId',
+  auth('Zone'),
+  validate(zoneValidation.updateZoneStatus),
+  zoneController.updateZoneStatus,
+);
 
 module.exports = router;
-
 
 /**
  * @swagger

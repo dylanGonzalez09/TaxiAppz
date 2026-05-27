@@ -6,7 +6,7 @@ const createWallet = {
   body: Joi.object().keys({
     amount: Joi.number().default(0),
     amountSpent: Joi.number().default(0),
-    balance: Joi.number().default(0)
+    balance: Joi.number().default(0),
   }),
 };
 

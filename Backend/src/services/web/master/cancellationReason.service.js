@@ -1,29 +1,10 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
+const { log } = require('winston');
 const ApiError = require('../../../utils/ApiError');
 const { CancellationReason } = require('../../../models');
-const { log } = require('winston');
-const ObjectId = require('mongoose').Types.ObjectId;
+const { ObjectId } = require('mongoose').Types;
 
-const getClientId = async (req) => {
-  clientId = '';
-  if (!req.headers.clientid) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
-  } else {
-    clientId = req.headers.clientid;
-  }
-  return clientId;
-}
-
-
-const getCompanyId = async (req) => {
-  companyId = '';
-  if (!req.headers.companyid) {
-    companyId = null;
-  } else {
-    companyId = req.headers.companyid;
-  }
-  return companyId;
-}
+const { getClientId, getZoneId } = require('../../../utils/commonFunction');
 
 /**
  * Create a cancellation
@@ -45,15 +26,11 @@ const createCancellation = async (cancellationBody) => {
  * @returns {Promise<QueryResult>}
  */
 
-const queryCancellation = async (req,filter, options) => {
-  const clientId = await getClientId(req);
-  const companyId = await getCompanyId(req);
-
-  if (companyId) {
-    filter.companyId = companyId;
-  }
-
-  filter.clientId = clientId;
+const queryCancellation = async (req, filter, options) => {
+  // const clientId = await getClientId(req);
+  // const zoneId = await getZoneId(req);
+  filter.clientId = new ObjectId(req.headers.clientid);
+  filter.zoneId = new ObjectId(req.headers.zoneid);
 
   const limit = parseInt(options.limit, 10) || 10;
   const page = parseInt(options.page, 10) || 1;
@@ -61,8 +38,7 @@ const queryCancellation = async (req,filter, options) => {
   const totalResults = await CancellationReason.countDocuments(filter);
 
   const result = await CancellationReason.aggregate([
-    // { $match: filter },
-
+    { $match: filter },
     {
       $lookup: {
         from: 'zones',
@@ -85,9 +61,8 @@ const queryCancellation = async (req,filter, options) => {
         id: '$_id',
         amount: 1,
         clientId: 1,
-        companyId: 1,
         payStatus: 1,
-        reason : 1,
+        reason: 1,
         status: 1,
         tripStatus: 1,
         zoneId: 1,
@@ -121,17 +96,34 @@ const queryCancellation = async (req,filter, options) => {
  * Get roles
  * @returns {Promise<CancellationReason>}
  */
-const getUserCancellations = async () => {
-  return CancellationReason.find({userType:"User",status:true});
-};
+const getUserCancellations = async (req) => {
+  const zoneId = req.body?.zoneId || req.headers?.zoneid;
+  const filter = {
+    userType: { $in: ['User', 'Both'] },
+  };
 
+  if (zoneId) {
+    filter.zoneId = new ObjectId(zoneId);
+  }
+
+  return CancellationReason.find(filter);
+};
 
 /**
  * Get roles
  * @returns {Promise<CancellationReason>}
  */
-const getDriverCancellations = async () => {
-  return CancellationReason.find({userType:"Driver",status:true});
+const getDriverCancellations = async (req) => {
+  const zoneId = req.body?.zoneId || req.headers?.zoneid;
+  const filter = {
+    userType: { $in: ['Driver', 'Both'] },
+  };
+
+  if (zoneId) {
+    filter.zoneId = new ObjectId(zoneId);
+  }
+
+  return CancellationReason.find(filter);
 };
 
 /**
@@ -143,10 +135,6 @@ const getCancellationsById = async (cancellationId) => {
   return CancellationReason.findById(cancellationId);
 };
 
-
-
-
-
 /**
  * Update cancellation by cancellationId
  * @param {ObjectId} cancellationId
@@ -155,7 +143,6 @@ const getCancellationsById = async (cancellationId) => {
  */
 
 const updateCancellationById = async (cancellationId, updateBody) => {
-
   const cancellation = await getCancellationsById(cancellationId);
   if (!cancellation) {
     throw new ApiError(httpStatus.NOT_FOUND, 'cancellation not found');
@@ -177,18 +164,19 @@ const deleteCancellationById = async (cancellationId) => {
     throw new ApiError(httpStatus.NOT_FOUND, 'cancellation not found');
   }
   await cancellation.deleteOne();
-  return { status: "success",   msg:"data Deleted Successfully" };
+  return { status: 'success', msg: 'data Deleted Successfully' };
 };
-const getCancellationByLanguage = async (req,filter, options) => {
-  const langId = req.params.langId;
+
+const getCancellationByLanguage = async (req, filter, options) => {
+  const { langId } = req.params;
   filter.clientId = new ObjectId(req.headers.clientid);
   filter.language = new ObjectId(langId);
+  filter.zoneId = new ObjectId(req.headers.zoneid);
 
-  const cancellation = await CancellationReason.paginate(filter, options);
   options.sortBy = options.sortBy || 'createdAt:desc';
+  const cancellation = await CancellationReason.paginate(filter, options);
 
   return cancellation;
-
 };
 
 module.exports = {
@@ -199,5 +187,5 @@ module.exports = {
   getDriverCancellations,
   updateCancellationById,
   deleteCancellationById,
-  getCancellationByLanguage
+  getCancellationByLanguage,
 };

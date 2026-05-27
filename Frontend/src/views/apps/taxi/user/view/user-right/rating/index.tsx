@@ -10,7 +10,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 
 import Chip from '@mui/material/Chip'
-  
+
 
 // MUI Imports
 import Typography from '@mui/material/Typography'
@@ -59,7 +59,8 @@ type RatingListType = {
 interface RatingTabProps {
   userId: string;
   ratingData: RatingListType[];
-  dictionary: any
+  dictionary: any;
+  overallRating?: number;
 }
 
 
@@ -114,11 +115,11 @@ return () => clearTimeout(timeout)
 // Column Definitions
 const columnHelper = createColumnHelper<RatingListType>()
 
-const RatingTable =  ({ userId, ratingData , dictionary }: RatingTabProps) => {
+const RatingTable =  ({ userId, ratingData , dictionary, overallRating }: RatingTabProps) => {
   // States
   const [rowSelection, setRowSelection] = useState({})
   const [globalFilter, setGlobalFilter] = useState('')
-const [data, setData] = useState<RatingListType[]>(ratingData || []);
+  const [data, setData] = useState<RatingListType[]>(ratingData || []);
 
   // Column definitions
   const columns = useMemo<ColumnDef<RatingListType, any>[]>(() => [
@@ -149,7 +150,7 @@ const [data, setData] = useState<RatingListType[]>(ratingData || []);
     columns,
     filterFns: { fuzzy: fuzzyFilter },
     state: { rowSelection, globalFilter },
-    initialState: { pagination: { pageSize: 25 } },
+    initialState: { pagination: { pageSize: 5 } },
     enableRowSelection: true,
     globalFilterFn: fuzzyFilter,
     onRowSelectionChange: setRowSelection,
@@ -162,8 +163,11 @@ const [data, setData] = useState<RatingListType[]>(ratingData || []);
 
   return (
     <Card>
-  
-          <CardHeader  className='flex flex-wrap gap-2' title={`${dictionary['navigation'].RatingList} (${table.getFilteredRowModel().rows.length})`} />
+
+          <CardHeader
+            className='flex flex-wrap gap-2'
+            title={`${dictionary['navigation'].RatingList} (${overallRating ?? table.getFilteredRowModel().rows.length})`}
+          />
 
       <div className='flex items-center justify-between p-6 gap-4'>
         <div className='flex items-center gap-2'>
@@ -185,7 +189,7 @@ const [data, setData] = useState<RatingListType[]>(ratingData || []);
           placeholder={dictionary['navigation'].SearchRating}
         />
       </div>
-      <div className='overflow-x-auto'>
+      <div className='overflow-x-auto' id="table-container">
         <table className={tableStyles.table}>
           <thead>
             {table.getHeaderGroups().map(headerGroup => (

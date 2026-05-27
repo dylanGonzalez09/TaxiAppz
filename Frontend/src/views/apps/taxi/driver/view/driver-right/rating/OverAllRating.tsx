@@ -28,7 +28,7 @@ const OverAllRating = (dictionary: any) => {
   return (
     <Card>
       <CardHeader title='Over All Rating' />
-      <div className='overflow-x-auto'>
+      <div className='overflow-x-auto' id="table-container">
         <table className={tableStyles.table}>
           <thead>
             <tr>

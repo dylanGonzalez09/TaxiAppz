@@ -7,10 +7,10 @@ import { redirect, usePathname } from 'next/navigation'
 import type { Locale } from '@/configs/i18n'
 
 // Config Imports
-import themeConfig from '@/configs/themeConfig'
+// import themeConfig from '@/configs/themeConfig'
 
 // Util Imports
-import { getLocalizedUrl } from '@/utils/i18n'
+// import { getLocalizedUrl } from '@/utils/i18n'
 
 const AuthRedirect = ({ lang }: { lang: Locale }) => {
   const pathname = usePathname()
@@ -18,9 +18,14 @@ const AuthRedirect = ({ lang }: { lang: Locale }) => {
   // ℹ️ Bring me `lang`
   const redirectUrl = `/${lang}/login?redirectTo=${pathname}`
 
+  const zoneId = typeof window !== 'undefined' ? localStorage.getItem('defaultZoneId') : null
+  const safeZoneId = zoneId || 'default-zone-id'
+
+  const homePage = `/${lang}/${safeZoneId}/dashboards/client`
+
   const login = `/${lang}/login`
 
-  const homePage = getLocalizedUrl(themeConfig.homePageUrl, lang)
+  // const homePage = getLocalizedUrl(themeConfig.homePageUrl, lang)
 
   return redirect(pathname === login ? login : pathname === homePage ? login : redirectUrl)
 }

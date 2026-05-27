@@ -1,9 +1,8 @@
-
 const mongoose = require('mongoose');
 const { toJSON, paginate } = require('../plugins');
 
 const requestMetaSchema = mongoose.Schema(
-    {
+  {
     requestId: {
       type: mongoose.Schema.Types.ObjectId,
       allowNull: false,
@@ -39,12 +38,14 @@ const requestMetaSchema = mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
-// Define associations
-// RequestMeta.belongsTo(Request, { foreignKey: 'requestId', as: 'request' });
-// RequestMeta.belongsTo(User, { foreignKey: 'driverId', as: 'driver' });
 
+// Indexes for countDocuments(driverId, active) in createTrip/assignDriver
+requestMetaSchema.index({ driverId: 1, active: 1 }, { background: true });
+requestMetaSchema.index({ requestId: 1 }, { background: true });
+
+requestMetaSchema.index({ createdAt: 1 }, { expireAfterSeconds: 80 });
 
 const RequestMeta = mongoose.model('RequestMeta', requestMetaSchema);
 

@@ -2,9 +2,10 @@
 import { get, post, patch, del } from './apiService'
 import { ENDPOINTS } from './endpoint'
 
-export const fetchRequest = async () => {
+
+export const fetchRequest = async (overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.request.list)
+    const response = await get(ENDPOINTS.request.list, undefined, overrideZoneId)
 
     if (response.success) {
       return response.data
@@ -16,11 +17,11 @@ export const fetchRequest = async () => {
 
     return []
   }
-}
+};
 
-export const getInvoiceQuestionReport = async () => {
+export const getInvoiceQuestionReport = async (overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.request.getInvoiceQuestionsReport)
+    const response = await get(ENDPOINTS.request.getInvoiceQuestionsReport, undefined, overrideZoneId)
 
     if (response.success) {
       return response.data
@@ -32,11 +33,42 @@ export const getInvoiceQuestionReport = async () => {
 
     return []
   }
-}
+};
 
-export const fetchUserRequestData = async (id: string) => {
+export const fetchUserRequestData = async (id: string, overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.request.getByUserRequestTrips(id))
+    const response = await get(ENDPOINTS.request.getByUserRequestTrips(id), undefined, overrideZoneId);
+
+    if (response.success) {
+      return response.data;
+    } else {
+      return null;
+    }
+  } catch (error) {
+
+    return null;
+  }
+};
+
+export const fetchDriverRequestData = async (id: string, overrideZoneId?: any) => {
+  try {
+    const response = await get(ENDPOINTS.request.getByDriverRequestTrips(id), undefined, overrideZoneId);
+
+    if (response.success) {
+      return response.data;
+    } else {
+      return null;
+    }
+  } catch (error) {
+
+    return null;
+
+  }
+};
+
+export const getRequestWithPagination = async (searchTerm: string, page: number, limit: number, rideType: string, tripStatus: string,paymentOpt:string,startDate:any,endDate:any, overrideZoneId?: any) => {
+  try {
+    const response = await get(ENDPOINTS.request.getByPagination(searchTerm, page, limit, rideType, tripStatus,paymentOpt,startDate,endDate), undefined, overrideZoneId)
 
     if (response.success) {
       return response.data
@@ -44,47 +76,15 @@ export const fetchUserRequestData = async (id: string) => {
       return null
     }
   } catch (error) {
+   
+
     return null
   }
-}
+};
 
-export const fetchDriverRequestData = async (id: string) => {
+export const createRequest = async (request: any, overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.request.getByDriverRequestTrips(id))
-
-    if (response.success) {
-      return response.data
-    } else {
-      return null
-    }
-  } catch (error) {
-    return null
-  }
-}
-
-export const getRequestWithPagination = async (
-  searchTerm: string,
-  page: number,
-  limit: number,
-  rideType: string,
-  tripStatus: string
-) => {
-  try {
-    const response = await get(ENDPOINTS.request.getByPagination(searchTerm, page, limit, rideType, tripStatus))
-
-    if (response.success) {
-      return response.data
-    } else {
-      return null
-    }
-  } catch (error) {
-    return null
-  }
-}
-
-export const createRequest = async (request: any) => {
-  try {
-    const response = await post(ENDPOINTS.request.create, request)
+    const response = await post(ENDPOINTS.request.create, request, overrideZoneId)
 
     if (response.success) {
       return response.data
@@ -96,27 +96,32 @@ export const createRequest = async (request: any) => {
 
     return null
   }
-}
+};
 
-export const requestEta = async (request: any) => {
+
+export const requestEta = async (request: any, overrideZoneId?: any) => {
   try {
-    const response = await post(ENDPOINTS.request.eta, request)
+    const response = await post(ENDPOINTS.request.eta, request, overrideZoneId)
 
     if (response.success) {
-      return response
+      return response.data
     } else {
-      return null
+      return response
     }
-  } catch (error: any) {
+  } catch (error:any) {
+    console.error('Error creating request:', error)
+    
+    return {
+        success: false,
+        message: error || "Something went wrong while fetching ETA details."
+    };
 
-
-    return { success: false, message: error.response?.data?.data || 'Promo is Invalid' }
   }
 }
 
-export const updateRequest = async (id: string, request: any) => {
+export const updateRequest = async (id: string, request: any, overrideZoneId?: any) => {
   try {
-    const response = await patch(ENDPOINTS.request.update(id), request)
+    const response = await patch(ENDPOINTS.request.update(id), request, overrideZoneId)
 
     if (response.success) {
       return response.data
@@ -128,11 +133,12 @@ export const updateRequest = async (id: string, request: any) => {
 
     return null
   }
-}
+};
 
-export const getByRequestId = async (id: string) => {
+export const getByRequestId = async (id: string, overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.request.getById(id))
+    const response = await get(ENDPOINTS.request.getById(id), undefined, overrideZoneId)
+
 
     if (response.success) {
       return response.data
@@ -144,11 +150,11 @@ export const getByRequestId = async (id: string) => {
 
     return null
   }
-}
+};
 
-export const deleteByRequestId = async (id: string) => {
+export const deleteByRequestId = async (id: string, overrideZoneId?: any) => {
   try {
-    const response = await del(ENDPOINTS.request.deleteById(id))
+    const response = await del(ENDPOINTS.request.deleteById(id), overrideZoneId)
 
     if (response.success) {
       return response.data
@@ -160,11 +166,12 @@ export const deleteByRequestId = async (id: string) => {
 
     return null
   }
-}
+};
 
-export const getByRequestHistory = async (phoneNumber: string) => {
+export const getByRequestHistory = async (phoneNumber: string, overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.request.getByPhone(phoneNumber))
+    const response = await get(ENDPOINTS.request.getByPhone(phoneNumber), undefined, overrideZoneId)
+
 
     if (response.success) {
       return response.data
@@ -176,11 +183,11 @@ export const getByRequestHistory = async (phoneNumber: string) => {
 
     return null
   }
-}
+};
 
-export const getTripByReports = async () => {
+export const getTripByReports = async (overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.request.getTripReports)
+    const response = await get(ENDPOINTS.request.getTripReports, undefined, overrideZoneId)
 
     if (response.success) {
       return response.data
@@ -192,11 +199,11 @@ export const getTripByReports = async () => {
 
     return null
   }
-}
+};
 
-export const getByTripCount = async () => {
+export const getByTripCount = async (overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.request.getTripCount)
+    const response = await get(ENDPOINTS.request.getTripCount, undefined, overrideZoneId)
 
     if (response.success) {
       return response.data
@@ -208,11 +215,11 @@ export const getByTripCount = async () => {
 
     return null
   }
-}
+};
 
-export const getByLastTrips = async () => {
+export const getByLastTrips = async ( overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.request.getLastTrips)
+    const response = await get(ENDPOINTS.request.getLastTrips, undefined, overrideZoneId)
 
     if (response.success) {
       return response.data
@@ -224,11 +231,11 @@ export const getByLastTrips = async () => {
 
     return null
   }
-}
+};
 
-export const getLogisticsByEarnings = async () => {
+export const getLogisticsByEarnings = async ( overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.request.getLogisticsEarnings)
+    const response = await get(ENDPOINTS.request.getLogisticsEarnings, undefined, overrideZoneId)
 
     if (response.success) {
       return response.data
@@ -240,11 +247,11 @@ export const getLogisticsByEarnings = async () => {
 
     return null
   }
-}
+};
 
-export const getByTotalEarnings = async () => {
+export const getByTotalEarnings = async ( overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.request.getTotalEarnings)
+    const response = await get(ENDPOINTS.request.getTotalEarnings, undefined, overrideZoneId)
 
     if (response.success) {
       return response.data
@@ -256,69 +263,58 @@ export const getByTotalEarnings = async () => {
 
     return null
   }
-}
+};
 
-export const getTripsByDriver = async () => {
+export const getTripsByDriver = async ( overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.request.getTripsByDriver)
+    const response = await get(ENDPOINTS.request.getTripsByDriver, undefined, overrideZoneId);
 
     if (response.success) {
-      return response.data
+      return response.data;
     } else {
-      return null
+      return null;
     }
   } catch (error) {
-    return null
-  }
-}
+   ;
 
-export const getDriverSummary = async () => {
+    return null;
+  }
+};
+
+
+export const getDriverSummary = async (overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.request.getDriverSummary)
+    const response = await get(ENDPOINTS.request.getDriverSummary, undefined, overrideZoneId);
 
     if (response.success) {
-      return response.data
+      return response.data;
     } else {
-      return null
+      return null;
     }
   } catch (error) {
-    return null
-  }
-}
 
-export const getCompletedLocalTrip = async () => {
+    return null;
+  }
+};
+
+export const getDriverReport = async (overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.request.getCompletedLocalTrip)
+    const response = await get(ENDPOINTS.driver.getDriverReport, undefined, overrideZoneId);
 
     if (response.success) {
-      return response.data
+      return response.data;
     } else {
-      return null
+      return null;
     }
   } catch (error) {
-    console.error('Error getting trip report by ID:', error)
 
-    return null
+    return null;
   }
-}
+};
 
-export const getCompletedRentalTrips = async () => {
+export const getCompletedLocalTrip = async (overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.request.getCompletedRentalTrip)
-
-    if (response.success) {
-      return response.data
-    } else {
-      return null
-    }
-  } catch (error) {
-    return null
-  }
-}
-
-export const getTripWiseReports = async () => {
-  try {
-    const response = await get(ENDPOINTS.request.getTripWiseReports)
+    const response = await get(ENDPOINTS.request.getCompletedLocalTrip, undefined, overrideZoneId);
 
     if (response.success) {
       return response.data
@@ -330,11 +326,42 @@ export const getTripWiseReports = async () => {
 
     return null
   }
-}
+};
 
-export const getRentalList = async () => {
+export const getCompletedRentalTrips = async (overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.request.getRentalList)
+    const response = await get(ENDPOINTS.request.getCompletedRentalTrip, undefined, overrideZoneId);
+
+    if (response.success) {
+      return response.data
+    } else {
+      return null
+    }
+  } catch (error) {
+
+    return null
+  }
+};
+
+export const getTripWiseReports = async (overrideZoneId?: any) => {
+  try {
+    const response = await get(ENDPOINTS.request.getTripWiseReports, undefined, overrideZoneId);
+
+    if (response.success) {
+      return response.data
+    } else {
+      return null
+    }
+  } catch (error) {
+    console.error('Error getting trip report by ID:', error)
+
+    return null
+  }
+}; 
+
+export const getRentalList = async (overrideZoneId?: any) => {
+  try {
+    const response = await get(ENDPOINTS.request.getRentalList, undefined, overrideZoneId);
 
     if (response.success) {
       return response.data
@@ -346,11 +373,11 @@ export const getRentalList = async () => {
 
     return null
   }
-}
+};
 
-export const getByTodayEarnings = async () => {
+export const getByTodayEarnings = async ( overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.request.getTodayEarnings)
+    const response = await get(ENDPOINTS.request.getTodayEarnings, undefined, overrideZoneId)
 
     if (response.success) {
       return response.data
@@ -358,13 +385,14 @@ export const getByTodayEarnings = async () => {
       return null
     }
   } catch (error) {
+
     return null
   }
-}
+};
 
-export const getByTodayReport = async () => {
+export const getByTodayReport = async ( overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.request.getTodayReport)
+    const response = await get(ENDPOINTS.request.getTodayReport, undefined, overrideZoneId)
 
     if (response.success) {
       return response.data
@@ -372,13 +400,14 @@ export const getByTodayReport = async () => {
       return null
     }
   } catch (error) {
+
     return null
   }
-}
+};
 
-export const getWeeklyReport = async () => {
+export const getWeeklyReport = async ( overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.request.getWeeklyReport)
+    const response = await get(ENDPOINTS.request.getWeeklyReport, undefined, overrideZoneId)
 
     if (response.success) {
       return response.data
@@ -386,13 +415,14 @@ export const getWeeklyReport = async () => {
       return null
     }
   } catch (error) {
+
     return null
   }
-}
+};
 
-export const getMonthlyReport = async () => {
+export const getMonthlyReport = async ( overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.request.getMonthlyReport)
+    const response = await get(ENDPOINTS.request.getMonthlyReport, undefined, overrideZoneId)
 
     if (response.success) {
       return response.data
@@ -400,13 +430,14 @@ export const getMonthlyReport = async () => {
       return null
     }
   } catch (error) {
+
     return null
   }
-}
+};
 
-export const getYearlyRevenue = async () => {
+export const getYearlyRevenue = async ( overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.request.getYearlyRevenue)
+    const response = await get(ENDPOINTS.request.getYearlyRevenue, undefined, overrideZoneId)
 
     if (response.success) {
       return response.data
@@ -414,13 +445,14 @@ export const getYearlyRevenue = async () => {
       return null
     }
   } catch (error) {
+
     return null
   }
-}
+};
 
-export const getTripsByUser = async () => {
+export const getTripsByUser = async ( overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.request.getTripsByUser)
+    const response = await get(ENDPOINTS.request.getTripsByUser, undefined, overrideZoneId)
 
     if (response.success) {
       return response.data
@@ -428,50 +460,25 @@ export const getTripsByUser = async () => {
       return null
     }
   } catch (error) {
+
     return null
   }
-}
+};
 
-export const getErrorLogs = async (searchTerm: string, page: number, limit: number) => {
+export const getChatHistory = async (id: string) => {
   try {
-    const response = await get(ENDPOINTS.request.getErrorLogs(searchTerm, page, limit))
+    const response = await get(ENDPOINTS.request.getChatHistory(id));
 
-    if (response.success) {
-      return response.data
+    if (response?.success) {
+      return response; // ✅ Return full response
     } else {
-      return null
-    }
-  } catch (error) {
-    return null
-  }
-}
-
-export const getOtpTable = async (searchTerm: string, page: number, limit: number) => {
-  try {
-    const response = await get(ENDPOINTS.request.getOtpTable(searchTerm, page, limit))
-
-    if (response.success) {
-      return response.data
-    } else {
-      return null
-    }
-  } catch (error) {
-    return null
-  }
-
-}
-
-export const getDriverReport = async () => {
-  try {
-    const response = await get(ENDPOINTS.driver.getDriverReport);
-
-    if (response.success) {
-      return response.data;
-    } else {
+      console.warn('Unsuccessful response:', response);
+      
       return null;
     }
   } catch (error) {
-
+    console.error('Error fetching chat history:', error);
+    
     return null;
   }
 };

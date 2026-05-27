@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable import/no-unresolved */
 'use client'
 
@@ -142,7 +141,7 @@ const RenewalList = () => {
         cell: ({ row }) => <Typography>{row.original.expirydays} days</Typography>
       })
     ],
-    [locale]
+    [locale,table]
   )
 
   const table = useReactTable({
@@ -161,7 +160,7 @@ const RenewalList = () => {
   return (
     <Card>
       <CardHeader title={dictionary['navigation'].Last5Requests} action={<OptionMenu options={['Refresh']} />} />
-      <div className='overflow-x-auto'>
+      <div className='overflow-x-auto' id="table-container">
         <table className={tableStyles.table}>
           <thead>
             {table.getHeaderGroups().map(headerGroup => (

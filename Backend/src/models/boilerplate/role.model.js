@@ -1,11 +1,11 @@
 const mongoose = require('mongoose');
-const { toJSON, paginate } = require('./../plugins');
+const { toJSON, paginate } = require('../plugins');
 
 const roleSchema = mongoose.Schema(
   {
     role: {
       type: String,
-      required: true
+      required: true,
     },
     clientId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -14,13 +14,12 @@ const roleSchema = mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // add plugin that converts mongoose to json
 roleSchema.plugin(toJSON);
 roleSchema.plugin(paginate);
-
 
 /**
  * @typedef Role

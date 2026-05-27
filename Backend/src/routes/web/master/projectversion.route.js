@@ -6,15 +6,31 @@ const versionController = require('../../../controllers/web/master/projectversio
 
 const router = express.Router();
 
-router.route('/create').post(auth('Version'),validate(versionValidation.createProjectVersion), versionController.createVersion);
+router
+  .route('/create')
+  .post(auth('Version'), validate(versionValidation.createProjectVersion), versionController.createVersion);
 router.route('/getVersionsWithPagination').get(auth('Version'), versionController.getVersions);
-router.route('/getVersions/:versionId').get(auth('Version'),validate(versionValidation.getProjectVersion), versionController.getVersion);
-router.route('/getVersion/list').get(auth('Version'),versionController.getVersionWithOutPagination);
-router.route('/updateVersion/:versionId').patch(auth('Version'),validate(versionValidation.updateProjectVersion), versionController.updateVersion);
-router.route('/deleteVersions/:versionId').delete(auth('Version'),validate(versionValidation.deleteProjectVersion), versionController.deleteVersion);
-router.get('/getVersionCode/:versionCode',validate(versionValidation.getProjectVersionCode), versionController.getVersionCode);
-router.patch('/updateVersionStatus/:versionId', auth('Version'), validate(versionValidation.updateVersionStatus), versionController.updateVersionStatus);
-
+router
+  .route('/getVersions/:versionId')
+  .get(auth('Version'), validate(versionValidation.getProjectVersion), versionController.getVersion);
+router.route('/getVersion/list').get(auth('Version'), versionController.getVersionWithOutPagination);
+router
+  .route('/updateVersion/:versionId')
+  .patch(auth('Version'), validate(versionValidation.updateProjectVersion), versionController.updateVersion);
+router
+  .route('/deleteVersions/:versionId')
+  .delete(auth('Version'), validate(versionValidation.deleteProjectVersion), versionController.deleteVersion);
+router.get(
+  '/getVersionCode/:versionCode',
+  validate(versionValidation.getProjectVersionCode),
+  versionController.getVersionCode,
+);
+router.patch(
+  '/updateVersionStatus/:versionId',
+  auth('Version'),
+  validate(versionValidation.updateVersionStatus),
+  versionController.updateVersionStatus,
+);
 
 module.exports = router;
 

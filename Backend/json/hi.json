@@ -1,0 +1,23 @@
+{
+  "navigation": {
+    "AssignedTo": "को सौंपना",
+    "DialCodeRequired": "डायलकोड आवश्यक है",
+    "Complaintsupdatedsuccessfully": "शिकायतें सफलतापूर्वक अद्यतन की गईं",
+    "Complaintscreatedsuccessfully": "शिकायतें सफलतापूर्वक बनाई गईं",
+    "ErrorsavingComplaintsPleasetryagain": "शिकायतें सहेजने में त्रुटि कृपया पुनः प्रयास करें",
+    "AddComplaints": "शिकायतें जोड़ें",
+    "test_001": "परीक्षा",
+    "deleteSuccess": "सफलतापूर्वक मिटाया गया",
+    "statusUpdateError": "स्थिति अद्यतन करने में विफल",
+    "Both": "दोनों",
+    "SavingAndTranslating": "सहेजा जा रहा है और अनुवाद किया जा रहा है...",
+    "Saving": "सहेजा जा रहा है...",
+    "SubmitSyncAllLanguages": "सबमिट करें (सभी भाषाओं को सिंक करें)",
+    "Only": "केवल",
+    "EnglishTermsAndConditionInfo": "जब आप सबमिट करते हैं तो अंग्रेजी परिवर्तन सभी भाषाओं में अनुवादित हो जाते हैं। कृपया बचत समाप्त होने तक प्रतीक्षा करें.",
+    "EnglishTermsAndConditionEditInfo": "केवल। यहां परिवर्तन इस भाषा पर लागू होते हैं। हर भाषा को अपडेट करने के लिए, अंग्रेजी टैब संपादित करें और सबमिट करें।",
+    "Notranslationyetfor": "अभी तक कोई अनुवाद नहीं",
+    "TermsAndConditionEditWarning": "अनुवाद स्वतः उत्पन्न करने के लिए पहले अंग्रेजी टैब सहेजें।",
+    "looksLikeEnglishOnNonEnglishTab": "यह भाषा अभी भी अंग्रेज़ी पाठ दिखाती है. अंग्रेजी टैब खोलें, सबमिट पर क्लिक करें (सभी भाषाओं को सिंक करें), और अनुवाद समाप्त होने तक प्रतीक्षा करें।"
+  }
+}

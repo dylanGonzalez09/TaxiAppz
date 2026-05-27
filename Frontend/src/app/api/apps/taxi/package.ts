@@ -2,9 +2,9 @@
 import { get, post, patch, del } from './apiService'
 import { ENDPOINTS } from './endpoint'
 
-export const fetchPackage = async () => {
+export const fetchPackage = async (overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.package.list)
+    const response = await get(ENDPOINTS.package.list, undefined, overrideZoneId)
 
     if (response.success) {
       return response.data
@@ -19,9 +19,9 @@ export const fetchPackage = async () => {
 }
 
 
-export const getPackageByPagination = async (searchTerm: string, page: number, limit: number) => {
+export const getPackageByPagination = async (searchTerm: string, page: number, limit: number, overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.package.getByPagination(searchTerm, page, limit))
+    const response = await get(ENDPOINTS.package.getByPagination(searchTerm, page, limit), undefined, overrideZoneId)
     
     if (response.success) {
       return response.data
@@ -35,9 +35,9 @@ export const getPackageByPagination = async (searchTerm: string, page: number, l
   }
 }
 
-export const createPackages = async (subScription: any) => {
+export const createPackages = async (subScription: any, overrideZoneId?: any) => {
   try {
-    const response = await post(ENDPOINTS.package.create, subScription)
+    const response = await post(ENDPOINTS.package.create, subScription, overrideZoneId)
 
     if (response.success) {
       return response.data
@@ -51,9 +51,9 @@ export const createPackages = async (subScription: any) => {
   }
 }
 
-export const updatePackage = async (id: string, subScription: any) => {
+export const updatePackage = async (id: string, subScription: any, overrideZoneId?: any) => {
   try {
-    const response = await patch(ENDPOINTS.package.update(id), subScription)
+    const response = await patch(ENDPOINTS.package.update(id), subScription, overrideZoneId)
 
     if (response.success) {
       return response.data
@@ -67,9 +67,9 @@ export const updatePackage = async (id: string, subScription: any) => {
   }
 }
 
-export const getByPackageId = async (id: string) => {
+export const getByPackageId = async (id: string, overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.package.getById(id))
+    const response = await get(ENDPOINTS.package.getById(id), undefined, overrideZoneId)
 
     if (response.success) {
       return response.data
@@ -83,9 +83,9 @@ export const getByPackageId = async (id: string) => {
   }
 }
 
-export const deleteByPackageId = async (id: string) => {
+export const deleteByPackageId = async (id: string, overrideZoneId?: any) => {
   try {
-    const response = await del(ENDPOINTS.package.deleteById(id))
+    const response = await del(ENDPOINTS.package.deleteById(id), overrideZoneId)
 
     if (response.success) {
       return response.data
@@ -99,9 +99,9 @@ export const deleteByPackageId = async (id: string) => {
   }
 }
 
-export const updatePackageStatus = async (id: string, subScription: any) => {
+export const updatePackageStatus = async (id: string, subScription: any, overrideZoneId?: any) => {
   try {
-    const response = await patch(ENDPOINTS.package.updateStatus(id), subScription);
+    const response = await patch(ENDPOINTS.package.updateStatus(id), subScription, overrideZoneId);
 
     if (response.success) {
       return response.data;
@@ -109,7 +109,7 @@ export const updatePackageStatus = async (id: string, subScription: any) => {
       return null;
     }
   } catch (error) {
-    console.error('Error updating role:', error);
+    ;
 
     return null;
   }

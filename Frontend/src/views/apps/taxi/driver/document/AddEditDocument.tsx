@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
+  /* eslint-disable @typescript-eslint/no-unused-vars */
 import type { Dispatch, SetStateAction } from 'react';
 import React, { useState, useEffect, useRef } from 'react';
 
@@ -140,6 +140,11 @@ return parsedDate ? format(parsedDate, 'yyyy-MM-dd') : '';
     formData.append('identifier', updatedDocument.identifierValue || '');
     formData.append('documentStatus', driverStatus);
 
+     if (documentToEdit?.driverVehicleId) {
+      formData.append('driverVehicleId', documentToEdit.driverVehicleId);
+    } 
+
+
     if (fileInputRef.current?.files?.[0]) {
       formData.append('documentImage', fileInputRef.current.files[0]);
     } else if (fileName) {
@@ -166,11 +171,12 @@ return parsedDate ? format(parsedDate, 'yyyy-MM-dd') : '';
       } 
       else {
         updatedDocument.documentImage = response.documentImage;
-
+        updatedDocument.documentStatus = response.documentStatus;
+ 
         setData(prevData =>
-          prevData.map(item =>
-            item.documentId === data.documentId ? updatedDocument : item
-          )
+          prevData.map(item => {
+            return item._id === data._id ? updatedDocument : item;
+          })
         );
         handleClose();
       }

@@ -1,4 +1,5 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
+const { ObjectId } = require('mongodb');
 const pick = require('../../../utils/pick');
 const ApiError = require('../../../utils/ApiError');
 const catchAsync = require('../../../utils/catchAsync');
@@ -10,12 +11,12 @@ const createDocument = catchAsync(async (req, res) => {
 
   if (!req.headers.clientid) {
     throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
-  }else{
+  } else {
     clientId = req.headers.clientid;
     req.body.clientId = clientId;
   }
   const document = await documentService.createDocument(req.body);
-  const response = Response(true, document, "Success");
+  const response = Response(true, document, 'Success');
   res.status(httpStatus.CREATED).send(response);
 });
 
@@ -34,27 +35,40 @@ const createBulkDocument = catchAsync(async (req, res) => {
   }
 
   // Add clientId to each document in the bulk
-  const documentsWithClientId = req.body.newDocument.map(document => ({
+  const documentsWithClientId = req.body.newDocument.map((document) => ({
     ...document,
-    clientId
+    clientId,
   }));
 
   // Call the service method to create documents
   const document = await documentService.createBulkDocuments(documentsWithClientId);
-  const response = Response(true, document, "Success");
+  const response = Response(true, document, 'Success');
   res.status(httpStatus.CREATED).send(response);
 });
-
 const getDocuments = catchAsync(async (req, res) => {
-  const filter = pick(req.query, ['documentName', 'role']);
-  const options = pick(req.query, ['sortBy', 'limit', 'page'],{ allowDiskUse: true });
+  const clientId = req.headers.clientid;
+  const zoneId = req.headers.zoneid;
+  const groupDocumentId = req.params.groupDocumentId;
+
+  if (!clientId || !zoneId ) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Missing clientId or zoneId in headers');
+  }
+
+  if(!groupDocumentId){
+    throw new ApiError(httpStatus.BAD_REQUEST,'missing group Document Id in params')
+  }
+
+  const filter = pick(req.query, ['documentName']);
+
+  const options = pick(req.query, ['sortBy', 'limit', 'page']);
+  const typeFilter = req.query.type || null;
+
   if (req.query.search) {
-    filter.$or = [
-      { documentName: { $regex: req.query.search, $options: 'i' } },
-    ];
-  } 
-  const result = await documentService.queryDocument(filter, options);
-  const response = Response(true, result, "Success");
+    filter.$or = [{ documentName: { $regex: `^${req.query.search}`, $options: 'i' } }];
+  }
+
+  const result = await documentService.queryDocument(filter, options, clientId, zoneId, typeFilter,groupDocumentId);
+  const response = Response(true, result, 'Success');
   res.status(httpStatus.OK).send(response);
 });
 
@@ -63,38 +77,44 @@ const getDocument = catchAsync(async (req, res) => {
   if (!groupdocument) {
     throw new ApiError(httpStatus.NOT_FOUND, 'groupdocument not found');
   }
-  const response = Response(true, groupdocument, "Success");
+  const response = Response(true, groupdocument, 'Success');
   res.status(httpStatus.OK).send(response);
 });
 
 const getDocumentWithOutPagination = catchAsync(async (req, res) => {
-
   if (!req.headers.clientid) {
     throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
   }
+
+  if (!req.headers.zoneid) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'ZoneID not found');
+  }
+
+  const clientId = req.headers.clientid;
+  const zoneId = req.headers.zoneid;
 
   const groupdocument = await documentService.getDocument(req.headers.clientid);
   if (!groupdocument) {
     throw new ApiError(httpStatus.NOT_FOUND, 'groupdocument not found');
   }
-  const response = Response(true, groupdocument, "Success");
+  const response = Response(true, groupdocument, 'Success');
   res.status(httpStatus.OK).send(response);
 });
 
 const updateDocument = catchAsync(async (req, res) => {
   const groupdocument = await documentService.updateDocumentById(req.params.documentId, req.body);
-  const response = Response(true, groupdocument, "Success");
+  const response = Response(true, groupdocument, 'Success');
   res.status(httpStatus.OK).send(response);
 });
 
 const deleteDocument = catchAsync(async (req, res) => {
   const groupdocument = await documentService.deleteDocumentById(req.params.documentId);
-  const response = Response(true, groupdocument, "Success");
+  const response = Response(true, groupdocument, 'Success');
   res.status(httpStatus.OK).send(response);
 });
 
 const updateDocumentStatus = catchAsync(async (req, res) => {
-  const documentId = req.params.documentId;
+  const { documentId } = req.params;
   const { status } = req.body;
 
   const document = await documentService.updateDocumentById(documentId, { status });
@@ -103,17 +123,17 @@ const updateDocumentStatus = catchAsync(async (req, res) => {
     throw new ApiError(httpStatus.NOT_FOUND, 'Document not found');
   }
 
-  const response = Response(true, document, "Document status updated successfully");
+  const response = Response(true, document, 'Document status updated successfully');
   res.status(httpStatus.OK).send(response);
 });
 
 const getDropDownList = catchAsync(async (req, res) => {
-  let data = await documentService.getDropDowns(req.params.clientId);
-  
+  const data = await documentService.getDropDowns(req.params.clientId);
+
   if (!data) {
     throw new ApiError(httpStatus.NOT_FOUND, 'data not found');
   }
-  const response = Response(true, data, "Success");
+  const response = Response(true, data, 'Success');
   res.status(httpStatus.OK).send(response);
 });
 
@@ -126,5 +146,5 @@ module.exports = {
   deleteDocument,
   createBulkDocument,
   updateDocumentStatus,
-  getDropDownList
+  getDropDownList,
 };

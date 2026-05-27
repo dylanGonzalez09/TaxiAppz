@@ -1,4 +1,4 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const ApiError = require('../../../utils/ApiError');
 const { Intro } = require('../../../models');
 
@@ -31,7 +31,7 @@ const queryIntros = async (filter, options) => {
  * @returns {Promise<Intro>}
  */
 const getIntross = async (clientId) => {
-  return Intro.find({clientId:clientId});
+  return Intro.find({ clientId });
 };
 
 /**
@@ -70,7 +70,7 @@ const deleteIntroById = async (IntroId) => {
     throw new ApiError(httpStatus.NOT_FOUND, 'intro not found');
   }
   await Intro.deleteOne();
-  return { status: "success", msg: "Data Deleted Successfully" };
+  return { status: 'success', msg: 'Data Deleted Successfully' };
 };
 
 module.exports = {

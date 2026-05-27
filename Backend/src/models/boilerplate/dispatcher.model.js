@@ -20,7 +20,7 @@ const dispatcherSchema = mongoose.Schema(
     },
     serviceType: {
       type: [String],
-      default: null
+      default: null,
     },
     zoneId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -32,15 +32,10 @@ const dispatcherSchema = mongoose.Schema(
       ref: 'Client',
       default: null, // Added default: null for consistency
     },
-    companyId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref:'Company',
-      default: null,
-  },
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // Add plugin that converts mongoose to JSON

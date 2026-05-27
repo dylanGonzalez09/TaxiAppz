@@ -7,8 +7,8 @@ const userRequestView = new mongoose.Schema(
   {
     collection: 'userRequestView',
     strict: false,
-    autoCreate: false
-  }
+    autoCreate: false,
+  },
 );
 
 module.exports = mongoose.models[modelName] || mongoose.model(modelName, userRequestView);

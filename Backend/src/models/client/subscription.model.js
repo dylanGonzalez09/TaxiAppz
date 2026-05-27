@@ -5,39 +5,45 @@ const subscriptionSchema = mongoose.Schema(
   {
     name: {
       type: String,
-      required: true
+      required: true,
     },
     validityPeriod: {
       type: String,
-      required: true
-    },
-    unit: {
-      type: String,
-      enum: ['DAY', 'WEEK','MONTH','YEAR'],
-      default: 'DAY',
+      required: true,
     },
     description: {
       type: String,
-      required: true
+      required: true,
     },
+    /** Package price shown as "Amount" in the admin UI */
     amount: {
       type: Number,
-      required: true
+    },
+    /** Validity unit: DAY | WEEK | MONTH | YEAR (admin UI) */
+    unit: {
+      type: String,
+      enum: ['DAY', 'WEEK', 'MONTH', 'YEAR'],
     },
     status: {
       type: Boolean,
       required: true,
-      default: true
+      default: true,
     },
     clientId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Client',
     },
+    zoneId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Zone',
+    },
   },
   {
     timestamps: true,
-  }
+  },
 );
+
+subscriptionSchema.index({ zoneId: 1, clientId: 1 }, { background: true });
 
 // add plugin that converts mongoose to json
 subscriptionSchema.plugin(toJSON);

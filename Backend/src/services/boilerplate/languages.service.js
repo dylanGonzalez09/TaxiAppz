@@ -1,7 +1,31 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const ApiError = require('../../utils/ApiError');
 const { Language } = require('../../models');
 const fs = require('fs').promises;
+const { translateAllEnglishToNewLanguage } = require('./translation.service');
+
+const shouldAutoTranslateLanguage = (languageDoc) => {
+  if (!languageDoc) return false;
+  if (!languageDoc.status) return false;
+
+  const code = String(languageDoc.code || '').toLowerCase().trim();
+
+  return !!code && code !== 'en';
+};
+
+const triggerLanguageBootstrapTranslation = (languageDoc) => {
+  if (!shouldAutoTranslateLanguage(languageDoc)) return;
+
+  const code = String(languageDoc.code || '').toLowerCase().trim();
+
+  setImmediate(async () => {
+    try {
+      await translateAllEnglishToNewLanguage(code);
+    } catch (error) {
+      console.error(`Auto-translation bootstrap failed for language "${code}":`, error?.message || error);
+    }
+  });
+};
 
 /**
  * Create a lauguage
@@ -9,7 +33,11 @@ const fs = require('fs').promises;
  * @returns {Promise<Language>}
  */
 const createLanguage = async (lauguageBody) => {
-  return Language.create(lauguageBody);
+  const language = await Language.create(lauguageBody);
+
+  triggerLanguageBootstrapTranslation(language);
+
+  return language;
 };
 
 /**
@@ -31,8 +59,17 @@ const queryLanguage = async (filter, options, clientId) => {
 
   return language;
 };
+const queryLanguageActive = async (filter, options, clientId) => {
+  if (clientId) {
+    filter.clientId = clientId;
+    filter.status = true;
+  }
+  options.sortBy = options.sortBy || 'createdAt:desc';
 
+  const language = await Language.paginate(filter, options);
 
+  return language;
+};
 
 /**
  * @param {Object} clientId - The match criteria for the aggregation
@@ -40,7 +77,7 @@ const queryLanguage = async (filter, options, clientId) => {
  * @returns {Promise<Language>}
  */
 const getLanguage = async (clientId) => {
-  return Language.find({ clientId : clientId });
+  return Language.find({ clientId });
 };
 
 /**
@@ -49,7 +86,9 @@ const getLanguage = async (clientId) => {
  */
 const getLanguageByActive = async (clientId) => {
   return Language.find({
-      status: true , clientId : clientId});
+    status: true,
+    clientId,
+  });
 };
 
 /**
@@ -57,7 +96,8 @@ const getLanguageByActive = async (clientId) => {
  */
 const getIntroLanguage = async () => {
   return Language.find({
-      status: true });
+    status: true,
+  });
 };
 
 /**
@@ -69,24 +109,32 @@ const getLauguageById = async (languageId) => {
   return Language.findById(languageId);
 };
 
-
-
 /**
  * Get role by id
  * @param {ObjectId} code
  * @returns {Promise<Language>}
  */
 const getLauguageByCode = async (code) => {
-  const filePath = `src/json/${code}.json`;
-   try {
-    const jsonData = await fs.readFile(filePath, { encoding: 'utf8' });
-    // Return the parsed JSON data
-    return JSON.parse(jsonData);
+  const url = `http://13.62.26.82/frontend/src/data/dictionaries/${code}.json`;
+
+  try {
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        console.warn(`Warning: Language file for '${code}' not found.`);
+        return { navigation: {} }; // Fallback content
+      }
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+
+    const jsonData = await response.json();
+    return jsonData;
   } catch (error) {
-    console.error('Error reading or parsing JSON file:', error);
-    throw error; // Rethrow the error to handle it further up the call stack
+    console.error('Error fetching or parsing JSON file:', error);
+    throw error;
   }
-}
+};
 
 /**
  * Update language by id
@@ -100,8 +148,16 @@ const updateLanguageById = async (languageId, updateBody) => {
     throw new ApiError(httpStatus.NOT_FOUND, 'language not found');
   }
 
+  const wasInactive = !language.status;
   Object.assign(language, updateBody);
   await language.save();
+
+  const becameActive = wasInactive && language.status;
+
+  if (becameActive) {
+    triggerLanguageBootstrapTranslation(language);
+  }
+
   return language;
 };
 
@@ -116,17 +172,18 @@ const deletelanguageById = async (languageId) => {
     throw new ApiError(httpStatus.NOT_FOUND, 'Language not found');
   }
   await language.deleteOne();
-  return { status: "success",   msg:"data Deleted Successfully" };
+  return { status: 'success', msg: 'data Deleted Successfully' };
 };
 
 module.exports = {
   createLanguage,
   getLanguage,
+  queryLanguageActive,
   queryLanguage,
   getLauguageById,
   updateLanguageById,
   deletelanguageById,
   getLauguageByCode,
   getLanguageByActive,
-  getIntroLanguage
+  getIntroLanguage,
 };

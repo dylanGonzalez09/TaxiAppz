@@ -39,7 +39,7 @@ import CustomTextField from '@core/components/mui/TextField';
 
 import tableStyles from '@core/styles/table.module.css';
 
-import { useIsDemoUser } from '@/utils/demoUser'
+import { useIsDemoUser } from '@/utils/demoUser' 
 
 import { deleteByPermissionId, getPermissionWithPagination } from '@apis/permission';
 
@@ -130,7 +130,7 @@ const PermissionTable = ({ permissionData, dictionary }: { permissionData: any, 
         nativeEvent: {} as Event,
         bubbles: false,
       } as unknown as ChangeEvent<unknown>;
-
+  
       // Trigger onPageChange with the new page
       handlePageChange(dummyEvent, pageIndex - 1);
     };
@@ -148,11 +148,11 @@ const PermissionTable = ({ permissionData, dictionary }: { permissionData: any, 
         nativeEvent: {} as Event,
         bubbles: false,
       } as unknown as ChangeEvent<unknown>;
-
+  
       // Trigger onPageChange with the new page
       handlePageChange(dummyEvent, pageIndex);
     };
-
+  
 
   const columns = useMemo<ColumnDef<PermissionWithActionsType, any>[]>(
     () => [
@@ -248,7 +248,7 @@ const PermissionTable = ({ permissionData, dictionary }: { permissionData: any, 
     getFacetedUniqueValues: getFacetedUniqueValues(),
     getFacetedMinMaxValues: getFacetedMinMaxValues()
   });
-
+  
   const {  checkDemoStatus } = useIsDemoUser();
 
   const handleEditClick = (rowData: permissionType) => {
@@ -379,7 +379,7 @@ const PermissionTable = ({ permissionData, dictionary }: { permissionData: any, 
               dictionary={dictionary}
 
             />
-
+         
               <Button
                 variant='contained'
                 onClick={() => setAddPermissionOpen(!addPermissionOpen)}

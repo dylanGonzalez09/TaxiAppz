@@ -5,9 +5,10 @@ const createSubScription = {
   body: Joi.object().keys({
     name: Joi.string().required(),
     validityPeriod: Joi.string().required(),
-    unit: Joi.string().valid('DAY', 'WEEK','MONTH','YEAR'),
     description: Joi.string().required(),
     amount: Joi.number().required(),
+    unit: Joi.string().valid('DAY', 'WEEK', 'MONTH', 'YEAR').required(),
+    zoneId: Joi.string().custom(objectId).required(),
   }),
 };
 
@@ -21,15 +22,18 @@ const updateSubScription = {
   params: Joi.object().keys({
     subScriptionId: Joi.string().required(),
   }),
-  body: Joi.object().keys({
-    name: Joi.string().optional(),
-    validityPeriod: Joi.string().required(),
-    unit: Joi.string().valid('DAY', 'WEEK','MONTH','YEAR'),
-    description: Joi.string().optional(),
-    amount: Joi.number().optional(),
-    status: Joi.boolean().optional(),
-    clientId: Joi.string().custom(objectId).optional()
-  }).min(1),
+  body: Joi.object()
+    .keys({
+      name: Joi.string().optional(),
+      validityPeriod: Joi.string().optional(),
+      description: Joi.string().optional(),
+      amount: Joi.number().optional(),
+      unit: Joi.string().valid('DAY', 'WEEK', 'MONTH', 'YEAR').optional(),
+      status: Joi.boolean().optional(),
+      clientId: Joi.string().custom(objectId).optional(),
+      zoneId: Joi.string().custom(objectId).optional(),
+    })
+    .min(1),
 };
 
 const deleteSubScription = {
@@ -51,5 +55,5 @@ module.exports = {
   getSubScription,
   updateSubScription,
   deleteSubScription,
-  updateSubScriptionStatus
+  updateSubScriptionStatus,
 };

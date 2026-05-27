@@ -1,46 +1,34 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const ApiError = require('../../utils/ApiError');
 const { Rental, Vehicle, Country, Zone, User, Request } = require('../../models');
 const { vehicleService } = require('..');
 const fs = require('fs').promises;
-const { getPickupZone, applyPromoCode, webGetPickupZone, webGetZoneDetails } = require('../../utils/commonFunction');
-const { tokenService } = require('../../services');
-const ObjectId = require('mongoose').Types.ObjectId;
+const { getPickupZone, applyPromoCode } = require('../../utils/commonFunction');
+const { tokenService } = require('..');
+const { ObjectId } = require('mongoose').Types;
 const { HttpStatusCode } = require('axios');
 
+const { getUserId, getClientId, getDriverId } = require('../../utils/commonFunction');
 
-const getUserId = async (req) => {
-
-  let userId = '';
-
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    res.status(httpStatus.UNAUTHORIZED).send({ message: 'Authorization header is missing or invalid' });
-    return;
-  }
-  // Remove the 'Bearer ' prefix and get the token
-  const token = authHeader.substring(7);
-
-  const user = await tokenService.verifyTokenAndGetUser(token);
-
-  userId = user.id
-
-  return userId;
-}
 /**
  * Create a rental
  * @param {Object} rentalBody
  * @returns {Promise<Rental>}
  */
-const createRental = async (rentalBody) => {
-  const { zone, km, hour } = rentalBody;
 
-  const existingRental = await Rental.findOne({ zone, km, hour });
+const createRental = async (rentalBody) => {
+  const { zoneId, km, hour, clientId } = rentalBody;
+
+  // Check duplicate rental
+  const existingRental = await Rental.findOne({
+    zoneId,
+    km,
+    hour,
+    clientId,
+  });
 
   if (existingRental) {
-    return { status: httpStatus.FORBIDDEN, msg: "This package is used in trip.so you cannot delete it." };
-
+    throw new ApiError(400, 'Same KM and Hour already exist for this zone');
   }
 
   return Rental.create(rentalBody);
@@ -63,19 +51,18 @@ const queryRental = async (req, filter, options) => {
 
   const rental = await Rental.aggregate([
     {
-      $match: filter
-
+      $match: filter,
     },
     {
       $lookup: {
         from: 'countries',
         localField: 'countryId',
         foreignField: '_id',
-        as: 'countryDetails'
-      }
+        as: 'countryDetails',
+      },
     },
     {
-      $unwind: { path: '$countryDetails', preserveNullAndEmptyArrays: true }
+      $unwind: { path: '$countryDetails', preserveNullAndEmptyArrays: true },
     },
     {
       $project: {
@@ -86,8 +73,16 @@ const queryRental = async (req, filter, options) => {
         vehiclePrices: 1,
         status: 1,
         clientId: 1,
-        currency: { $ifNull: ['$countryDetails.currency_symbol', null] }
-      }
+        currency: { $ifNull: ['$countryDetails.currency_symbol', null] },
+      },
+    },
+    {
+      $addFields: {
+        km: { $toDouble: '$km' }, // or $toInt
+      },
+    },
+    {
+      $sort: { hour: 1, km: 1 },
     },
     {
       $skip: (page - 1) * limit, // Pagination: Skip previous pages
@@ -106,9 +101,7 @@ const queryRental = async (req, filter, options) => {
     totalPages,
     totalResults,
   };
-  // return rental;
 };
-
 
 /**
  * @param {Object} clientId - The match criteria for the aggregation
@@ -116,9 +109,8 @@ const queryRental = async (req, filter, options) => {
  * @returns {Promise<Rental>}
  */
 const getRental = async (clientId) => {
-  return Rental.find({ clientId: clientId });
+  return Rental.find({ clientId });
 };
-
 
 /**
  * Get role by id
@@ -129,15 +121,6 @@ const getRentalById = async (rentalId) => {
   return Rental.findById(rentalId);
 };
 
-
-
-const sendError = (message, data, code) => ({
-  success: false,
-  message,
-  data,
-  code,
-});
-
 const getPackages = async (req) => {
   const userId = await getUserId(req);
 
@@ -146,7 +129,7 @@ const getPackages = async (req) => {
 
   let clientId;
 
-  let baseUrl = "/uploads/vehicles";
+  const baseUrl = '/uploads/vehicles';
 
   let minKm = 0;
   let maxKm = 0;
@@ -159,87 +142,144 @@ const getPackages = async (req) => {
     clientId = req.headers.clientid;
   }
 
-  let zone = await getPickupZone(req);
+  const zone = await getPickupZone(req);
 
-  let rental = await Rental.find({ clientId: clientId, zoneId: zone._id }).populate({
+  if(!zone){
+    throw new ApiError(httpStatus.NOT_FOUND,"Service is not available for this location")
+  }
+
+
+  const targetZoneId = zone?.zoneLevel === 'SECONDARY' ? zone?.primaryZoneId : zone?._id;
+
+  const rental = await Rental.find({ clientId, zoneId: targetZoneId }).populate({
     path: 'vehiclePrices.vehicleId',
     model: 'Vehicle',
   });
 
-  minKm = Math.min(...rental.map(r => r.km || 0));
-  maxKm = Math.max(...rental.map(r => r.km || 0));
-  minHr = Math.min(...rental.map(r => r.hour || 0));
-  maxHr = Math.max(...rental.map(r => r.hour || 0));
+  minKm = Math.min(...rental.map((r) => r.km || 0));
+  maxKm = Math.max(...rental.map((r) => r.km || 0));
+  minHr = Math.min(...rental.map((r) => r.hour || 0));
+  maxHr = Math.max(...rental.map((r) => r.hour || 0));
 
   // Use Promise.all to handle the async operations in map
-  const transformedRentals = await Promise.all(rental.map(async (rentalItem) => {
-    const vehiclePricesWithPromo = await Promise.all(rentalItem.vehiclePrices.map(async (vehiclePrice) => {
-      const imageUrl = vehiclePrice.vehicleId.image
-        ? `${baseUrl}/${vehiclePrice.vehicleId.image}`
-        : null;
+  const transformedRentals = await Promise.all(
+    rental.map(async (rentalItem) => {
+      const vehiclePricesWithPromo = await Promise.all(
+        rentalItem.vehiclePrices.map(async (vehiclePrice) => {
+          const imageUrl = vehiclePrice.vehicleId.image ? `${baseUrl}/${vehiclePrice.vehicleId.image}` : null;
 
-      const highlightImageUrl = vehiclePrice.vehicleId.highlightImage
-        ? `${baseUrl}/${vehiclePrice.vehicleId.highlightImage}`
-        : null;
+          const highlightImageUrl = vehiclePrice.vehicleId.highlightImage
+            ? `${baseUrl}/${vehiclePrice.vehicleId.highlightImage}`
+            : null;
 
-      const vehicleId = vehiclePrice.vehicleId.id
-        ? vehiclePrice.vehicleId.id
-        : null;
+          const vehicleId = vehiclePrice.vehicleId.id ? vehiclePrice.vehicleId.id : null;
 
-      const vehicleName = vehiclePrice.vehicleId.vehicleName
-        ? vehiclePrice.vehicleId.vehicleName
-        : null;
+          const vehicleName = vehiclePrice.vehicleId.vehicleName ? vehiclePrice.vehicleId.vehicleName : null;
 
-      const capacity = vehiclePrice.vehicleId.capacity
-        ? vehiclePrice.vehicleId.capacity
-        : null;
+          const capacity = vehiclePrice.vehicleId.capacity ? vehiclePrice.vehicleId.capacity : null;
 
-      const status = vehiclePrice.vehicleId.status
-        ? vehiclePrice.vehicleId.status
-        : null;
+          const status = vehiclePrice.vehicleId.status ? vehiclePrice.vehicleId.status : null;
 
-      let promoAmount = await applyPromoCode(req, vehiclePrice.price, user);
+          const promoAmount = await applyPromoCode(req, vehiclePrice.price, user);
+
+          return {
+            vehicleId,
+            image: imageUrl,
+            highlightImage: highlightImageUrl,
+            vehicleName,
+            capacity,
+            status,
+            promoAmount,
+            price: vehiclePrice.price,
+            graceTime: vehiclePrice.graceTime,
+            extraKmPrice: vehiclePrice.extraKmPrice,
+            _id: vehiclePrice._id,
+          };
+        }),
+      );
 
       return {
-        vehicleId: vehicleId,
-        image: imageUrl,
-        highlightImage: highlightImageUrl,
-        vehicleName: vehicleName,
-        capacity: capacity,
-        status: status,
-        promoAmount: promoAmount,
-        price: vehiclePrice.price,
-        graceTime: vehiclePrice.graceTime,
-        extraKmPrice: vehiclePrice.extraKmPrice,
-        _id: vehiclePrice._id,
+        ...rentalItem.toObject(),
+        vehiclePrices: vehiclePricesWithPromo,
       };
-    }));
-
-    return {
-      ...rentalItem.toObject(),
-      vehiclePrices: vehiclePricesWithPromo
-    };
-  }));
+    }),
+  );
 
   const data = {
-    minHr: minHr,
-    maxHr: maxHr,
-    minKm: minKm,
-    maxKm: maxKm,
-    biddingZone: zone.biddingZone,
-    zone: zone != null ? true : false,
+    minHr,
+    maxHr,
+    minKm,
+    maxKm,
+    zone: zone != null,
     paymentTypes: zone.paymentTypes,
-    package: transformedRentals
-  }
+    package: transformedRentals,
+  };
 
   return data;
 };
 
 /**
- * Get rental packages for web booking (no auth required).
- * Uses pick_lat, pick_lng from body to resolve zone; if missing, uses first available zone.
- * Same response shape as getPackages.
+ * Update rental by id
+ * @param {ObjectId} rentalId
+ * @param {Object} updateBody
+ * @returns {Promise<Rental>}
  */
+const updateRentalById = async (rentalId, updateBody) => {
+  const rental = await getRentalById(rentalId);
+  if (!rental) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Rental not found');
+  }
+
+  Object.assign(rental, updateBody);
+  await rental.save();
+  return rental;
+};
+
+/**
+ * Delete rental by id
+ * @param {ObjectId} rentalId
+ * @returns {Object}
+ */
+const deleteRentalById = async (rentalId) => {
+  const rental = await getRentalById(rentalId);
+  if (!rental) {
+    return { status: httpStatus.NOT_FOUND, msg: 'Package not found' };
+  }
+
+  // chk whether package exists in request table
+
+  const request = await Request.countDocuments({ packageId: new ObjectId(rental._id) });
+
+  if (request > 0) {
+    return { status: httpStatus.FORBIDDEN, msg: 'This package is used in trip.so you cannot delete it.' };
+  }
+
+  await rental.deleteOne();
+  return { status: HttpStatusCode.Ok, msg: 'data Deleted Successfully' };
+};
+
+/**
+ * Get roles
+ * @param {ObjectId} clientId
+ * @returns {Promise<Role>}
+ */
+const getDropDowns = async (clientId) => {
+  const [countryData, zoneData, vehicleData] = await Promise.all([
+    Country.find({ status: true, clientId }).lean(),
+    Zone.find({ status: true, clientId }).lean(),
+    Vehicle.find({ status: true, clientId }).lean(),
+  ]);
+  return { country: countryData, zone: zoneData, vehicle: vehicleData };
+};
+const countRentalDocuments = async () => {
+  return Rental.countDocuments();
+};
+
+const getZones = async (clientId, zoneId) => {
+  const zone = await Zone.find({ clientId, _id: zoneId }).select('_id zoneName status');
+  return zone;
+};
+
 const getPackagesWeb = async (req) => {
   const baseUrl = '/uploads/vehicles';
   let minKm = 0;
@@ -356,110 +396,6 @@ const getPackagesWeb = async (req) => {
   return data;
 };
 
-/**
- * Update rental by id
- * @param {ObjectId} rentalId
- * @param {Object} updateBody
- * @returns {Promise<Rental>}
- */
-const updateRentalById = async (rentalId, updateBody) => {
-  const rental = await getRentalById(rentalId);
-  if (!rental) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'Rental not found');
-  }
-
-  Object.assign(rental, updateBody);
-  await rental.save();
-  return rental;
-};
-
-/**
- * Delete rental by id
- * @param {ObjectId} rentalId
- * @returns {Object}
- */
-const deleteRentalById = async (rentalId) => {
-  const rental = await getRentalById(rentalId);
-  if (!rental) {
-    return { status: httpStatus.NOT_FOUND, msg: "Package not found" };
-  }
-
-  //chk whether package exists in request table
-
-  const request = await Request.countDocuments({ packageId: new ObjectId(rental._id) });
-
-  if (request > 0) {
-    return { status: httpStatus.FORBIDDEN, msg: "This package is used in trip.so you cannot delete it." };
-  }
-
-  await rental.deleteOne();
-  return { status: HttpStatusCode.Ok, msg: "data Deleted Successfully" };
-};
-
-/**
- * Get roles
-  * @param {ObjectId} clientId
- * @returns {Promise<Role>}
- */
-const getDropDowns = async (clientId) => {
-
-  const countryData = await Country.find({ status: true, clientId: clientId });
-  const zoneData = await Zone.find({ status: true, clientId: clientId });
-
-  const vehicleData = await Vehicle.find({ status: true, clientId: clientId });
-
-  const data = {
-    country: countryData,
-    zone: zoneData,
-    vehicle: vehicleData,
-  }
-
-
-  return data;
-};
-const countRentalDocuments = async () => {
-  return Rental.countDocuments();
-};
-
-const getZones = async (clientId) => {
-  const zone = await Zone.find({ clientId: clientId }).select('_id zoneName zoneLevel status');
-  return zone;
-};
-
-const getRentalPackagesByZone = async(req) => {
-  const zoneId = req.params.zoneId;
-  if (!req.headers.clientid) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
-  } else {
-    clientId = req.headers.clientid;
-  }
-
-  const zone = await Zone.findById(new ObjectId(zoneId));
-  if(!zone)
-  {
-    throw new ApiError(httpStatus.NOT_FOUND, 'Zone not found');
-  }
-
-  const rental = await Rental.find({ clientId: clientId, zoneId: zone._id,status: true }).populate([
-    {
-      path: 'vehiclePrices.vehicleId',
-      model: 'Vehicle',
-    },
-    {
-      path: 'zoneId',
-      model: 'Zone'
-    }
-  ]);
-
-  if(!rental)
-  {
-    throw new ApiError(httpStatus.NOT_FOUND, 'Rental package not found');
-  }
-
-  return rental;
-};
-
-
 module.exports = {
   createRental,
   getRental,
@@ -469,8 +405,7 @@ module.exports = {
   deleteRentalById,
   getDropDowns,
   getPackages,
-  getPackagesWeb,
   countRentalDocuments,
   getZones,
-  getRentalPackagesByZone
+  getPackagesWeb
 };

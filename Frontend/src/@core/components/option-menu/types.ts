@@ -28,7 +28,11 @@ export type OptionMenuItemType = {
   menuItemProps?: MenuItemProps
   divider?: never
   dividerProps?: never
-  onClick?: () => void;
+  onClick?: () => void
+
+  /** When true, item is not rendered (keeps option in code for easy toggling). */
+  
+  hidden?: boolean
 }
 
 export type OptionType = string | OptionDividerType | OptionMenuItemType

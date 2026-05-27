@@ -5,12 +5,14 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 
+import { useParams } from 'next/navigation'
+
 import Link from 'next/link';
 
 import type { TextFieldProps } from '@mui/material/TextField';
 import TablePagination from '@mui/material/TablePagination';
 import {  createColumnHelper, flexRender, useReactTable, getCoreRowModel, getFilteredRowModel, getSortedRowModel, getPaginationRowModel } from '@tanstack/react-table';
-import { MenuItem, Typography, Card, Tooltip } from '@mui/material';
+import { MenuItem, Typography, Card, Tooltip, IconButton } from '@mui/material';
 
 
 import Chip from '@mui/material/Chip'
@@ -26,6 +28,8 @@ import TablePaginationComponent from '@components/TablePaginationComponent';
 import tableStyles from '@core/styles/table.module.css';
 
 import ExportOptions from '@/utils/ExportOptions';
+import type { Locale } from '@configs/i18n';
+import { getLocalizedUrl } from '@/utils/i18n';
 
 
 
@@ -40,6 +44,7 @@ type RentalListType = {
   status: string;
   actions?: string;
   _id: string;
+
 };
 
 type StatusType = 'Completed' | 'Accepted' | 'Cancelled' | 'Scheduled' | 'Arrived' | 'Started';
@@ -83,6 +88,7 @@ const RentalListTable = ({ staticGroup, dictionary }: { staticGroup: RentalListT
   const [rowSelection, setRowSelection] = useState({});
   const [data] = useState<RentalListType[]>(staticGroup);
   const [globalFilter, setGlobalFilter] = useState('');
+  const { lang: locale,zoneId } = useParams()
 
 
   const statusChipColor: Record<StatusType, { color: 'success' | 'warning' | 'error' | 'info' | 'success' | 'success' }> = {
@@ -104,7 +110,11 @@ const RentalListTable = ({ staticGroup, dictionary }: { staticGroup: RentalListT
     },
     columnHelper.accessor('requestId', {
       header: dictionary['navigation'].requestId,
-      cell: ({ row }) => <Typography className='font-medium'>{row.original.requestId}</Typography>,
+      cell: ({ row }) => <Typography
+            component={Link}
+            href={getLocalizedUrl(`${zoneId}/apps/taxi/request/requestView/${row.original._id}`, locale as Locale)}
+            color='primary'
+          >{`#${row.original.requestId}`}</Typography>,
     }),
 
     columnHelper.accessor('userName', {
@@ -214,7 +224,7 @@ return name.length > 15 ? (
 
         return (
           <Chip
-            label={status}
+            label={dictionary['navigation'][status]}
             color={statusChipColor[status]?.color}
             variant='tonal'
             size='small'
@@ -231,9 +241,19 @@ return name.length > 15 ? (
             <i className='tabler-eye text-textSecondary' />
           </IconButton> */}
           <div className='flex items-center'>
-                    <Link href={`/apps/taxi/request/requestView/${row.original._id}`} className='flex'>
+
+               <Typography
+                    component={Link}
+                    href={getLocalizedUrl(`${zoneId}/apps/taxi/request/requestView/${row.original._id}`, locale as Locale)}
+                  >
+                    <IconButton>
+                    <i className='tabler-eye text-textSecondary' />
+                    </IconButton>
+                  </Typography>
+
+                    {/* <Link href={(getLocalizedUrl`/${zoneId}/apps/taxi/request/requestView/${row.original._id}`,locale as Locale)} className='flex'>
                       <i className='tabler-eye text-textSecondary' />
-                    </Link>
+                    </Link> */}
                   </div>
         </div>
       ),

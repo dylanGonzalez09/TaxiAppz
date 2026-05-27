@@ -133,9 +133,8 @@ const AddDispatcherDrawer = ({
     const session = await getSession();
 
     const clientId = session?.user?.image?.clientId; // Access clientId
-    const companyId = session?.user?.image?.companyId; // Access companyId
 
-    return { clientId, companyId };
+    return { clientId };
   };
 
   useEffect(() => {

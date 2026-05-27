@@ -1,15 +1,15 @@
 const mongoose = require('mongoose');
-const { toJSON, paginate } = require('./../plugins');
+const { toJSON, paginate } = require('../plugins');
 
 const languageSchema = mongoose.Schema(
   {
     name: {
       type: String,
-      required: true
+      required: true,
     },
     code: {
       type: String,
-      required: true
+      required: true,
     },
     clientId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -18,12 +18,12 @@ const languageSchema = mongoose.Schema(
     status: {
       type: Boolean,
       required: true,
-      default: true
-    }
+      default: true,
+    },
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // add plugin that converts mongoose to json

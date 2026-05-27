@@ -6,10 +6,15 @@ import Complaint from './Complaint'
 
 // Type Definitions
 interface ComplaintDataType {
+  id: string;
   title: string;
-  category: string;
-  type: string;
-  complaintType: number;
+  description: string;
+  status: string;
+  createdAt: string;
+  userId: string;
+  userName: string;
+  assignedToId: string | null;
+  assignedToName: string;
 }
 
 interface ComplaintTableProps {

@@ -1,4 +1,4 @@
-const {ErrorLog} = require('../models');
+const { ErrorLog } = require('../models');
 
 const logErrorToDB = async (err, url, meta = {}) => {
   await ErrorLog.create({
@@ -13,14 +13,11 @@ const logErrorToDB = async (err, url, meta = {}) => {
   });
 };
 
-
 module.exports = logErrorToDB;
-
-
 
 const deleteOldErrors = async () => {
   try {
-    const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000); 
+    const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
     const result = await ErrorLog.deleteMany({ timestamp: { $lt: tenDaysAgo } });
   } catch (err) {
     console.error('Error during log cleanup:', err);

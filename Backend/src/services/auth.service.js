@@ -1,11 +1,10 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const tokenService = require('./token.service');
 const userService = require('./user.service');
 const Token = require('../models/token.model');
 const ApiError = require('../utils/ApiError');
 const { tokenTypes } = require('../config/tokens');
-const { Demo, User, Driver, DriverLocation, Zone, Request } = require('../models');
-const ObjectId = require('mongoose').Types.ObjectId
+const { Demo, User, Driver, DriverLocation, Zone } = require('../models');
 
 /**
  * Login with username and password
@@ -15,12 +14,15 @@ const ObjectId = require('mongoose').Types.ObjectId
  */
 const loginUserWithEmailAndPassword = async (email, password) => {
   const user = await userService.getUserByEmail(email);
-  if (!user || !user.active) {
+  if(!user){
+    throw new ApiError(httpStatus.NOT_FOUND,"Can not find user with this email");
+  }
+  if (!user.active) {
     throw new ApiError(httpStatus.FORBIDDEN, 'User is not active. Please contact admin.');
   }
 
-  if (!user || !(await user.isPasswordMatch(password))) {
-    throw new ApiError(httpStatus.UNAUTHORIZED, 'Incorrect email or password');
+  if (!(await user.isPasswordMatch(password))) {
+    throw new ApiError(httpStatus.UNAUTHORIZED, 'Incorrect password please try again');
   }
 
   // Check if the user is a demo user and if the demo has expired
@@ -39,7 +41,7 @@ const loginUserWithEmailAndPassword = async (email, password) => {
   }
 
   // Return the user with roles if login is successful
-  return getUserWithRoles(user._id);
+  return getUserWithRoles(user);
 };
 
 /**
@@ -51,46 +53,23 @@ const logout = async (refreshToken) => {
   // Verify the refresh token
   const refreshTokenDocVerify = await tokenService.verifyToken(refreshToken, tokenTypes.REFRESH);
 
-
-
-
   // Fetch the user by ID
   const user = await userService.getUserById(refreshTokenDocVerify.user);
   if (!user) {
     throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
   }
 
-  const activeTrips = await Request.countDocuments({
-    userId: new ObjectId(user._id),
-    isCompleted: false,
-    isCancelled:false  // Only check for active trips
-  });
-
-  if (activeTrips > 0) {
-    throw new ApiError(httpStatus.FORBIDDEN, 'User cannot be deleted because they have active trip');
-  }
-
-
-  const driver = await Driver.findOne({ userId: user._id })
-
+  const driver = await Driver.findOne({ userId: user._id });
 
   if (driver) {
-    const activeTripsDrivers = await Request.countDocuments({
-      driverId: new ObjectId(driver._id),
-      isCompleted: false,  // Only check for active trips,
-      isCancelled:false
-    });
-
-    if (activeTripsDrivers > 0) {
-      throw new ApiError(httpStatus.FORBIDDEN, 'User cannot be deleted because they have active trip');
-    }
-
-
-    const driverLocation = await DriverLocation.findOne({ driverId: driver._id })
+    // Update driver location to offline
+    const driverLocation = await DriverLocation.findOne({ driverId: driver._id });
     if (driverLocation) {
       driverLocation.isOnline = false;
       driverLocation.isAvailable = false;
       await driverLocation.save();
+      user.onlineBy = 0;
+      await user.save();
     }
   }
 
@@ -112,7 +91,6 @@ const logout = async (refreshToken) => {
   return { message: 'Logged out successfully' };
 };
 
-
 /**
  * Logout
  * @param {string} refreshToken
@@ -128,50 +106,6 @@ const deleteAccount = async (refreshToken) => {
     throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
   }
 
-  const userWallet = await Wallet.findOne({ userId: user._id });
-  if (!userWallet) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'User wallet not found');
-  }
-
-  if (userWallet.balance < 0) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'Wallet balance is negative. Please recharge.');
-  }
-
-  const activeTrips = await Request.countDocuments({
-    userId: new ObjectId(user._id),
-    isCompleted: false,
-    isCancelled:false  // Only check for active trips
-  });
-
-
-  if (activeTrips > 0) {
-    throw new ApiError(httpStatus.FORBIDDEN, 'User cannot be deleted because they have active trip');
-  }
-
-  const driver = await Driver.findOne({ userId: user._id });
-
-  if (driver) {
-
-
-    const activeTripsDrivers = await Request.countDocuments({
-      driverId: new ObjectId(driver._id),
-      isCompleted: false,
-      isCancelled:false  // Only check for active trips
-    });
-
-    if (activeTripsDrivers > 0) {
-      throw new ApiError(httpStatus.FORBIDDEN, 'User cannot be deleted because they have active trip');
-    }
-
-
-    const driverLocation = await DriverLocation.findOne({ driverId: driver._id })
-    if (driverLocation) {
-      driverLocation.isOnline = false;
-      driverLocation.isAvailable = false;
-      await driverLocation.save();
-    }
-  }
-
   // Find and delete the refresh token document
   const refreshTokenDoc = await Token.findOneAndDelete({
     token: refreshToken,
@@ -183,9 +117,9 @@ const deleteAccount = async (refreshToken) => {
     throw new ApiError(httpStatus.NOT_FOUND, 'Refresh token not found');
   }
 
-  let data = await userService.deleteMobileUserById(user._id); // Use your existing userService method
+  await userService.deleteUserById(user._id); // Use your existing userService method
 
-  return { message: data };
+  return { message: 'Account Deleted successfully' };
 };
 
 /**
@@ -196,17 +130,20 @@ const deleteAccount = async (refreshToken) => {
 const refreshAuth = async (refreshToken) => {
   try {
     const refreshTokenDoc = await tokenService.verifyToken(refreshToken, tokenTypes.REFRESH);
+
     const user = await userService.getUserById(refreshTokenDoc.user);
+
     if (!user) {
       throw new Error();
     }
-    await refreshTokenDoc.remove();
+
+    await Token.deleteOne({ _id: refreshTokenDoc._id });
+
     return tokenService.generateAuthTokens(user);
   } catch (error) {
     throw new ApiError(httpStatus.UNAUTHORIZED, 'Please authenticate');
   }
 };
-
 /**
  * Reset password
  * @param {string} resetPasswordToken
@@ -223,7 +160,7 @@ const resetPassword = async (resetPasswordToken, newPassword) => {
     await userService.updateUserById(user.id, { password: newPassword });
     await Token.deleteMany({ user: user.id, type: tokenTypes.RESET_PASSWORD });
   } catch (error) {
-    throw new ApiError(httpStatus.UNAUTHORIZED, 'Password reset failed' + error);
+    throw new ApiError(httpStatus.UNAUTHORIZED, `Password reset failed${error}`);
   }
 };
 
@@ -246,20 +183,29 @@ const verifyEmail = async (verifyEmailToken) => {
   }
 };
 
-const getUserWithRoles = async (userId) => {
-  const user = await User.findById(userId)
+const getUserWithRoles = async (userDetails) => {
+  const user = await User.findById(userDetails.id)
     .populate({
       path: 'roleIds',
-      select: 'role' // Include only the 'role' field
+      select: 'role', // Include only the 'role' field
     })
     .exec();
 
+  user.roleIds = [user.roleIds[0]];
+
+  let zoneId = '';
+
+  if (user.roleIds[0].role == 'Client') {
+    zoneId = user.zoneId;
+  } else {
+    const clientZone = await Zone.findOne({ clienId: user.clienId });
+    if (clientZone) {
+      zoneId = clientZone._id;
+    }
+  }
+  user.zoneId = zoneId;
   return user;
 };
-
-
-
-
 
 module.exports = {
   loginUserWithEmailAndPassword,
@@ -267,5 +213,5 @@ module.exports = {
   refreshAuth,
   resetPassword,
   verifyEmail,
-  deleteAccount
+  deleteAccount,
 };

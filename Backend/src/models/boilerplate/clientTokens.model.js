@@ -1,26 +1,27 @@
 const mongoose = require('mongoose');
-const { toJSON, paginate } = require('./../plugins');
+const { toJSON, paginate } = require('../plugins');
 
 const ClientTokenSchema = mongoose.Schema(
-    {
-        clientId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'Client',
-        },
-        deviceInfoHash: {
-            type: [String],
-            default: null
-        },
+  {
+    clientId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Client',
     },
-    {
-        timestamps: true,
-    }
+    deviceInfoHash: {
+      type: [String],
+      default: null,
+    },
+  },
+  {
+    timestamps: true,
+  },
 );
 
 // add plugin that converts mongoose to json
 ClientTokenSchema.plugin(toJSON);
 ClientTokenSchema.plugin(paginate);
 
+ClientTokenSchema.index({ clientId: 1 }, { background: true });
 
 /**
  * @typedef ClientToken

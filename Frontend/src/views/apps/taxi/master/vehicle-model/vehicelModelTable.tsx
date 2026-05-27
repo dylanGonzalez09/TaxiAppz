@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable import/no-unresolved */
 'use client';
@@ -8,15 +7,16 @@ import React, { useState, useMemo, useCallback } from 'react';
 
 import { useParams } from 'next/navigation';
 
+import Link from 'next/link';
+
 import classnames from 'classnames';
 
 import TablePagination from '@mui/material/TablePagination';
 import type { ColumnDef, FilterFn } from '@tanstack/react-table';
 import { createColumnHelper, flexRender, useReactTable, getCoreRowModel, getFilteredRowModel, getSortedRowModel, getPaginationRowModel } from '@tanstack/react-table';
-import Switch from '@mui/material/Switch'; // Import the Switch component
 
 
-import { MenuItem, Button, Typography, Card , Dialog, DialogActions, DialogContent } from '@mui/material';
+import { MenuItem, Button, Typography, Card , Dialog, DialogActions, DialogContent, IconButton } from '@mui/material';
 
 import { StatusCodes as httpStatus } from 'http-status-codes';
 
@@ -32,7 +32,7 @@ import tableStyles from '@core/styles/table.module.css';
 
 import { BASE_IMAGE_URL } from '@apis/endpoint';
 
-import { deleteVehicleModelById, updateVehicleModelStatus, getVehicleModelByPagination } from '@apis/vehiclemodel';
+import { deleteVehicleModelById, getVehicleModelByPagination } from '@apis/vehiclemodel';
 import type { Locale } from '@configs/i18n';
 import { getLocalizedUrl } from '@/utils/i18n';
 
@@ -47,8 +47,9 @@ interface VehicleModelType {
   modelname: string;
   vehicleName: string;
   image: string;
-  vehicleId: string;
+  brandId: string;
   status: boolean;
+  _id?: string;
 }
 
 const fuzzyFilter: FilterFn<VehicleModelType> = (row, columnId, filterValue) => {
@@ -60,26 +61,28 @@ const fuzzyFilter: FilterFn<VehicleModelType> = (row, columnId, filterValue) => 
 
 const columnHelper = createColumnHelper<VehicleModelType>();
 
-const VehicleModelTable = ({ vehicleModelData, dictionary }: { vehicleModelData: any, dictionary: any}) => {
+const VehicleModelTable = ({ vehicleModelData, dictionary, zoneId}: { vehicleModelData: any, dictionary: any; zoneId:string}) => {
   const [addVehicleOpen, setAddVehicleOpen] = useState(false);
   const [editData, setEditData] = useState<VehicleModelType | undefined>(undefined);
   const [rowSelection, setRowSelection] = useState({});
   const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
-  const [deleteVehicleId, setDeleteVehicleId] = useState<string | null>(null);
-  const [statusConfirmationOpen, setStatusConfirmationOpen] = useState(false);
-  const [statusVehicleModel, setStatusVehicleModel] = useState<VehicleModelType | null>(null);
+  const [deletebrandId, setDeletebrandId] = useState<string | null>(null);
+
+  const safeVehicleModelData = vehicleModelData ?? {};
+  const initialPage = Number(safeVehicleModelData.page) > 0 ? Number(safeVehicleModelData.page) - 1 : 0;
+  const initialPageSize = Number(safeVehicleModelData.limit) > 0 ? Number(safeVehicleModelData.limit) : 10;
 
   const [globalFilter, setGlobalFilter] = useState('');
-  const [pageIndex, setPageIndex] = useState(vehicleModelData.page - 1);
+  const [pageIndex, setPageIndex] = useState(initialPage);
   const [pageSearch, setPageSearch] = useState("");
-  const [totalResults, setTotalResults] = useState(vehicleModelData.totalResults); // To track the total number of records
-  const [data, setData] = useState<VehicleModelType[]>(vehicleModelData.results);
-  const [pageSize, setPageSize] = useState(vehicleModelData.limit);
+  const [totalResults, setTotalResults] = useState(Number(safeVehicleModelData.totalResults) || 0); // To track the total number of records
+  const [data, setData] = useState<VehicleModelType[]>(safeVehicleModelData.results || []);
+  const [pageSize, setPageSize] = useState(initialPageSize);
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [errorData, setErrorData] = useState('');
 
- const { id: vehicleId, lang: locale } = useParams() as { id: string; lang: string };
+ const { id: brandId, lang: locale } = useParams() as { id: string; lang: string };
 
   const { checkDemoStatus } = useIsDemoUser();
 
@@ -97,47 +100,11 @@ const VehicleModelTable = ({ vehicleModelData, dictionary }: { vehicleModelData:
     } as unknown as ChangeEvent<unknown>;
 
     // Trigger onPageChange with the new page
-    handlePageChange(dummyEvent, pageIndex - 1);
+    handlePageChange(dummyEvent, pageIndex === 0 ? pageIndex + 1 : pageIndex);
   };
 
 
 
-  const handleStatusToggle = async (vehiclemodel: VehicleModelType) => {
-    if (checkDemoStatus()) {
-      toast.error(dictionary['navigation'].editError);
-
-    return;
-      }
-
-    setStatusVehicleModel(vehiclemodel);
-    setStatusConfirmationOpen(true);
-  };
-
-  const handleConfirmStatus = async (confirmed: boolean) => {
-    if (confirmed && statusVehicleModel) {
-      const updatedVehicleModel = { ...statusVehicleModel, status: !statusVehicleModel.status };
-
-      try {
-        await updateVehicleModelStatus(statusVehicleModel.id.toString(), { status: updatedVehicleModel.status });
-
-        setData(prevData => {
-          return prevData.map(vehiclemodel =>
-            vehiclemodel.id === statusVehicleModel.id ? updatedVehicleModel : vehiclemodel
-          );
-        });
-          toast.success(dictionary['navigation'].statusUpdatedSuccessfully);
-
-        setStatusConfirmationOpen(false);
-        setStatusVehicleModel(null);
-      } catch (error) {
-        console.error('Failed to update user status:', error);
-        setStatusConfirmationOpen(false);
-      }
-    } else {
-      setStatusConfirmationOpen(false);
-      setStatusVehicleModel(null);
-    }
-  };
 
   const columns = useMemo<ColumnDef<VehicleModelType, any>[]>(
     () => [
@@ -175,37 +142,19 @@ const VehicleModelTable = ({ vehicleModelData, dictionary }: { vehicleModelData:
       }),
 
 
-      columnHelper.accessor('status', {
-        header: dictionary['navigation'].Status,
-        cell: ({ row }) => (
-          <div className='flex items-center gap-3'>
-            <Switch
-              checked={row.original.status}
-              onChange={() => handleStatusToggle(row.original)} // Toggle status on switch change
-              color={row.original.status ? 'success' : 'error'} // Use 'success' for active, 'error' for inactive
-              sx={{
-                '& .MuiSwitch-switchBase': {
-                  color: row.original.status ? 'green' : 'red', // Color for unchecked state
-                },
-                '& .MuiSwitch-switchBase.Mui-checked': {
-                  color: row.original.status ? 'green' : 'red', // Color for checked state
-                },
-                '& .MuiSwitch-thumb': {
-                  backgroundColor: 'white', // Inner knob color
-                },
-                '& .MuiSwitch-track': {
-                  backgroundColor: row.original.status ? 'green' : 'red', // Track color
-                },
-              }}
-            />
-          </div>
-        )
-      }),
       {
         id: 'actions',
         header: dictionary['navigation'].actions,
         cell: ({ row }) => (
           <div className='flex items-center'>
+             <IconButton>
+              <Link
+                href={getLocalizedUrl(`${zoneId}/apps/taxi/master/vehicle-variant/${row.original._id}`, locale as Locale)}
+                className='flex'
+              >
+                <i className='tabler-arrow-right bg-primary' />
+              </Link>
+            </IconButton>
             <OptionMenu
               iconButtonProps={{ size: 'medium' }}
               iconClassName='text-textSecondary'
@@ -215,13 +164,6 @@ const VehicleModelTable = ({ vehicleModelData, dictionary }: { vehicleModelData:
                   icon: 'tabler-pencil-minus',
                   menuItemProps: {
                     onClick: () => handleEditClick(row.original),
-                  },
-                },
-             {
-                  text: dictionary['navigation'].Delete,
-                  icon: 'tabler-trash',
-                  menuItemProps: {
-                    onClick: () => handleDeleteClick(row.original),
                   },
                 },
               ]}
@@ -263,7 +205,7 @@ const VehicleModelTable = ({ vehicleModelData, dictionary }: { vehicleModelData:
   const handleEditClick = (rowData: VehicleModelType) => {
     if (checkDemoStatus()) {
      toast.error(dictionary['navigation'].editError);
-
+      
       return;
       }
 
@@ -274,12 +216,13 @@ const VehicleModelTable = ({ vehicleModelData, dictionary }: { vehicleModelData:
   const handleDeleteClick = (original: VehicleModelType) => {
     if (checkDemoStatus()) {
      toast.error(dictionary['navigation'].deleteError);
-
+      
       return;
       }
 
-    setDeleteVehicleId(original.id);
+    setDeletebrandId(original?._id ?? null);
     setDeleteConfirmationOpen(true);
+
   };
 
   const handlePagecurrentForAddRecord = () => {
@@ -300,18 +243,19 @@ const VehicleModelTable = ({ vehicleModelData, dictionary }: { vehicleModelData:
   };
 
   const handleConfirmDelete = async (confirmed: boolean) => {
-    if (confirmed && deleteVehicleId) {
+
+    if (confirmed && deletebrandId) {
       try
       {
-        const response = await deleteVehicleModelById(deleteVehicleId)
-
+        const response = await deleteVehicleModelById(deletebrandId)
+    
         if (response.status === httpStatus.FORBIDDEN) {
           setErrorMessage(response.msg);
           setErrorDialogOpen(true);
-        }
+        } 
         else {
           if (data.length != 1) {
-            setData(data.filter((vehicle) => vehicle.id !== deleteVehicleId));
+            setData(data.filter((vehicle) => vehicle.id !== deletebrandId));
             handlePagecurrentForAddRecord()
           } else {
             handlePageChangeForAddRecord();
@@ -320,7 +264,7 @@ const VehicleModelTable = ({ vehicleModelData, dictionary }: { vehicleModelData:
 
         setErrorData(response.status);
         setDeleteConfirmationOpen(false);
-        setDeleteVehicleId(null);
+        setDeletebrandId(null);
       }
       catch (error) {
         toast.error(dictionary['navigation'].Anerroroccurredwhiledeletingthevehiclemodel);
@@ -329,7 +273,7 @@ const VehicleModelTable = ({ vehicleModelData, dictionary }: { vehicleModelData:
     else
     {
       setDeleteConfirmationOpen(false);
-      setDeleteVehicleId(null);
+      setDeletebrandId(null);
     }
   };
 
@@ -340,7 +284,7 @@ const VehicleModelTable = ({ vehicleModelData, dictionary }: { vehicleModelData:
 
   const handlePageChange = async (event: unknown, newPage: number) => {
     try {
-      const { results, totalResults } = await getVehicleModelByPagination(vehicleId,pageSearch, newPage, pageSize);
+      const { results, totalResults } = await getVehicleModelByPagination(brandId,pageSearch, newPage, pageSize);
 
       setData(results);
       setPageIndex(newPage);
@@ -354,7 +298,7 @@ const VehicleModelTable = ({ vehicleModelData, dictionary }: { vehicleModelData:
 
     const newPageSize = parseInt(event.target.value);
 
-    const { results, totalResults } = await getVehicleModelByPagination(vehicleId,pageSearch, 1, newPageSize);
+    const { results, totalResults } = await getVehicleModelByPagination(brandId,pageSearch, 1, newPageSize);
 
     setPageSize(newPageSize);
     setData(results);
@@ -367,7 +311,7 @@ const VehicleModelTable = ({ vehicleModelData, dictionary }: { vehicleModelData:
     async (searchTerm: string) => {
       try {
         const result = await getVehicleModelByPagination(
-          vehicleId,
+          brandId,
           searchTerm,
           1, // Reset to first page on new search
           pageSize
@@ -381,9 +325,9 @@ const VehicleModelTable = ({ vehicleModelData, dictionary }: { vehicleModelData:
         console.error("Error fetching search results:", error);
       }
     },
-    [pageSize]
+    [pageSize,brandId]
   );
-
+  
   return (
     <>
 
@@ -418,13 +362,13 @@ const VehicleModelTable = ({ vehicleModelData, dictionary }: { vehicleModelData:
                 <MenuItem key={size} value={size}>{size}</MenuItem>
               ))}
             </CustomTextField>
-            <Button
+            {/* <Button
                 variant='contained'
                 startIcon={<i className='tabler-arrow-narrow-left' />}
-                href={ getLocalizedUrl(`/apps/taxi/master/vehicle`, locale as Locale)}
+                href={ getLocalizedUrl(`${zoneId}/apps/taxi/master/brand`, locale as Locale)}
               >
                 {dictionary['navigation'].Back}
-            </Button>
+            </Button> */}
             <ExportOptions
               data={data}
               tableContainerId="table-container"
@@ -500,7 +444,7 @@ const VehicleModelTable = ({ vehicleModelData, dictionary }: { vehicleModelData:
           component={() => <TablePaginationComponent
             table={table}  // Pass the table object
             totalResults={totalResults}  // Pass the total results
-            pageIndex={pageIndex == 0 ? pageIndex + 1 : pageIndex}  // Current page index
+            pageIndex={pageIndex === 0 ? pageIndex + 1 : pageIndex}  // Current page index
             pageSize={pageSize}  // Current page size
            handlePageChange={handlePageChange}  // Page change handler
             handlePageSizeChange={handlePageSizeChange}  // Page size change handler
@@ -524,7 +468,7 @@ const VehicleModelTable = ({ vehicleModelData, dictionary }: { vehicleModelData:
         page={pageIndex}
         onPageChange={handlePageChange}
         rowsPerPage={pageSize}
-        vehicleId={vehicleId}
+        brandId={brandId}
       />
       <ConfirmationDialogErrorHandle
         open={deleteConfirmationOpen}
@@ -533,15 +477,6 @@ const VehicleModelTable = ({ vehicleModelData, dictionary }: { vehicleModelData:
         onConfirm={handleConfirmDelete}
         dictionary={dictionary}
         status={errorData}
-      />
-
-      <ConfirmationDialog
-        open={statusConfirmationOpen}
-        setOpen={setStatusConfirmationOpen}
-        confirmationType="status-data"
-        onConfirm={handleConfirmStatus}
-        dictionary={dictionary}
-
       />
 
 <Dialog open={errorDialogOpen} onClose={() => setErrorDialogOpen(false)}>

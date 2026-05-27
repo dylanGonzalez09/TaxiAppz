@@ -5,20 +5,27 @@ const userRoute = require('./user.route');
 const roleRoute = require('../web/privilege/role.route');
 const permissionRoute = require('../web/privilege/permissions.route');
 const privillegeRoute = require('../web/privilege/privillege.route');
-const ProjectVersionRoute = require('./../web/master/projectversion.route');
-const CategoryRoute = require('./../web/master/category.route');
-const GroupDocumentRoute = require('./../web/master/groupdocument.route');
-const DocumentRoute = require('./../web/master/document.route');
-const VehicleRoute = require('./../web/master/vehicle.route');
-const VehicleModelRoute = require('./../web/master/vehiclemodel.route');
-const DriverDocumentRoute = require('./../web/master/driverdocument.route');
-const CancellationReasonRoute = require('./../web/master/cancellationReason.route');
-const WalletRoute = require('./../web/master/wallet.route');
-const OutOfZoneRoute = require('./../web/zone/outofzone.route');
+const ProjectVersionRoute = require('../web/master/projectversion.route');
+const CategoryRoute = require('../web/master/category.route');
+const GroupDocumentRoute = require('../web/master/groupdocument.route');
+const AdvertisementRoute = require('../web/master/advertisement.route');
 
-const ComplaintsRoute = require('../boilerplate/complaints.route'); 
+const DocumentRoute = require('../web/master/document.route');
+const VehicleRoute = require('../web/master/vehicle.route');
+const BrandRoute = require('../web/master/brand.route');
+const VehicleModelRoute = require('../web/master/vehiclemodel.route');
+const VehicleVariantRoute = require('../web/master/vehiclevariant.route');
+
+const DriverDocumentRoute = require('../web/master/driverdocument.route');
+const VehicleDocumentRoute = require('../web/master/vehicledocument.route');
+
+const CancellationReasonRoute = require('../web/master/cancellationReason.route');
+const WalletRoute = require('../web/master/wallet.route');
+
+const OutOfZoneRoute = require('../web/zone/outofzone.route');
+const ApiTicketRoute = require('../api/auth/ticket.route.js');
+
 const TranslationRoute = require('../boilerplate/translation.route');
-const CompanyRoute = require('../boilerplate/company.route');
 const JsonRoute = require('../boilerplate/json.route');
 const SettingRoute = require('../boilerplate/setting.route');
 const DriverRoute = require('../boilerplate/driver.route');
@@ -31,12 +38,12 @@ const CountryRoute = require('../boilerplate/country.route');
 const InvoiceQuestionRoute = require('../boilerplate/invoicequestion.route');
 
 const SubscriptionRoute = require('../web/client/subscription.route');
-const CompanySubscriptionRoute = require('../boilerplate/companySubscription.route');
 
 const ClientRoute = require('../web/client/clients.route');
 const DemoClientRoute = require('../web/client/democlient.route');
 
 const ImagetRoute = require('../web/client/intro.route');
+const ComplaintsRoute = require('../boilerplate/complaints.route');
 
 const ZoneRoute = require('../web/zone/zone.route');
 const ZonePriceRoute = require('../web/zone/zoneprice.route');
@@ -47,13 +54,10 @@ const RentalRoute = require('../boilerplate/rental.route');
 const FaqRoute = require('../boilerplate/faq.route');
 const TicketRoute = require('../boilerplate/ticket.route');
 const ClientToken = require('../boilerplate/clientToken.route');
-const ApiTicketRoute = require('../api/auth/ticket.route');
 
-const SosRoute = require('./../web/master/sos.route');
+const SosRoute = require('../web/master/sos.route');
 
-const deleteAccountRoute = require('./../web/delete/deleteAccount.route');
-
-const fineRoute = require('../web/master/fine.route');
+const deleteAccountRoute = require('../web/delete/deleteAccount.route');
 
 const docsRoute = require('./docs.route');
 const config = require('../../config/config');
@@ -65,6 +69,7 @@ const router = express.Router();
 // API Routes
 // 1. Module Name =  Auth
 //    1. languages
+const APIDriverSubscriptionRoute = require('../api/auth/driverSubscription.route.js');
 const APILanguageRoute = require('../api/auth/language.route');
 const APIAuthRoute = require('../api/auth/auth.route');
 const APIDriverRoute = require('../api/auth/driver.route');
@@ -79,7 +84,6 @@ const APIDriverDocumentRoute = require('../api/auth/driver_document.route');
 const APIFavoriteRoute = require('../web/master/favourite_place.route');
 const APISubscriptionRoute = require('../api/auth/subscription.route');
 const APICancellationoute = require('../api/auth/cancellationReason.route');
-const APICompanyoute = require('../api/auth/company.route');
 const APIZoneoute = require('../api/auth/zone.route');
 const APIReferralRoute = require('../api/auth/referral.route');
 const APIUserRoute = require('../api/auth/user.route');
@@ -89,17 +93,15 @@ const sendRoute = require('../api/auth/pushnotification.route');
 const mqttRoutes = require('../mqtt/mqtt.route');
 const APIRatingRoute = require('../api/auth/rating.route');
 const APIPromocodeRoute = require('../api/auth/promo.route');
-const APIDriverSubscriptionRoute = require('../api/auth/driver_scbscription.route');
 
-// Web-specific routes (separate from mobile API)
+
 const WebUserRoute = require('../web/user/user.route');
 const WebCountryRoute = require('../web/country/country.route');
 const WebSettingsRoute = require('../web/settings/settings.route');
 const WebPromoRoute = require('../web/promo/promo.route');
 const WebRequestRoute = require('../web/request/request.route');
 const WebRentalRoute = require('../web/rental/rental.route');
-
-
+const WebDriverRoute = require('../web/driver/driver.route');
 
 const defaultRoutes = [
   {
@@ -163,8 +165,8 @@ const defaultRoutes = [
     route: DriverDocumentRoute,
   },
   {
-    path: '/company',
-    route: CompanyRoute,
+    path: '/vehicleDocument',
+    route: VehicleDocumentRoute,
   },
   {
     path: '/category',
@@ -173,6 +175,14 @@ const defaultRoutes = [
   {
     path: '/groupDocument',
     route: GroupDocumentRoute,
+  },
+  {
+    path: '/advertisement',
+    route: AdvertisementRoute,
+  },
+  {
+    path: '/api/advertisement',
+    route: AdvertisementRoute,
   },
   {
     path: '/document',
@@ -197,10 +207,6 @@ const defaultRoutes = [
   {
     path: '/subscription',
     route: SubscriptionRoute,
-  },
-  {
-    path: '/package',
-    route: CompanySubscriptionRoute,
   },
   {
     path: '/client',
@@ -246,7 +252,7 @@ const defaultRoutes = [
     path: '/cancellationReason',
     route: CancellationReasonRoute,
   },
-   {
+  {
     path: '/complaints',
     route: ComplaintsRoute,
   },
@@ -267,28 +273,40 @@ const defaultRoutes = [
     route: ClientToken,
   },
   {
+    path: '/brand',
+    route: BrandRoute,
+  },
+  {
+    path: '/vehicleVariant',
+    route: VehicleVariantRoute,
+  },
+  {
     path: '/api/rental',
     route: RentalRoute,
   },
   {
     path: '/invoiceQuestion',
-    route: InvoiceQuestionRoute
+    route: InvoiceQuestionRoute,
   },
   {
     path: '/deleteAccount',
-    route: deleteAccountRoute
-  },
-  {
-    path: '/fine',
-    route: fineRoute
+    route: deleteAccountRoute,
   },
   {
     path: '/api/language',
     route: APILanguageRoute,
   },
   {
+    path: '/api/user',
+    route: APIUserRoute,
+  },
+  {
     path: '/api/driver',
     route: APIDriverRoute,
+  },
+  {
+    path: '/api/brand',
+    route: BrandRoute,
   },
   {
     path: '/api/sos',
@@ -318,7 +336,7 @@ const defaultRoutes = [
     path: '/mqtt',
     route: mqttRoutes,
   },
- {
+  {
     path: '/api/mqtt',
     route: mqttRoutes,
   },
@@ -338,34 +356,26 @@ const defaultRoutes = [
     path: '/api/subscription',
     route: APISubscriptionRoute,
   },
-  {
+    {
     path: '/api/driversubscription',
     route: APIDriverSubscriptionRoute,
   },
   {
     path: '/api/cancellationReason',
-    route: APICancellationoute
-  },
-  {
-    path: '/api/company',
-    route: APICompanyoute
+    route: APICancellationoute,
   },
   {
     path: '/api/zone',
-    route: APIZoneoute
+    route: APIZoneoute,
   },
   {
     path: '/api/referral',
-    route: APIReferralRoute
-  },
+    route: APIReferralRoute,
+  }, 
   {
     path: '/api/user',
     route: APIUserRoute,
   },
-  // {
-  //   path: '/api/user',
-  //   route: APIUserRoute,
-  // },
   {
     path: '/api/faq',
     route: APIFaqRoute,
@@ -384,11 +394,11 @@ const defaultRoutes = [
   },
   {
     path: '/api/invoiceQuestion',
-    route: InvoiceQuestionRoute
+    route: InvoiceQuestionRoute,
   },
   {
     path: '/faq',
-    route: FaqRoute
+    route: FaqRoute,
   },
   {
     path: '/ticket',
@@ -400,7 +410,7 @@ const defaultRoutes = [
   },
   {
     path: '/api/notification',
-    route: sendRoute
+    route: sendRoute,
   },
   {
     path: '/api/ticket',
@@ -430,6 +440,10 @@ const defaultRoutes = [
   {
     path: '/web/rental',
     route: WebRentalRoute,
+  },
+  {
+    path: '/web/driver',
+    route: WebDriverRoute,
   }
 ];
 const devRoutes = [

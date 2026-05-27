@@ -2,9 +2,9 @@
 import { get, post, patch, del } from './apiService'
 import { ENDPOINTS } from './endpoint'
 
-export const fetchInvoice = async () => {
+export const fetchInvoice = async (overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.invoice.list)
+    const response = await get(ENDPOINTS.invoice.list, undefined, overrideZoneId)
 
     if (response.success) {
       return response.data
@@ -18,9 +18,9 @@ export const fetchInvoice = async () => {
   }
 }
 
-export const getQuestionsReport = async () => {
+export const getQuestionsReport = async (overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.invoice.getQuestionsReport)
+    const response = await get(ENDPOINTS.invoice.getQuestionsReport, undefined, overrideZoneId)
 
     if (response.success) {
       return response.data
@@ -35,9 +35,9 @@ export const getQuestionsReport = async () => {
 }
 
 
-export const getByInvoiceByPagination = async (searchTerm: string, page: number, limit: number) => {
+export const getByInvoiceByPagination = async (searchTerm: string, page: number, limit: number, overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.invoice.getByPagination(searchTerm, page, limit))
+    const response = await get(ENDPOINTS.invoice.getByPagination(searchTerm, page, limit), undefined, overrideZoneId)
 
     if (response.success) {
 
@@ -55,9 +55,9 @@ export const getByInvoiceByPagination = async (searchTerm: string, page: number,
 }
 
 
-export const createInvoice = async (invoice: any) => {
+export const createInvoice = async (invoice: any, overrideZoneId?: any) => {
   try {
-    const response = await post(ENDPOINTS.invoice.create, invoice)
+    const response = await post(ENDPOINTS.invoice.create, invoice, overrideZoneId)
 
     if (response.success) {
       return response.data
@@ -76,9 +76,9 @@ export const createInvoice = async (invoice: any) => {
   }
 }
 
-export const updateInvoice = async (id: any, invoice: any) => {
+export const updateInvoice = async (id: any, invoice: any, overrideZoneId?: any) => {
   try {
-    const response = await patch(ENDPOINTS.invoice.update(id), invoice)
+    const response = await patch(ENDPOINTS.invoice.update(id), invoice, overrideZoneId)
 
     if (response.success) {
       return response.data
@@ -94,9 +94,9 @@ export const updateInvoice = async (id: any, invoice: any) => {
 }
 
 
-export const deleteByInvoiceId = async (id: string) => {
+export const deleteByInvoiceId = async (id: string, overrideZoneId?: any) => {
   try {
-    const response = await del(ENDPOINTS.invoice.deleteById(id))
+    const response = await del(ENDPOINTS.invoice.deleteById(id), overrideZoneId)
 
     if (response.success) {
       return response.data
@@ -110,9 +110,9 @@ export const deleteByInvoiceId = async (id: string) => {
   }
 }
 
-export const updateInvoiceStatus = async (id: string, invoice: any) => {
+export const updateInvoiceStatus = async (id: string, invoice: any, overrideZoneId?: any) => {
   try {
-    const response = await patch(ENDPOINTS.invoice.updateStatus(id), invoice);
+    const response = await patch(ENDPOINTS.invoice.updateStatus(id), invoice, overrideZoneId);
 
     if (response.success) {
       return response.data;
@@ -126,9 +126,9 @@ export const updateInvoiceStatus = async (id: string, invoice: any) => {
   }
 };
 
-export const getQuestionsDetails = async (id: string) => {
+export const getQuestionsDetails = async (id: string, overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.invoice.getQuestionsDetails(id));
+    const response = await get(ENDPOINTS.invoice.getQuestionsDetails(id), undefined, overrideZoneId);
 
     if (response.success) {
       return response.data
@@ -142,9 +142,9 @@ export const getQuestionsDetails = async (id: string) => {
   }
 };
 
-export const getInvoiceByLanguage = async (id: string,searchTerm: string, page: number, limit: number) => {
+export const getInvoiceByLanguage = async (id: string, searchTerm: string, page: number, limit: number, overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.invoice.getInvoiceByLanguage(id,searchTerm, page, limit));
+    const response = await get(ENDPOINTS.invoice.getInvoiceByLanguage(id, searchTerm, page, limit), undefined, overrideZoneId);
    
     if (response.success) {
       return response.data

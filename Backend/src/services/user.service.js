@@ -1,43 +1,23 @@
-const httpStatus = require('http-status');
-const { User, Role, Users, Request, Wallet, Driver } = require('../models');
-const ApiError = require('../utils/ApiError');
-const { autocompletePlaces, getPrimaryZone } = require('../utils/commonFunction');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const jwt = require('jsonwebtoken');
 const moment = require('moment');
-const ObjectId = require('mongoose').Types.ObjectId
+const { User, Role, Users, Request, Wallet, Zone } = require('../models');
+const ApiError = require('../utils/ApiError');
+const {
+  autocompletePlaces,
+  getPrimaryZone,
+  getPickupZone,
+  getUserId,
+  getClientId,
+  getZoneId,
+} = require('../utils/commonFunction');
+const { ObjectId } = require('mongoose').Types;
 const config = require('../config/config');
 const { HttpStatusCode } = require('axios');
 
-const getClientId = async (req) => {
-  clientId = '';
-
-  if (!req.headers.clientid) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
-  } else {
-    clientId = req.headers.clientid;
-  }
-  return clientId;
-}
-
-
-const getUserId = async (req) => {
-
-  let userId = '';
-
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    res.status(httpStatus.UNAUTHORIZED).send({ message: 'Authorization header is missing or invalid' });
-    return;
-  }
-  // Remove the 'Bearer ' prefix and get the token
-  const token = authHeader.substring(7);
-
-  const user = await verifyTokenAndGetUser(token);
-  userId = user.id;
-  return userId;
-}
-
+const getUserByPhoneNumber = async (phoneNumber) => {
+  return User.findOne({ phoneNumber });
+};
 
 const verifyTokenAndGetUser = async (token) => {
   try {
@@ -49,23 +29,10 @@ const verifyTokenAndGetUser = async (token) => {
   }
 };
 
-const getCompanyId = async (req) => {
-  companyId = '';
-  if (!req.headers.companyid) {
-    companyId = null;
-  } else {
-    companyId = req.headers.companyid;
-  }
-  return companyId;
-}
-
 const getRoleIdsByRoleName = async (roleName) => {
-  const roles = await Role.find({ role: roleName });
-  return roles.map((role) => role.id);
+  const roles = await Role.find({ role: roleName }).select('_id').lean();
+  return roles.map((r) => r._id);
 };
-
-
-
 
 /**
  * Create a user
@@ -90,7 +57,7 @@ const queryUsers = async (filter, options) => {
   return users;
 };
 
-/**2
+/** 2
  * Get user by id
  * @param {ObjectId} id
  * @returns {Promise<User>}
@@ -108,7 +75,6 @@ const getUserByEmail = async (email) => {
   return User.findOne({ email, active: true });
 };
 
-
 /**
  * Get user by email
  * @param {string} phoneNumber
@@ -116,9 +82,8 @@ const getUserByEmail = async (email) => {
  * @returns {Promise<User>}
  */
 const getUserByPhone = async (phoneNumber) => {
-  return User.findOne({ "phoneNumber": phoneNumber });
+  return User.findOne({ phoneNumber });
 };
-
 
 /**
  * Get user by email
@@ -127,40 +92,49 @@ const getUserByPhone = async (phoneNumber) => {
  * @returns {Promise<User>}
  */
 const getDriverByPhone = async (phoneNumber) => {
-  return User.findOne({ "phoneNumber": phoneNumber });
+  return User.findOne({ phoneNumber });
+};
+
+const getDriverByPhoneAndRole = async (phoneNumber, roleIds) => {
+  return User.findOne({
+    phoneNumber,
+    roleIds: { $in: roleIds },
+  });
 };
 
 /**
- * Get companys
+ * Get
  * @param {string} email - The clientId to filter users by
  * @returns {Promise<Users>}
  */
 const gettUserByEmaiDetails = async (email) => {
   try {
-    // Fetch user data from the User collection
     const results = await User.aggregate([
       {
         $match: {
-          email: email
-        }
-      }
+          email,
+        },
+      },
     ]);
 
     if (results.length === 0) {
-      return null;  // No user found
+      return null;
     }
 
-    const user = results[0];  // Assuming only one result
+    const user = results[0];
 
     const roles = await Role.find({
-      _id: { $in: user.roleIds } // Match roleIds from the user document
+      _id: { $in: user.roleIds },
     });
 
-    // Map over the roles and get the role names
-    const userRoles = roles.map(role => role.role);
+    // Create a map of roleId to role name for easy lookup
+    const roleMap = {};
+    roles.forEach((role) => {
+      roleMap[role._id.toString()] = role.role;
+    });
 
-    // Add the role names to the user data
-    user.roles = userRoles[0];
+    user.roles = roleMap[user.roleIds[0].toString()]; // Return first role name
+    user.roleIds = [user.roleIds[0]];
 
     return user;
   } catch (error) {
@@ -169,7 +143,6 @@ const gettUserByEmaiDetails = async (email) => {
   }
 };
 
-
 /**
  * Get All User
  * @param {ObjectId} clientId
@@ -177,22 +150,13 @@ const gettUserByEmaiDetails = async (email) => {
  */
 const getAllUsers = async (req) => {
   const clientId = await getClientId(req);
-  if (!clientId) {
-    throw new Error("Client ID is required.");
-  }
+  const zoneId = await getZoneId(req);
+  const adminRoleIds = await getRoleIdsByRoleName('User');
 
-  const userRoleIds = await getRoleIdsByRoleName("User");
-
-  const filter = { clientId };
-  filter.roleIds = { $in: userRoleIds };
-  const userRole = await Role.findOne({role: 'User'});
-  if(userRole)
-  {
-    filter.roleIds = userRole._id;
-  }
+  const filter = { clientId, zoneId };
+  filter.roleIds = { $in: adminRoleIds.map((id) => new ObjectId(id)) };
 
   return User.find(filter).sort({ createdAt: -1 });
-  // return User.find({ clientId: clientId }).sort({ createdAt: -1 });
 };
 
 // const getAllAdmins = async (req, filter, options) => {
@@ -217,25 +181,19 @@ const getAllUsers = async (req) => {
  */
 const getAllAdmins = async (req, filter, options) => {
   const clientId = await getClientId(req);
+  const zoneId = await getZoneId(req);
   filter.clientId = clientId;
+  filter.zoneId = { $in: [new ObjectId(zoneId)] };
 
-  const [superAdminRoleIds, clientRoleIds, userRoleIds, driverRoleIds,demoRoleIds] = await Promise.all([
-    getRoleIdsByRoleName("Superadmin"),
-    getRoleIdsByRoleName("Client"),
-    getRoleIdsByRoleName("User"),
-    getRoleIdsByRoleName("Driver"),
-    getRoleIdsByRoleName("Demo")
-
+  const [superAdminRoleIds, clientRoleIds, userRoleIds, driverRoleIds] = await Promise.all([
+    getRoleIdsByRoleName('Superadmin'),
+    getRoleIdsByRoleName('Client'),
+    getRoleIdsByRoleName('User'),
+    getRoleIdsByRoleName('Driver'),
   ]);
 
   // Flatten the arrays of role IDs and apply $nin filter
-  const excludedRoleIds = [
-    ...superAdminRoleIds,
-    ...clientRoleIds,
-    ...userRoleIds,
-    ...driverRoleIds,
-    ...demoRoleIds
-  ];
+  const excludedRoleIds = [...superAdminRoleIds, ...clientRoleIds, ...userRoleIds, ...driverRoleIds];
 
   filter.roleIds = { $nin: excludedRoleIds };
 
@@ -243,13 +201,11 @@ const getAllAdmins = async (req, filter, options) => {
 
   const users = await User.paginate(filter, {
     ...options,
-    populate: 'roleIds'
+    populate: 'roleIds',
   });
-
 
   return users;
 };
-
 
 /**
  * Query for users with pagination
@@ -263,47 +219,79 @@ const getAllAdmins = async (req, filter, options) => {
 const getAllUser = async (req, filter, options) => {
   const clientId = await getClientId(req); // Ensure clientId is set properly
 
-  const companyId = await getCompanyId(req); // Ensure clientId is set properly
+  const zoneId = await getZoneId(req);
 
   const limit = parseInt(options.limit, 10) || 10;
   const page = parseInt(options.page, 10) || 1;
 
-  if (companyId) {
-    filter.companyId = companyId;
-  }
-
   filter.clientId = clientId;
+  filter.zoneId = { $in: [new ObjectId(zoneId)] };
 
-  const adminRoleIds = await getRoleIdsByRoleName("User");
+  const adminRoleIds = await getRoleIdsByRoleName('User');
 
-  filter.roleIds = { $in: adminRoleIds.map(id => new ObjectId(id)) };
+  filter.roleIds = { $in: adminRoleIds.map((id) => new ObjectId(id)) };
   filter.clientId = new ObjectId(clientId);
   options.sortBy = options.sortBy || 'createdAt:desc';
 
   // const users = await User.paginate(filter, options);
 
-  const user = await User.aggregate([
+ const user = await User.aggregate([
     {
-      $match: filter
+      $match: filter,
     },
-    {
-      $lookup: {
-        from: 'wallets',
-        localField: '_id',
-        foreignField: 'userId',
-        as: 'walletDetails'
-      }
-    },
+    // {
+    //   $lookup: {
+    //     from: 'wallet',
+    //     localField: '_id',
+    //     foreignField: 'userId',
+    //     as: 'walletDetails',
+    //   },
+    // },
+      {
+        $lookup: {
+          from: 'wallets',
+          localField: '_id',
+          foreignField: 'userId',
+          as: 'walletData',
+        },
+      },
+      {
+        $addFields: {
+          walletData: { $arrayElemAt: ['$walletData', 0] }
+        }
+      },
     {
       $lookup: {
         from: 'requestratings',
         localField: '_id',
         foreignField: 'userId',
-        as: 'ratingDetails'
-      }
+        as: 'ratingDetails',
+      },
     },
-    { $unwind: { path: '$walletDetails', preserveNullAndEmptyArrays: true } },
+    { $unwind: { path: '$walletData', preserveNullAndEmptyArrays: true } },
     { $unwind: { path: '$ratingDetails', preserveNullAndEmptyArrays: true } },
+
+        {
+          $lookup: {
+            from: "requests",
+            localField: "_id",
+            foreignField: "userId",
+            as: "tripData"
+          }
+        },
+        {
+          $addFields: {
+            tripsCount: {
+              $size: {
+                $filter: {
+                  input: "$tripData",
+                  as: "trip",
+                  cond: { $eq: ["$$trip.isCompleted", true] }
+                }
+              }
+            }
+          }
+        },
     {
       $group: {
         _id: '$_id',
@@ -318,9 +306,9 @@ const getAllUser = async (req, filter, options) => {
         tripsCount: { $first: '$tripsCount' },
         active: { $first: '$active' },
         rating: { $first: '$rating' },
-        Wallet: { $first: '$walletDetails.balance' },
+        Wallet: { $first: '$walletData.balance' },
         createdAt: { $first: '$createdAt' }, // ✅ Preserve createdAt
-      }
+      },
     },
     {
       $project: {
@@ -333,24 +321,18 @@ const getAllUser = async (req, filter, options) => {
         avatar: 1,
         phoneNumber: 1,
         tripsCount: 1,
-        Wallet: { $round: [
-              { $toDouble: { $ifNull: ['$Wallet', 0.0] } },
-              2,
-            ], },
-        rating: { $ifNull: [{ $floor: '$averageRating' }, '$rating'] },
+        Wallet: { $ifNull: [{ $round: ['$Wallet', 2] }, 0.0] },
+        rating: { $ifNull: [{ $round: ['$averageRating', 1] }, '$rating'] },
         active: 1,
-        createdAt: 1
-      }
+        createdAt: 1,
+      },
     },
     {
-      $sort: { createdAt: -1 }
+      $sort: { createdAt: -1 },
     },
-    {
-      $skip: (page - 1) * limit
-    },
-    {
-      $limit: limit
-    }
+    // pagination MUST be last
+    { $skip: (page - 1) * limit },
+    { $limit: limit },
   ]);
 
   const totalResults = await User.countDocuments(filter);
@@ -366,7 +348,6 @@ const getAllUser = async (req, filter, options) => {
 
   // return users;
 };
-
 
 /**
  * Get users by RoleId
@@ -391,6 +372,19 @@ const updateUserById = async (userId, updateBody) => {
   if (updateBody.email && (await User.isEmailTaken(updateBody.email, userId))) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Email already taken');
   }
+  const newEmployeeId = updateBody.employeeId || user.employeeId;
+
+  if (newEmployeeId) {
+    const existingUser = await User.findOne({
+      employeeId: newEmployeeId,
+      _id: { $ne: userId }, // exclude current user
+    });
+
+    if (existingUser) {
+      throw new ApiError(httpStatus.CONFLICT, 'Employee ID already exists under this user');
+    }
+  }
+
   Object.assign(user, updateBody);
   await user.save();
   return user;
@@ -404,45 +398,23 @@ const updateUserById = async (userId, updateBody) => {
 const deleteUserById = async (userId) => {
   const user = await getUserById(userId);
   if (!user) {
-    return { status: httpStatus.NOT_FOUND, msg: "User not found" };
+    return { status: httpStatus.NOT_FOUND, msg: 'User not found' };
   }
 
-  const request = await Request.countDocuments({ userId: new ObjectId(user._id) });
-  if (request > 0) {
-    return { status: httpStatus.FORBIDDEN, msg: "The user has trip history...so you cannot delete this user..." };
-  }
-  await Wallet.deleteOne({ userId: new ObjectId(user._id) });
-  await user.deleteOne();
+  // const request = await Request.countDocuments({ userId: new ObjectId(user._id) });
+  // if (request > 0) {
+  //   return { status: httpStatus.FORBIDDEN, msg: 'The user has trip history...so you cannot delete this user...' };
+  // }
+  user.email = user.email ? `deleted_${Date.now()}@mail.com` : null;
+  user.phoneNumber = `deleted_${Date.now()}`;
 
-  return { status: HttpStatusCode.Ok, msg: "Data Deleted Successfully" };
+  user.active = false; // block login
+  user.token = null;   // logout
+  user.onlineBy = 0;   // offline
+
+  await user.save();
+  return { status: HttpStatusCode.Ok, msg: 'Data Deleted Successfully' };
 };
-
-
-/**
- * Delete user by id
- * @param {ObjectId} userId
- * @returns {Promise<User>}
- */
-const deleteMobileUserById = async (userId) => {
-  const user = await getUserById(userId);
-  if (!user) {
-    return { status: httpStatus.NOT_FOUND, msg: "User not found" };
-  }
-
-  await Wallet.deleteOne({ userId: new ObjectId(user._id) });
-
-  const driver = await Driver.findOne({ userId: new ObjectId(user._id) });
-
-  if (driver) {
-    driver.deleteOne();
-  }
-
-  await user.deleteOne();
-
-  return { status: HttpStatusCode.Ok, msg: "Data Deleted Successfully" };
-};
-
-
 
 const fetchAutocompletePlaces = async (keyword, location) => {
   try {
@@ -461,16 +433,15 @@ const getPrimaryZoneDetail = async (lat, lon) => {
 };
 
 const getRequesHistoryList = async (req) => {
-
-  let clientId = await getClientId(req);
-  let userId = await getUserId(req);
+  const clientId = await getClientId(req);
+  const userId = await getUserId(req);
 
   return Request.aggregate([
     {
       $match: {
         clientId: new ObjectId(clientId),
-        userId: new ObjectId(userId)
-      }
+        userId: new ObjectId(userId),
+      },
     },
     {
       $lookup: {
@@ -485,24 +456,24 @@ const getRequesHistoryList = async (req) => {
         from: 'requestbills',
         localField: '_id',
         foreignField: 'requestId',
-        as: 'billingDetails'
-      }
+        as: 'billingDetails',
+      },
     },
     {
       $lookup: {
         from: 'requestplaces',
         localField: '_id',
         foreignField: 'requestId',
-        as: 'placesDetails'
-      }
+        as: 'placesDetails',
+      },
     },
     {
       $lookup: {
         from: 'requestratings',
         localField: '_id',
         foreignField: 'requestId',
-        as: 'ratingDetails'
-      }
+        as: 'ratingDetails',
+      },
     },
     {
       $lookup: {
@@ -515,26 +486,26 @@ const getRequesHistoryList = async (req) => {
     {
       $unwind: {
         path: '$billingDetails',
-        preserveNullAndEmptyArrays: true
-      }
+        preserveNullAndEmptyArrays: true,
+      },
     },
     {
       $unwind: {
         path: '$ratingDetails',
-        preserveNullAndEmptyArrays: true
-      }
+        preserveNullAndEmptyArrays: true,
+      },
     },
     {
       $unwind: {
         path: '$user',
         preserveNullAndEmptyArrays: true,
-      }
+      },
     },
     {
       $unwind: {
         path: '$driverDetails',
         preserveNullAndEmptyArrays: true,
-      }
+      },
     },
     {
       $lookup: {
@@ -542,7 +513,7 @@ const getRequesHistoryList = async (req) => {
         localField: 'driverDetails.userId',
         foreignField: '_id',
         as: 'driverPersonalDetails',
-      }
+      },
     },
     {
       $lookup: {
@@ -550,7 +521,7 @@ const getRequesHistoryList = async (req) => {
         localField: 'driverDetails.type',
         foreignField: '_id',
         as: 'vehicleDetails',
-      }
+      },
     },
     {
       $lookup: {
@@ -558,25 +529,25 @@ const getRequesHistoryList = async (req) => {
         localField: 'driverDetails.carModel',
         foreignField: '_id',
         as: 'vehicleModelDetails',
-      }
+      },
     },
     {
       $unwind: {
         path: '$driverPersonalDetails',
         preserveNullAndEmptyArrays: true,
-      }
+      },
     },
     {
       $unwind: {
         path: '$vehicleDetails',
         preserveNullAndEmptyArrays: true,
-      }
+      },
     },
     {
       $unwind: {
         path: '$vehicleModelDetails',
         preserveNullAndEmptyArrays: true,
-      }
+      },
     },
     {
       $project: {
@@ -705,12 +676,34 @@ const getRequesHistoryList = async (req) => {
         'vehicleModelDetails.image': { $ifNull: ['$vehicleModelDetails.image', null] },
         'vehicleModelDetails.vehicleId': { $ifNull: ['$vehicleModelDetails.vehicleId', null] },
         'vehicleModelDetails.status': { $ifNull: ['$vehicleModelDetails.status', null] },
-        'vehicleModelDetails.clientId': { $ifNull: ['$vehicleModelDetails.clientId', null] }
-      }
-    }
+        'vehicleModelDetails.clientId': { $ifNull: ['$vehicleModelDetails.clientId', null] },
+      },
+    },
   ]);
 };
 
+const checkZone = async (req, userId) => {
+  try {
+    const zone = await getPickupZone(req);
+
+    if (!zone) {
+      throw new ApiError(httpStatus.FORBIDDEN, 'Service not available at this location');
+    }
+
+    if (zone.nonServiceZone === 'yes') {
+      throw new ApiError(httpStatus.FORBIDDEN, 'Service not available at this location');
+    }
+
+    const user = await User.findById(userId);
+    user.zoneId = zone._id;
+    user.save();
+
+    return zone;
+  } catch (error) {
+    console.error('Error fetching user zone detail:', error.message);
+    throw new Error(error.message);
+  }
+};
 
 module.exports = {
   createUser,
@@ -729,5 +722,7 @@ module.exports = {
   fetchAutocompletePlaces,
   getRequesHistoryList,
   getPrimaryZoneDetail,
-  deleteMobileUserById
+  checkZone,
+  getUserByPhoneNumber,
+  getDriverByPhoneAndRole,
 };

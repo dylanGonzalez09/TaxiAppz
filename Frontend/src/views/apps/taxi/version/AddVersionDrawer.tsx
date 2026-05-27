@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable import/no-unresolved */
-import type { ChangeEvent} from 'react';
+import type { ChangeEvent } from 'react';
 import React, { useState } from 'react';
 
 import IconButton from '@mui/material/IconButton';
@@ -14,11 +14,13 @@ import CircularProgress from '@mui/material/CircularProgress';
 
 import Drawer from '@mui/material/Drawer';
 
-import { useIsDemoUser } from '@/utils/demoUser' 
+import { useIsDemoUser } from '@/utils/demoUser'
 
 
 import CustomTextField from '@core/components/mui/TextField';
 import { createVersion } from '@apis/version';
+
+import { validateTextWithNumber } from '@/utils/validation';
 
 type versionType = {
   description: string;
@@ -92,7 +94,7 @@ const AddVersionDrawer = (props: Props) => {
 
       const createData = await createVersion(newData);
 
-      setData([createData,...versionData]);
+      setData([createData, ...versionData]);
       handlePageChangeForAddRecord(count, rowsPerPage, onPageChange);
 
       // if (rowsPerPage != versionData.length) {
@@ -165,8 +167,13 @@ const AddVersionDrawer = (props: Props) => {
           <Controller
             name='versionNumber'
             control={control}
-            rules={{ required: dictionary['navigation'].VersionNumberisrequired }}
-            render={({ field }) => (
+            rules={{
+              required: dictionary['navigation'].VersionNumberisrequired,
+              pattern: {
+                value: /^[A-Za-z0-9. ]+$/,
+                message: 'Only letters, numbers, spaces, and dot (.) are allowed'
+              }
+            }} render={({ field }) => (
               <CustomTextField
                 {...field}
                 fullWidth
@@ -181,9 +188,9 @@ const AddVersionDrawer = (props: Props) => {
           <Controller
             name='versionCode'
             control={control}
-            rules={{ required: dictionary['navigation'].VersionCodeisrequired}}
+            rules={{ required: dictionary['navigation'].VersionCodeisrequired }}
             render={({ field }) => (
-              <div className="flex items-center w-full">
+              <div className="flex items-center w-full gap-2">
                 <CustomTextField
                   {...field}
                   fullWidth
@@ -195,7 +202,7 @@ const AddVersionDrawer = (props: Props) => {
                   sx={{ flexGrow: 1 }} // Make the text field take up remaining space
                 />
                 <Button
-                  className="ml-2" style={{ marginTop: '16px' }}
+                  className="" style={{ marginTop: '16px' }}
                   variant="outlined"
                   onClick={generateVersionCode}
                 >
@@ -224,27 +231,31 @@ const AddVersionDrawer = (props: Props) => {
               </CustomTextField>
             )}
           />
+<Controller
+  name='description'
+  control={control}
+  rules={{
+    required: dictionary['navigation'].Descriptionisrequired,
+    pattern: {
+                value: /^[A-Za-z0-9. ]+$/,
+                message: 'Only letters, numbers, spaces, and dot (.) are allowed'
+              }
+  }}
+  render={({ field }) => (
+    <CustomTextField
+      {...field}
+      fullWidth
+      multiline
+      minRows={3}
+      label={dictionary['navigation'].description}
+      placeholder={dictionary['navigation'].enterdescription}
+      error={!!errors.description}
+      helperText={errors.description?.message}
+    />
+  )}
+/>
 
-
-          <Controller
-            name='description'
-            control={control}
-            rules={{ required: dictionary['navigation'].Descriptionisrequired }}
-            render={({ field }) => (
-              <CustomTextField
-                {...field}
-                fullWidth
-                multiline
-                minRows={3}
-                label={dictionary['navigation'].description}
-                placeholder={dictionary['navigation'].enterdescription}
-                error={!!errors.description}
-                helperText={errors.description ? errors.description.message : ''}
-              />
-            )}
-          />
-
-          <div className='flex items-center gap-4'>
+          <div className='flex justify-end gap-5'>
             <Button
               variant="contained"
               color="primary"

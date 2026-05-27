@@ -1,19 +1,15 @@
 const admin = require('firebase-admin');
-const serviceAccount = require('./serviceAccountKey.json');  // Your Firebase service account key
-var Firebase = require('firebase');
-var GeoFire = require('geofire');
+const serviceAccount = require('./serviceAccountKey.json'); // Your Firebase service account key
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
 });
 
+// Realtime DB + GeoFire (uncomment and use firebase/compat/app + firebase/compat/database if needed):
+// const Firebase = require('firebase/compat/app');
+// const { getDatabase } = require('firebase/compat/database');
+// const GeoFire = require('geofire');
 
-
-// const fire_db = Firebase.database();
-// const driversRef = fire_db.ref().child('drivers');
-// const geoFire = new GeoFire.GeoFire(driversRef);
-
-
-module.exports ={
-  admin
+module.exports = {
+  admin,
 };

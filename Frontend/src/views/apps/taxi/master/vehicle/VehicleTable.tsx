@@ -4,16 +4,17 @@
 import type { ChangeEvent } from 'react';
 import React, { useState, useMemo, useCallback } from 'react';
 
+import Link from 'next/link'
 
-import { useParams } from 'next/navigation';
+
+import { useParams, useSearchParams } from 'next/navigation';
 
 import TablePagination from '@mui/material/TablePagination';
 import type { ColumnDef, FilterFn } from '@tanstack/react-table';
 import { createColumnHelper, flexRender, useReactTable, getCoreRowModel, getFilteredRowModel, getSortedRowModel, getPaginationRowModel } from '@tanstack/react-table';
 
-import Switch from '@mui/material/Switch'; // Import the Switch component
 
-import { MenuItem, Button, Typography, Card , Dialog, DialogActions, DialogContent,IconButton, Link } from '@mui/material';
+import { MenuItem, Button, Typography, Card , Dialog, DialogActions, DialogContent,IconButton } from '@mui/material';
 import classnames from 'classnames';
 
 import { StatusCodes as httpStatus } from 'http-status-codes';
@@ -32,10 +33,12 @@ import { BASE_IMAGE_URL } from '@apis/endpoint';
 // Next Imports
 
 
-import { deleteVehicleById, updateVehicleStatus, getVehiclesWithPagination } from '@apis/vehicle';
+import { deleteVehicleById, getVehiclesWithPagination } from '@apis/vehicle';
 
 import AddVehicleDialog from './AddEditDrawer';
-import ConfirmationDialog from '@/components/dialogs/delete-data';
+
+// import ConfirmationDialog from '@/components/dialogs/delete-data';
+
 import TablePaginationComponent from '@/components/CustomTablePaginationComponent';
 
 import ExportOptions from '@/utils/ExportOptions';
@@ -66,27 +69,43 @@ const fuzzyFilter: FilterFn<VehicleType> = (row, columnId, filterValue) => {
 
 const columnHelper = createColumnHelper<VehicleType>();
 
-const VehicleTable = ({ staticData, dictionary }: { staticData: any, dictionary: any}) => {
+const VehicleTable = ({ staticData, dictionary, zoneId }: { staticData: any; dictionary: any; zoneId?: string }) => {
+  const normalizedStaticData = {
+    page: Number(staticData?.page) > 0 ? Number(staticData.page) : 1,
+    totalResults: Number(staticData?.totalResults) >= 0 ? Number(staticData.totalResults) : 0,
+    results: Array.isArray(staticData?.results) ? staticData.results : [],
+    limit: Number(staticData?.limit) > 0 ? Number(staticData.limit) : 25,
+  }
+
   const [addVehicleOpen, setAddVehicleOpen] = useState(false);
   const [editData, setEditData] = useState<VehicleType | undefined>(undefined);
   const [rowSelection, setRowSelection] = useState({});
   const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
   const [deleteVehicleId, setDeleteVehicleId] = useState<string | null>(null);
-  const [statusConfirmationOpen, setStatusConfirmationOpen] = useState(false);
-  const [statusVehicle, setStatusVehicle] = useState<VehicleType | null>(null);
-   const { lang: locale } = useParams();
+  const { lang: locale } = useParams();
+  const searchParams = useSearchParams();
+  const initialPage = Math.max(1, Number(searchParams?.get('page')) || normalizedStaticData.page || 1);
 
-  const [globalFilter, setGlobalFilter] = useState('');
-  const [pageIndex, setPageIndex] = useState(staticData.page - 1);
-  const [pageSearch, setPageSearch] = useState("");
-  const [totalResults, setTotalResults] = useState(staticData.totalResults); // To track the total number of records
-  const [data, setData] = useState(staticData.results);
-  const [pageSize, setPageSize] = useState(staticData.limit);
+  const initialPageSize = Math.min(
+    100,
+    Math.max(5, Number(searchParams?.get('pageSize')) || normalizedStaticData.limit || 10)
+  );
+
+  const initialSearch = searchParams?.get('search') || '';
+
+  const [globalFilter, setGlobalFilter] = useState(initialSearch);
+  const [pageIndex, setPageIndex] = useState(initialPage);
+  const [pageSearch, setPageSearch] = useState(initialSearch);
+  const [totalResults, setTotalResults] = useState(normalizedStaticData.totalResults); // To track the total number of records
+  const [data, setData] = useState(normalizedStaticData.results);
+  const [pageSize, setPageSize] = useState(initialPageSize);
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [errorData, setErrorData] = useState('');
 
   const { checkDemoStatus } = useIsDemoUser();
+  const currentReturnPage = pageIndex > 0 ? pageIndex : 1;
+  const returnQuery = `?returnPage=${currentReturnPage}&returnPageSize=${pageSize}&returnSearch=${encodeURIComponent(pageSearch)}`;
 
 
   const handlePageChangeForAddRecord = () => {
@@ -103,53 +122,17 @@ const VehicleTable = ({ staticData, dictionary }: { staticData: any, dictionary:
     } as unknown as ChangeEvent<unknown>;
 
     // Trigger onPageChange with the new page
-    handlePageChange(dummyEvent, pageIndex - 1);
+    handlePageChange(dummyEvent, Math.max(1, pageIndex - 1));
   };
 
 
-  const handleStatusToggle = async (vehicle: VehicleType) => {
-    if (checkDemoStatus()) {
-      toast.error(dictionary['navigation'].editError);
-
-    return;
-      }
-
-    setStatusVehicle(vehicle);
-    setStatusConfirmationOpen(true);
-  };
-
-  const handleConfirmStatus = async (confirmed: boolean) => {
-    if (confirmed && statusVehicle) {
-      const updatedVehicle = { ...statusVehicle, status: !statusVehicle.status };
-
-      try {
-        await updateVehicleStatus(statusVehicle.id.toString(), { status: updatedVehicle.status });
-
-        setData((prevData: any[]) => {
-          return prevData.map(vehicle =>
-            vehicle.id === statusVehicle.id ? updatedVehicle : vehicle
-          );
-        });
-          toast.success(dictionary['navigation'].statusUpdatedSuccessfully);
-
-        setStatusConfirmationOpen(false);
-        setStatusVehicle(null);
-      } catch (error) {
-        console.error('Failed to update user status:', error);
-        setStatusConfirmationOpen(false);
-      }
-    } else {
-      setStatusConfirmationOpen(false);
-      setStatusVehicle(null);
-    }
-  };
 
   const columns = useMemo<ColumnDef<VehicleType, any>[]>(
     () => [
       {
         id: 'serialNo',
         header: dictionary['navigation'].serialNo,
-        cell: ({ row }) => <Typography>{row.index + 1}</Typography>,
+        cell: ({ row }) => <Typography>{(pageIndex - 1) * pageSize + row.index + 1}</Typography>,
       },
       columnHelper.accessor('vehicleName', {
         header: dictionary['navigation'].vehicleName,
@@ -175,50 +158,29 @@ const VehicleTable = ({ staticData, dictionary }: { staticData: any, dictionary:
           />
         ),
       }),
-      columnHelper.accessor('capacity', {
-        header: dictionary['navigation'].capacity,
-        cell: ({ row }) => <Typography className='font-medium'>{row.original.capacity}</Typography>,
-      }),
 
-      columnHelper.accessor('status', {
-        header: dictionary['navigation'].Status,
-        cell: ({ row }) => (
-          <div className='flex items-center gap-3'>
-            <Switch
-              checked={row.original.status}
-              onChange={() => handleStatusToggle(row.original)} // Toggle status on switch change
-              color={row.original.status ? 'success' : 'error'} // Use 'success' for active, 'error' for inactive
-              sx={{
-                '& .MuiSwitch-switchBase': {
-                  color: row.original.status ? 'green' : 'red', // Color for unchecked state
-                },
-                '& .MuiSwitch-switchBase.Mui-checked': {
-                  color: row.original.status ? 'green' : 'red', // Color for checked state
-                },
-                '& .MuiSwitch-thumb': {
-                  backgroundColor: 'white', // Inner knob color
-                },
-                '& .MuiSwitch-track': {
-                  backgroundColor: row.original.status ? 'green' : 'red', // Track color
-                },
-              }}
-            />
-          </div>
-        )
-      }),
+      // columnHelper.accessor('capacity', {
+      //   header: dictionary['navigation'].capacity,
+      //   cell: ({ row }) => <Typography className='font-medium'>{row.original.capacity}</Typography>,
+      // }),
+
       {
         id: 'actions',
         header: dictionary['navigation'].actions,
         cell: ({ row }) => (
           <div className='flex items-center'>
             <IconButton>
-                    <Link
-                      href={ getLocalizedUrl(`/apps/taxi/master/vehicle-model/${row.original.id}`, locale as Locale)}
+                    {/* <Link
+                      href={ getLocalizedUrl(`${zoneId}/apps/taxi/master/vehicle-model/${row.original.id}`, locale as Locale)}
                       className='flex'
-                    >
-                      <i className='tabler-eye text-textSecondary' />
+                    > */}
+                    <Link
+                href={getLocalizedUrl(`${zoneId ? `/${zoneId}` : ''}/apps/taxi/master/brand/${row.original.id}${returnQuery}`, locale as Locale)}
+                className='flex'
+              >
+                     <i className='tabler-arrow-right bg-primary ' />
                     </Link>
-                  </IconButton>
+            </IconButton>
             <OptionMenu
               iconButtonProps={{ size: 'medium' }}
               iconClassName='text-textSecondary'
@@ -228,13 +190,6 @@ const VehicleTable = ({ staticData, dictionary }: { staticData: any, dictionary:
                   icon: 'tabler-pencil-minus',
                   menuItemProps: {
                     onClick: () => handleEditClick(row.original),
-                  },
-                },
-                {
-                  text: dictionary['navigation'].Delete,
-                  icon: 'tabler-trash',
-                  menuItemProps: {
-                    onClick: () => handleDeleteClick(row.original),
                   },
                 }
               ]}
@@ -276,7 +231,7 @@ const VehicleTable = ({ staticData, dictionary }: { staticData: any, dictionary:
   const handleEditClick = (rowData: VehicleType) => {
     if (checkDemoStatus()) {
       toast.error(dictionary['navigation'].editError);
-
+      
       return;
       }
 
@@ -284,18 +239,18 @@ const VehicleTable = ({ staticData, dictionary }: { staticData: any, dictionary:
     setAddVehicleOpen(true);
   };
 
-  const handleDeleteClick = (original: VehicleType) => {
-    if (checkDemoStatus()) {
-     toast.error(dictionary['navigation'].deleteError);
+  // const handleDeleteClick = (original: VehicleType) => {
+  //   if (checkDemoStatus()) {
+  //    toast.error(dictionary['navigation'].deleteError);
+      
+  //     return;
+  //     }
 
-      return;
-      }
+  //   setDeleteVehicleId(original.id);
+  //   setDeleteConfirmationOpen(true);
+  // };
 
-    setDeleteVehicleId(original.id);
-    setDeleteConfirmationOpen(true);
-  };
-
-
+  
 
   const handleConfirmDelete = async (confirmed: boolean) => {
     if (confirmed && deleteVehicleId) {
@@ -306,7 +261,7 @@ const VehicleTable = ({ staticData, dictionary }: { staticData: any, dictionary:
         if (response.status === httpStatus.FORBIDDEN) {
           setErrorMessage(response.msg);
           setErrorDialogOpen(true);
-        }
+        } 
         else {
           if (data.length != 1) {
             setData(data.filter((vehicle: { id: string; }) => vehicle.id !== deleteVehicleId));
@@ -354,11 +309,13 @@ const VehicleTable = ({ staticData, dictionary }: { staticData: any, dictionary:
 
   const handlePageChange = async (event: unknown, newPage: number) => {
     try {
-      const { results, totalResults } = await getVehiclesWithPagination(pageSearch, newPage, pageSize);
+      const response = await getVehiclesWithPagination(pageSearch, newPage, pageSize);
+      const results = Array.isArray(response?.results) ? response.results : [];
+      const total = Number(response?.totalResults) >= 0 ? Number(response.totalResults) : 0;
 
       setData(results);
       setPageIndex(newPage);
-      setTotalResults(totalResults);
+      setTotalResults(total);
     } catch (error) {
       console.error("Error fetching new page data:", error);
     }
@@ -368,12 +325,14 @@ const VehicleTable = ({ staticData, dictionary }: { staticData: any, dictionary:
 
     const newPageSize = parseInt(event.target.value);
 
-    const { results, totalResults } = await getVehiclesWithPagination(pageSearch, 1, newPageSize);
+    const response = await getVehiclesWithPagination(pageSearch, 1, newPageSize);
+    const results = Array.isArray(response?.results) ? response.results : [];
+    const total = Number(response?.totalResults) >= 0 ? Number(response.totalResults) : 0;
 
     setPageSize(newPageSize);
     setData(results);
-    setTotalResults(totalResults);
-    setPageIndex(0);
+    setTotalResults(total);
+    setPageIndex(1);
   };
 
 
@@ -387,16 +346,16 @@ const VehicleTable = ({ staticData, dictionary }: { staticData: any, dictionary:
         );
 
         setPageSearch(searchTerm);
-        setData(result.results);
-        setTotalResults(result.totalResults);
-        setPageIndex(0); // Reset to first page
+        setData(Array.isArray(result?.results) ? result.results : []);
+        setTotalResults(Number(result?.totalResults) >= 0 ? Number(result.totalResults) : 0);
+        setPageIndex(1); // Reset to first page
       } catch (error) {
         console.error("Error fetching search results:", error);
       }
     },
     [pageSize]
   );
-
+  
   return (
     <>
       <Card>
@@ -506,7 +465,7 @@ const VehicleTable = ({ staticData, dictionary }: { staticData: any, dictionary:
           component={() => <TablePaginationComponent
             table={table}  // Pass the table object
             totalResults={totalResults}  // Pass the total results
-            pageIndex={pageIndex == 0 ? pageIndex + 1 : pageIndex}  // Current page index
+            pageIndex={pageIndex}  // Current page index
             pageSize={pageSize}  // Current page size
            handlePageChange={handlePageChange}  // Page change handler
             handlePageSizeChange={handlePageSizeChange}  // Page size change handler
@@ -539,15 +498,6 @@ const VehicleTable = ({ staticData, dictionary }: { staticData: any, dictionary:
         onConfirm={handleConfirmDelete}
         dictionary={dictionary}
         status={errorData}
-      />
-
-      <ConfirmationDialog
-        open={statusConfirmationOpen}
-        setOpen={setStatusConfirmationOpen}
-        confirmationType="status-data"
-        onConfirm={handleConfirmStatus}
-        dictionary={dictionary}
-
       />
 
       <Dialog open={errorDialogOpen} onClose={() => setErrorDialogOpen(false)}>

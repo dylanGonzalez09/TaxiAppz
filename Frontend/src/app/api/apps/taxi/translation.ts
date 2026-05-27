@@ -18,6 +18,32 @@ export const createTranslation = async (translation: any) => {
   }
 }
 
+/** Translate text to target language (for add translation in multiple languages) */
+export const translateText = async (
+  text: string,
+  targetLanguage: string,
+  sourceLanguage: string = 'en'
+): Promise<{ translatedText: string } | null> => {
+  try {
+    const response = await post(ENDPOINTS.translation.translate, {
+      text,
+      targetLanguage,
+      sourceLanguage
+    })
+
+    if (response.success && response.data?.translatedText !== undefined) {
+      return { translatedText: response.data.translatedText }
+    }
+
+    
+return null
+  } catch (error) {
+    console.error('Error translating text:', error)
+    
+return null
+  }
+}
+
 export const fetchTranslation = async () => {
   try {
     const response = await get(ENDPOINTS.translation.list)
@@ -66,6 +92,24 @@ export const fetchActiveLanguage = async () => {
   }
 }
 
+/** Fetch all languages (active + inactive) for translate-and-add in every language */
+export const fetchAllLanguages = async (): Promise<string[]> => {
+  try {
+    const response = await get(ENDPOINTS.translation.allLanguages)
+
+    if (response.success && Array.isArray(response.data)) {
+      return response.data.map((l: any) => (typeof l === 'string' ? l : l?.code)).filter(Boolean)
+    }
+
+    
+return []
+  } catch (error) {
+    console.error('Error fetching all languages:', error)
+    
+return []
+  }
+}
+
 export const fetchActiveLanguageAndId = async () => {
   try {
     const response = await get(ENDPOINTS.translation.getlanguage)
@@ -82,10 +126,9 @@ export const fetchActiveLanguageAndId = async () => {
   }
 }
 
-
-export const deleteByKey = async (key: string) => {
+export const deleteByKey = async (key: string, scope: 'web' | 'mobile' | 'all' = 'all') => {
   try {
-    const response = await del(ENDPOINTS.translation.deleteByKey(key))
+    const response = await del(ENDPOINTS.translation.deleteByKey(key, scope))
 
     if (response.success) {
       return response.data

@@ -25,9 +25,7 @@ const getSetting = {
   }),
 };
 
-const getSettingWithOutPagination = {
-
-};
+const getSettingWithOutPagination = {};
 
 const updateSetting = {
   params: Joi.object().keys({
@@ -36,11 +34,11 @@ const updateSetting = {
   body: Joi.object()
     .keys({
       name: Joi.string(),
-    value: Joi.string(),
-    status: Joi.boolean(),
-    slug: Joi.string(),
-    type: Joi.string(),
-    clientId: Joi.string().custom(objectId).optional()
+      value: Joi.string(),
+      status: Joi.boolean(),
+      slug: Joi.string(),
+      type: Joi.string(),
+      clientId: Joi.string().custom(objectId).optional(),
     })
     .min(1),
 };
@@ -51,30 +49,33 @@ const deleteSetting = {
   }),
 };
 
-
 const bulkInsertSettings = {
-  body: Joi.array().items(
-    Joi.object({
-      name: Joi.string().required(),
-      value: Joi.string().required(),
-      status: Joi.boolean().required(),
-      type: Joi.string().required(),
-      clientId: Joi.string().optional(),
-    })
-  ).required(),
+  body: Joi.array()
+    .items(
+      Joi.object({
+        name: Joi.string().required(),
+        value: Joi.string().required(),
+        status: Joi.boolean().required(),
+        type: Joi.string().required(),
+        clientId: Joi.string().optional(),
+      }),
+    )
+    .required(),
 };
 
 const bulkUpdateSettings = {
-  body: Joi.array().items(
-    Joi.object({
-      _id: Joi.string().required(),
-      name: Joi.string().optional(),
-      value: Joi.string().optional(),
-      status: Joi.boolean().optional(),
-      type: Joi.string().optional(),
-      clientId: Joi.string().optional(),
-    })
-  ).required(),
+  body: Joi.array()
+    .items(
+      Joi.object({
+        _id: Joi.string().required(),
+        name: Joi.string().optional(),
+        value: Joi.string().optional(),
+        status: Joi.boolean().optional(),
+        type: Joi.string().optional(),
+        clientId: Joi.string().optional(),
+      }),
+    )
+    .required(),
 };
 
 module.exports = {

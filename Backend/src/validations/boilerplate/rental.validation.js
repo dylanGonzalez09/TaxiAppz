@@ -3,25 +3,23 @@ const { objectId } = require('../custom.validation');
 
 const createRental = {
   body: Joi.object().keys({
-    km:Joi.number().required(),
-    hour:Joi.number(),
+    km: Joi.number().required(),
+    hour: Joi.number(),
     countryId: Joi.string().required(),
     zoneId: Joi.string().required(),
     vehiclePrices: Joi.array()
-    .items(
+      .items(
         Joi.object({
           vehicleId: Joi.string().required(),
-          price: Joi.number().positive().required(), 
-          graceTime:  Joi.number().required(),
+          price: Joi.number().positive().required(),
+          graceTime: Joi.number().required(),
           extraKmPrice: Joi.number().required(),
-      })
-        ).required(),
-        // clientId: Joi.string().required(),
-}),
-
-
+        }),
+      )
+      .required(),
+    // clientId: Joi.string().required(),
+  }),
 };
-
 
 const getRentals = {
   query: Joi.object().keys({
@@ -37,9 +35,7 @@ const getRental = {
   }),
 };
 
-
-const getRentalWithOutPagination = {
-};
+const getRentalWithOutPagination = {};
 
 const updateRental = {
   params: Joi.object().keys({
@@ -47,21 +43,20 @@ const updateRental = {
   }),
   body: Joi.object()
     .keys({
-    km: Joi.number(),
-    hour: Joi.number(),
-    countryId: Joi.string().custom(objectId),
-    zoneId: Joi.string().custom(objectId),
-    vehiclePrices: Joi.array().items(
+      km: Joi.number(),
+      hour: Joi.number(),
+      countryId: Joi.string().custom(objectId),
+      zoneId: Joi.string().custom(objectId),
+      vehiclePrices: Joi.array().items(
         Joi.object({
           vehicleId: Joi.string(),
-          price: Joi.number().positive(), 
-          graceTime: Joi.number(), 
+          price: Joi.number().positive(),
+          graceTime: Joi.number(),
           extraKmPrice: Joi.number(),
-      })
-        ),
-    
-    clientId: Joi.string().custom(objectId).optional(),
+        }),
+      ),
 
+      clientId: Joi.string().custom(objectId).optional(),
     })
     .min(1),
 };
@@ -81,7 +76,6 @@ const UpdateRentalStatus = {
   }),
 };
 
-
 module.exports = {
   createRental,
   getRentals,
@@ -89,5 +83,5 @@ module.exports = {
   getRentalWithOutPagination,
   updateRental,
   deleteRental,
-  UpdateRentalStatus
+  UpdateRentalStatus,
 };

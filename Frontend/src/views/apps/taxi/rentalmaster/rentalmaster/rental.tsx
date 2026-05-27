@@ -136,11 +136,11 @@ const RentalTable = ({ dictionary, RentalData,zone }: { dictionary: any; RentalD
 
             },
 
-            {
-              text: dictionary['navigation'].Delete,
-              icon: 'tabler-trash',
-              menuItemProps: { onClick: () => handleDeleteClick(row.original) },
-            },
+            // {
+            //   text: dictionary['navigation'].Delete,
+            //   icon: 'tabler-trash',
+            //   menuItemProps: { onClick: () => handleDeleteClick(row.original) },
+            // },
 
           ].filter(Boolean)} // Removes falsy values (undefined, false, null, etc.)
         />
@@ -149,21 +149,24 @@ const RentalTable = ({ dictionary, RentalData,zone }: { dictionary: any; RentalD
     },
   ], [data, dictionary]);
 
-  const table = useReactTable({
-    data,
-    columns,
-    filterFns: { fuzzy: fuzzyFilter },
-    state: { rowSelection, globalFilter },
-    initialState: { pagination: { pageSize: 25 } },
-    enableRowSelection: true,
-    globalFilterFn: fuzzyFilter,
-    onRowSelectionChange: setRowSelection,
-    getCoreRowModel: getCoreRowModel(),
-    onGlobalFilterChange: setGlobalFilter,
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel()
-  });
+const table = useReactTable({
+  data,
+  columns,
+  filterFns: { fuzzy: fuzzyFilter },
+  state: { rowSelection, globalFilter },
+  initialState: {
+    pagination: { pageSize: 25 },
+
+  },
+  enableRowSelection: true,
+  globalFilterFn: fuzzyFilter,
+  onRowSelectionChange: setRowSelection,
+  onGlobalFilterChange: setGlobalFilter,
+  getCoreRowModel: getCoreRowModel(),
+  getFilteredRowModel: getFilteredRowModel(),
+  getSortedRowModel: getSortedRowModel(),
+  getPaginationRowModel: getPaginationRowModel()
+});
 
   const handleEditClick = (rowData: RentalDataType) => {
     if (checkDemoStatus()) {
@@ -192,17 +195,17 @@ const RentalTable = ({ dictionary, RentalData,zone }: { dictionary: any; RentalD
     handlePageChange(dummyEvent, pageIndex - 1);
   };
 
-  const handleDeleteClick = (original: RentalDataType) => {
-    if (checkDemoStatus()) {
-     toast.error(dictionary['navigation'].deleteError);
+  // const handleDeleteClick = (original: RentalDataType) => {
+  //   if (checkDemoStatus()) {
+  //    toast.error(dictionary['navigation'].deleteError);
 
-      return;
-      }
+  //     return;
+  //     }
 
 
-    setDeleteRentalId(original._id);
-    setDeleteConfirmationOpen(true);
-  };
+  //   setDeleteRentalId(original._id);
+  //   setDeleteConfirmationOpen(true);
+  // };
 
   const handlePagecurrentForAddRecord = () => {
     // Create a dummy event object

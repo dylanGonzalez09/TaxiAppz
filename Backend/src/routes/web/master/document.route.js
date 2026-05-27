@@ -6,16 +6,30 @@ const DocumentController = require('../../../controllers/web/master/document.con
 
 const router = express.Router();
 
-router.route('/create').post(auth('Document'),validate(DocumentValidation.createDocument), DocumentController.createDocument);
-router.route('/creates').post(auth('Document'),validate(DocumentValidation.createDocuments), DocumentController.createBulkDocument);
-router.route('/getDocumentsWithPagination').get(auth('Document'), DocumentController.getDocuments);
-router.route('/getDocuments/:documentId').get(auth('Document'),validate(DocumentValidation.getDocument), DocumentController.getDocument);
-router.route('/getDocument/list').get(auth('Document'),DocumentController.getDocumentWithOutPagination);
-router.route('/updateDocuments/:documentId').patch(auth('Document'),validate(DocumentValidation.updateDocument), DocumentController.updateDocument);
-router.route('/deleteDocuments/:documentId').delete(auth('Document'),validate(DocumentValidation.deleteDocument), DocumentController.deleteDocument);
-router.patch('/updateDocumentStatus/:documentId', auth('Document'), validate(DocumentValidation.updateDocumentStatus), DocumentController.updateDocumentStatus);
+router
+  .route('/create')
+  .post(auth('Document'), validate(DocumentValidation.createDocument), DocumentController.createDocument);
+router
+  .route('/creates')
+  .post(auth('Document'), validate(DocumentValidation.createDocuments), DocumentController.createBulkDocument);
+router.route('/getDocumentsWithPagination/:groupDocumentId').get(auth('Document'), DocumentController.getDocuments);
+router
+  .route('/getDocuments/:documentId')
+  .get(auth('Document'), validate(DocumentValidation.getDocument), DocumentController.getDocument);
+router.route('/getDocument/list').get(auth('Document'), DocumentController.getDocumentWithOutPagination);
+router
+  .route('/updateDocuments/:documentId')
+  .patch(auth('Document'), validate(DocumentValidation.updateDocument), DocumentController.updateDocument);
+router
+  .route('/deleteDocuments/:documentId')
+  .delete(auth('Document'), validate(DocumentValidation.deleteDocument), DocumentController.deleteDocument);
+router.patch(
+  '/updateDocumentStatus/:documentId',
+  auth('Document'),
+  validate(DocumentValidation.updateDocumentStatus),
+  DocumentController.updateDocumentStatus,
+);
 router.route('/getDropDown/list/:clientId').get(DocumentController.getDropDownList);
-
 
 module.exports = router;
 

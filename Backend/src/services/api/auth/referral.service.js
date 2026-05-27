@@ -1,9 +1,9 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const ApiError = require('../../../utils/ApiError');
-const { Referral,ReferralAmount,Settings,User,WalletTransaction,Wallet } = require('../../../models');
+const { Referral,ReferralAmount,Settings,User,WalletTransaction,Wallet ,Country} = require('../../../models');
 const { tokenService } = require('../../../services');
 const mongoose = require('mongoose');
-
+const {getClientId} = require('../../../utils/commonFunction')
 
 /**
   from the mobile side they need to send Client Id and Code (Version code)
@@ -11,15 +11,6 @@ const mongoose = require('mongoose');
   2. check the avaliable languages for client send the avaliable languages 
  */
 
-const getClientId = async (req) => {
-  clientId = '';
-  if (!req.headers.clientid) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
-  } else {
-    clientId = req.headers.clientid;
-  }
-  return clientId;
-}
 
 
 const getUser = async (req) => {
@@ -49,27 +40,28 @@ const getReferralDriver  = async (req,res) => {
                 .status(403)
                 .json({ message: 'User is blocked, please contact admin' });
         }
-
-        const userCountry = await User.findById(userData._id).populate('countryCode');
   
         const referral = await Referral.find({ referredBy: userData._id });
+        const countrydata = await Country.findById(userData.country)
         const driverReferralAmount = await ReferralAmount.aggregate([
             { $match: { referalUserId : userData._id } },
             { $group: { _id: null, totalAmount: { $sum: '$amount' } } },
         ]);
     
-        const driverDriverReferralAmount = await Settings.findOne({ name: 'driverDriverReferralAmount' });
-        const driverUserReferralAmount = await Settings.findOne({ name: 'driverUserReferralAmount' });
-    
+        // const driverDriverReferralAmount = await Settings.findOne({ name: 'driverDriverReferralAmount' });
+        // const driverUserReferralAmount = await Settings.findOne({ name: 'driverUserReferralAmount' });
+        const driverUserReferralAmount = await Settings.findOne({ name: 'referalTripsAmount' });
+
         return {
             referral,
             referralCode: userData.referralCode,
-            referByDriverAmount: driverDriverReferralAmount ? parseInt(driverDriverReferralAmount.value) : 0,
+            referByDriverAmount: driverUserReferralAmount ? parseInt(driverUserReferralAmount.value) : 0,
             referByUserAmount: driverUserReferralAmount ? parseInt(driverUserReferralAmount.value) : 0,
             referralAmount: driverReferralAmount.length ? driverReferralAmount[0].totalAmount : 0,
-            currencySymbol: userCountry.countryCode?.currency_symbol || '',
+            currencySymbol: countrydata?.currency_symbol || '',
         };
     } catch (error) {
+      
         return res.status(400).json({ message: 'Catch error', error: error.message });
     }
   };
@@ -167,7 +159,6 @@ const getReferralData = async (userId) => {
         },
       },
       { $unwind: { path: '$referredUser', preserveNullAndEmptyArrays: true } },
-      { $match: { 'referredUser._id': { $ne: null } } },
 
       // Lookup referrer details from 'users' collection
       {
@@ -338,39 +329,83 @@ const getStatsData = async (userId) => {
 };
 
 
+// const createReferralToWallet = async (req) => {
+//   let userData = await getUser(req);
+//   try {
+
+//     if (!userData.active) {
+//       return res
+//         .status(403)
+//         .json({ message: 'User is blocked, please contact admin' });
+//     }
+
+//     const driverReferralAmount = await ReferralAmount.aggregate([
+//       { $match: { referalUserId: userData._id } },
+//       { $group: { _id: null, totalAmount: { $sum: '$amount' } } },
+//     ]);
+
+//     let referralAmountTotal = driverReferralAmount.length ? driverReferralAmount[0].totalAmount : 0;
+
+//     let referalNegativeValue = -1 * referralAmountTotal;
+//     const referralAmount = new ReferralAmount({
+//       referalUserId: userData._id,
+//       amount:referalNegativeValue
+//     });
+
+//     await walletTransaction(referralAmountTotal, userData._id, 'Earned', 'Claim Amount', "Referral");
+
+//     await referralAmount.save();
+
+//     return;
+//   } catch (error) {
+//     console.error('Error updating driver online status:', error);
+
+//     return res.status(400).json({ message: 'Catch error', error: error.message });
+//   }
+// };
+
+
+
+
+
+
+
 const createReferralToWallet = async (req) => {
-  let userData = await getUser(req);
-  try {
+  const userData = await getUser(req);
 
-    if (!userData.active) {
-      return res
-        .status(403)
-        .json({ message: 'User is blocked, please contact admin' });
-    }
-
-    const driverReferralAmount = await ReferralAmount.aggregate([
-      { $match: { referalUserId: userData._id } },
-      { $group: { _id: null, totalAmount: { $sum: '$amount' } } },
-    ]);
-
-    let referralAmountTotal = driverReferralAmount.length ? driverReferralAmount[0].totalAmount : 0;
-
-    let referalNegativeValue = -1 * referralAmountTotal;
-    const referralAmount = new ReferralAmount({
-      referalUserId: userData._id,
-      amount:referalNegativeValue
-    });
-
-    await walletTransaction(referralAmountTotal, userData._id, 'Earned', 'Claim Amount', "Referral");
-
-    await referralAmount.save();
-
-    return;
-  } catch (error) {
-    console.error('Error updating driver online status:', error);
-
-    return res.status(400).json({ message: 'Catch error', error: error.message });
+  if (!userData.active) {
+    throw new ApiError(403, 'User is blocked, please contact admin');
   }
+
+  // 1. Get referral wallet balance
+  const referralWallet = await ReferralAmount.findOne({
+    referalUserId: userData._id
+  });
+
+  if (!referralWallet || referralWallet.amount <= 0) {
+    throw new ApiError(400, 'No referral amount to claim');
+  }
+
+  const claimAmount = referralWallet.amount;
+
+  // 2. Credit to wallet FIRST (important)
+  await walletTransaction(
+    claimAmount,
+    userData._id,
+    'Earned',
+    'Referral Claim',
+    'Referral'
+  );
+
+  // 3. Reset referral amount to ZERO (no new doc)
+  await ReferralAmount.updateOne(
+    { referalUserId: userData._id },
+    { $set: { amount: 0 } }
+  );
+
+  return {
+    claimedAmount: claimAmount
+  };
 };
 
 

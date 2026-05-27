@@ -23,7 +23,7 @@ type TripWiseReportsType = {
 
 const fuzzyFilter: FilterFn<TripWiseReportsType> = (row, columnId, filterValue) => {
   const cellValue = row.getValue(columnId);
-
+  
   return typeof cellValue === 'string' && cellValue.toLowerCase().includes(filterValue.toLowerCase());
 };
 

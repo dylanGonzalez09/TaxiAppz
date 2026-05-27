@@ -34,9 +34,9 @@ export const fetchAdmins = async () => {
     }
   }
  
-  export const fetchGroupTicketsByAdmin = async () => {
+  export const fetchGroupTicketsByAdmin = async (id:string) => {
     try {
-      const response = await get(ENDPOINTS.ticket.groupTicketsByAdmin)
+      const response = await get(ENDPOINTS.ticket.groupTicketsByAdmin(id))
   
       if (response.success) {
         return response.data
@@ -52,9 +52,9 @@ export const fetchAdmins = async () => {
  
   
 
-export const getByTicketByPagination = async (searchTerm: string, page: number, limit: number) => {
+export const getByTicketByPagination = async (searchTerm: string, page: number, limit: number,StatusFilter:string,overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.ticket.getByPagination(searchTerm, page, limit))
+    const response = await get(ENDPOINTS.ticket.getByPagination(searchTerm, page, limit,StatusFilter), undefined, overrideZoneId);
 
     if (response.success) {
 
@@ -145,8 +145,8 @@ export const updateTicketStatus = async (id: string, ticket: any) => {
       return null;
     }
   } catch (error) {
-    console.error('Error updating vehicleModel:', error);
+    console.error('Error updating ticket updateStatus:', error);
 
-    return null;
+    throw error;
   }
 };

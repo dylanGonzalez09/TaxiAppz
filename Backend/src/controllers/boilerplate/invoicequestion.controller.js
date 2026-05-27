@@ -1,11 +1,11 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const catchAsync = require('../../utils/catchAsync');
 const pick = require('../../utils/pick');
-const ApiError = require('../../utils/ApiError');
 const { invoiceQuestionService } = require('../../services');
 const { InvoiceQuestion } = require('../../models');
-
 const Response = require('../../config/response');
+
+const ApiError = require('../../utils/ApiError');
 
 // Create a vehicle model with an image
 const createInvoiceQuestion = catchAsync(async (req, res) => {
@@ -15,75 +15,79 @@ const createInvoiceQuestion = catchAsync(async (req, res) => {
     throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
   }
 
-  const { role,language } = req.body;
+  const { role, language,zoneId } = req.body;
 
   if (!role) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Role is required');
   }
 
   // Count existing questions for this client and role
-  const existingCount = await InvoiceQuestion.countDocuments({ clientId, role, language });
+  const existingCount = await InvoiceQuestion.countDocuments({ clientId, role, language, zoneId });
+
 
   if (existingCount >= 5) {
-    throw new ApiError(httpStatus.BAD_REQUEST, `${role} can only have up to 5 invoice questions`);
+    throw new ApiError(httpStatus.BAD_REQUEST, `${role} can only have up to 5 invoice questions per zone`);
   }
 
   req.body.clientId = clientId;
 
   const invoiceQuestion = await invoiceQuestionService.createInvoiceQuestion(req.body);
 
-  const response = Response(true, invoiceQuestion, "Success");
+  const response = Response(true, invoiceQuestion, 'Success');
   res.status(httpStatus.CREATED).send(response);
 });
 
-
 // Get all vehicle models with pagination
 const getInvoiceQuestions = catchAsync(async (req, res) => {
+  const zoneId = req.headers.zoneid;
+  const clientId = req.headers.clientid;
+
+  if (!zoneId || !clientId) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Missing zoneId or clientId in headers');
+  }
   const filter = pick(req.query, ['question', 'role']);
-  
-  const options = pick(req.query, ['sortBy', 'limit', 'page'],{ allowDiskUse: true });
+
+  const options = pick(req.query, ['sortBy', 'limit', 'page'], { allowDiskUse: true });
   if (req.query.search) {
     filter.$or = [
-      { question: { $regex:'^'+ req.query.search, $options: 'i' } },
-      { role: { $regex: '^'+req.query.search, $options: 'i' } },
+      { question: { $regex: `^${req.query.search}`, $options: 'i' } },
+      { role: { $regex: `^${req.query.search}`, $options: 'i' } },
     ];
   }
-  const result = await invoiceQuestionService.queryInvoiceQuestion(filter, options);
-  
-  const response = Response(true, result, "Success");
+  const result = await invoiceQuestionService.queryInvoiceQuestion(filter, options, zoneId, clientId);
+
+  const response = Response(true, result, 'Success');
   res.status(httpStatus.OK).send(response);
 });
 
 // Get all vehicle models without pagination
 const getInvoiceQuestionWithoutPagination = catchAsync(async (req, res) => {
-
-
   const invoiceQuestion = await invoiceQuestionService.getInvoiceQuestions();
   if (!invoiceQuestion) {
     throw new ApiError(httpStatus.NOT_FOUND, 'invoiceQuestion not found');
   }
-  const response = Response(true, invoiceQuestion, "Success");
+  const response = Response(true, invoiceQuestion, 'Success');
   res.status(httpStatus.OK).send(response);
 });
 
 // Update a vehicle model
 const UpdateInvoiceQuestion = catchAsync(async (req, res) => {
-    
-    const invoiceQuestion = await invoiceQuestionService.updateInvoiceQuestionById(req.params.invoiceQuestionId, req.body);
-    
-    const response = Response(true, invoiceQuestion, "Success");
-    res.status(httpStatus.OK).send(response);});
+  const invoiceQuestion = await invoiceQuestionService.updateInvoiceQuestionById(req.params.invoiceQuestionId, req.body);
+
+  const response = Response(true, invoiceQuestion, 'Success');
+  res.status(httpStatus.OK).send(response);
+});
 
 // Delete a vehicle model
 const deleteInvoiceQuestion = catchAsync(async (req, res) => {
-
-    const invoiceQuestion = await invoiceQuestionService.deleteInvoiceQuestionById(req.params.invoiceQuestionId);
-    const response = Response(true, invoiceQuestion, "Success");
-    res.status(httpStatus.OK).send(response);});
+  const invoiceQuestion = await invoiceQuestionService.deleteInvoiceQuestionById(req.params.invoiceQuestionId);
+  const response = Response(true, invoiceQuestion, 'Success');
+  res.status(httpStatus.OK).send(response);
+});
 
 // Update a vehicle model's status
 const UpdateInvoiceQuestionStatus = catchAsync(async (req, res) => {
-  const invoiceQuestionId = req.params.invoiceQuestionId;
+  const { invoiceQuestionId } = req.params;
   const { status } = req.body;
 
   const invoiceQuestion = await invoiceQuestionService.updateInvoiceQuestionById(invoiceQuestionId, { status });
@@ -92,44 +96,54 @@ const UpdateInvoiceQuestionStatus = catchAsync(async (req, res) => {
     throw new ApiError(httpStatus.NOT_FOUND, 'invoiceQuestion not found');
   }
 
-  const response = Response(true, invoiceQuestion, "invoiceQuestion status updated successfully");
+  const response = Response(true, invoiceQuestion, 'invoiceQuestion status updated successfully');
   res.status(httpStatus.OK).send(response);
 });
 
-
 const getUserInvoiceQuestionWithoutPagination = catchAsync(async (req, res) => {
-  const invoiceQuestion = await invoiceQuestionService.getUserInvoiceQuestions();
+  const invoiceQuestion = await invoiceQuestionService.getUserInvoiceQuestions(req);
   if (!invoiceQuestion) {
     throw new ApiError(httpStatus.NOT_FOUND, 'invoiceQuestion not found');
   }
-  const response = Response(true, invoiceQuestion, "Success");
+  const response = Response(true, invoiceQuestion, 'Success');
   res.status(httpStatus.OK).send(response);
 });
 
 const getDriverInvoiceQuestionWithoutPagination = catchAsync(async (req, res) => {
-  const invoiceQuestion = await invoiceQuestionService.getDriverInvoiceQuestions();
+  const invoiceQuestion = await invoiceQuestionService.getDriverInvoiceQuestions(req);
   if (!invoiceQuestion) {
     throw new ApiError(httpStatus.NOT_FOUND, 'invoiceQuestion not found');
   }
-  const response = Response(true, invoiceQuestion, "Success");
+  const response = Response(true, invoiceQuestion, 'Success');
   res.status(httpStatus.OK).send(response);
 });
 const getQuestionReport = catchAsync(async (req, res) => {
-  const invoiceQuestion = await invoiceQuestionService.getQuestionReport();
-  const response = Response(true, invoiceQuestion, "Success");
-  res.status(httpStatus.OK).send(response);
+  try {
+    const zoneId = req.headers.zoneid;
+    const clientId = req.headers.clientid;
+
+    if (!zoneId || !clientId) {
+      return res.status(400).json({ message: 'Missing zoneId or clientId in headers' });
+    }
+    const invoiceQuestion = await invoiceQuestionService.getQuestionReport(zoneId);
+    const response = Response(true, invoiceQuestion, 'Success');
+    res.status(httpStatus.OK).send(response);
+  } catch (error) {
+    console.error('Error fetching driver wallet details:', error);
+    res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ message: 'Internal Server Error' });
+  }
 });
 
-const getQuestionDetails = catchAsync(async (req,res) => {
+const getQuestionDetails = catchAsync(async (req, res) => {
   try {
-      const filter = pick(req.query,['search']);
-      const options = pick(req.query, ['sortBy', 'limit', 'page']);
-      const questionReports = await invoiceQuestionService.questionReportDetails(req,filter,options);
-      const response = Response(true, questionReports, 'Question reports retrieved successfully');
-      res.status(httpStatus.OK).json(response);
+    const filter = pick(req.query, ['search']);
+    const options = pick(req.query, ['sortBy', 'limit', 'page']);
+    const questionReports = await invoiceQuestionService.questionReportDetails(req, filter, options);
+    const response = Response(true, questionReports, 'Question reports retrieved successfully');
+    res.status(httpStatus.OK).json(response);
   } catch (error) {
-      console.error('Error fetching question reports:', error);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ message: 'Internal Server Error' });
+    console.error('Error fetching question reports:', error);
+    res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ message: 'Internal Server Error' });
   }
 });
 
@@ -138,17 +152,17 @@ const getInvoiceByLanguage = catchAsync(async (req, res) => {
     throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
   }
   const filter = pick(req.query, ['question', 'role']);
-  
-  const options = pick(req.query, ['sortBy', 'limit', 'page'],{ allowDiskUse: true });
+
+  const options = pick(req.query, ['sortBy', 'limit', 'page'], { allowDiskUse: true });
   if (req.query.search) {
     filter.$or = [
-      { question: { $regex: '^'+req.query.search, $options: 'i' } },
-      { role: { $regex: '^'+req.query.search, $options: 'i' } }
+      { question: { $regex: `^${req.query.search}`, $options: 'i' } },
+      { role: { $regex: `^${req.query.search}`, $options: 'i' } },
     ];
   }
-  const result = await invoiceQuestionService.getInvoiceByLanguage(req,filter, options);
-  
-  const response = Response(true, result, "Success");
+  const result = await invoiceQuestionService.getInvoiceByLanguage(req, filter, options);
+
+  const response = Response(true, result, 'Success');
   res.status(httpStatus.OK).send(response);
 });
 
@@ -163,5 +177,5 @@ module.exports = {
   getDriverInvoiceQuestionWithoutPagination,
   getQuestionReport,
   getQuestionDetails,
-  getInvoiceByLanguage
+  getInvoiceByLanguage,
 };

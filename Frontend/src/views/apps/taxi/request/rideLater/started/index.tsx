@@ -1,7 +1,7 @@
 'use client';
 
 // React Imports
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback ,useEffect} from 'react';
 
 import Link from 'next/link';
 
@@ -17,6 +17,7 @@ import Typography from '@mui/material/Typography';
 import MenuItem from '@mui/material/MenuItem';
 import TablePagination from '@mui/material/TablePagination';
 
+
 // Third-party Imports
 import classnames from 'classnames';
 import { rankItem } from '@tanstack/match-sorter-utils';
@@ -26,7 +27,9 @@ import {
   useReactTable,
   getCoreRowModel,
   getFilteredRowModel,
-  getPaginationRowModel,
+
+  // getPaginationRowModel,
+
   getSortedRowModel,
 } from '@tanstack/react-table';
 import type { ColumnDef, FilterFn } from '@tanstack/react-table';
@@ -36,7 +39,9 @@ import type { ColumnDef, FilterFn } from '@tanstack/react-table';
 
 import { format } from 'date-fns';
 
-import { Tooltip } from '@mui/material';
+import { IconButton, Tooltip } from '@mui/material';
+
+import AppReactDatepicker from '@/libs/styles/AppReactDatepicker';
 
 import TablePaginationComponent from '@components/CustomTablePaginationComponent';
 import CustomTextField from '@core/components/mui/TextField';
@@ -48,9 +53,11 @@ import ExportOptions from '@/utils/ExportOptions';
 import tableStyles from '@core/styles/table.module.css';
 import type { Locale } from '@configs/i18n'
 import { getLocalizedUrl } from '@/utils/i18n'
-import { getRequestWithPagination } from '@/app/api/apps/taxi/request';
+import { getRequestWithPagination, getChatHistory } from '@/app/api/apps/taxi/request';
+import ChatDialog from '../chatDialog';
 
 // Filter Function
+
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value);
 
@@ -65,20 +72,133 @@ const columnHelper = createColumnHelper<any>();
 
 const StartedTab = ({ StartedData, dictionary }: { StartedData?: any; dictionary: any }) => {
   const [rowSelection, setRowSelection] = useState({});
-  const { lang: locale } = useParams();
+  const { lang: locale,zoneId } = useParams();
+  const zoneIdString = Array.isArray(zoneId) ? zoneId[0] : zoneId;
 
   const [globalFilter, setGlobalFilter] = useState('');
-  const [pageIndex, setPageIndex] = useState(StartedData.page - 1);
+  const [pageIndex, setPageIndex] = useState(StartedData.page || 0);
   const [pageSearch, setPageSearch] = useState("");
-  const [totalResults, setTotalResults] = useState(StartedData.totalResults); // To track the total number of records
-  const [data, setData] = useState(StartedData.results);
-  const [pageSize, setPageSize] = useState(StartedData.limit);
+  const [totalResults, setTotalResults] = useState(StartedData.totalResults || 0); // To track the total number of records
+  const [data, setData] = useState(StartedData.results || []);
+  const [pageSize, setPageSize] = useState(StartedData.limit || 10);
+  const currentReturnPage = pageIndex;
+  const returnQuery = `?returnModule=rideLater&returnTab=started&returnPage=${currentReturnPage}&returnPageSize=${pageSize}&returnSearch=${encodeURIComponent(pageSearch)}`;
+
+  // Chat Modal States
+const [chatHistory, setChatHistory] = useState<any[]>([]);
+  const [isChatModalOpen, setIsChatModalOpen] = useState(false);
+  const [isChatLoading, setIsChatLoading] = useState(false);
+const [selectedRequestId, setSelectedRequestId] = useState('');
+const [startDate, setStartDate] = useState<Date | null>();
+  const [endDate, setEndDate] = useState<Date | null>();
+  const [paymentOpt, setPaymentOpt] = useState<'CASH' | 'CARD' | 'WALLET' | 'All'>('All')
+
+  useEffect(() => {
+    setData(StartedData?.results ?? [])
+    setTotalResults(StartedData?.totalResults ?? 0)
+    setPageIndex(StartedData?.page ?? 0)
+    setPageSize(StartedData?.limit ?? 10)
+  }, [StartedData])
+
+const formatStart = (date: Date) => {
+  return new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+    0, 0, 0, 0
+  ).toISOString();
+};
+
+const formatEnd = (date: Date) => {
+  return new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+    23, 59, 59, 999
+  ).toISOString();
+};
+
+const formattedStartDate = startDate ? formatStart(startDate) : ''
+const formattedEndDate = endDate ? formatEnd(endDate) : ''
+
+
+const handlePaymentOptChange = useCallback(async (e: any) => {
+  const paymentOpt = e.target.value as 'CASH' | 'CARD' | 'WALLET' | 'All'
+
+  const res = await getRequestWithPagination(
+    pageSearch,
+    1,
+    pageSize,
+    'RIDE_LATER',
+    'isTripStart',
+    paymentOpt,
+    formattedStartDate,
+    formattedEndDate,
+    zoneId
+  )
+
+  if (!res) return
+
+  setData(res.results)
+  setTotalResults(res.totalResults)
+  setPageIndex(0)
+  setPaymentOpt(paymentOpt)
+}, [startDate, endDate, pageSearch, pageSize, paymentOpt])
+
+
+const handleDateFilter = useCallback(async () => {
+  const res = await getRequestWithPagination(
+    pageSearch,
+    1,
+    pageSize,
+    'RIDE_LATER',
+    'isTripStart',
+    paymentOpt,
+    formattedStartDate,
+    formattedEndDate,
+    zoneId
+  )
+
+  if (!res) return
+
+  setData(res.results)
+  setTotalResults(res.totalResults)
+  setPageIndex(0)
+}, [startDate, endDate, pageSearch, pageSize, paymentOpt])
+
+
+useEffect(() => {
+  if (startDate && endDate && endDate < startDate) {
+    setEndDate(startDate)
+  } else {
+    handleDateFilter()
+  }
+}, [startDate, endDate, paymentOpt])
+
+
+const handleChatHistoryClick = async (requestId: string) => {
+  setSelectedRequestId(requestId);
+  setIsChatLoading(true);
+
+  try {
+    // Fetch the chat messages first
+    const response = await getChatHistory(requestId);
+
+    setChatHistory(response?.messages || []);
+  } catch (error) {
+    console.error("Failed to fetch chat history:", error);
+    setChatHistory([]);
+  } finally {
+    setIsChatLoading(false);
+    setIsChatModalOpen(true); // open AFTER fetching messages
+  }
+};
 
   const columns = useMemo<ColumnDef<any, any>[]>(() => [
     {
       id: 'serialNo',
       header: dictionary['navigation'].serialNo,
-      cell: ({ row }) => <Typography>{row.index + 1}</Typography>,
+      cell: ({ row }) => <Typography>{(pageIndex == 0 ? 0 : pageIndex - 1) * pageSize + row.index + 1}</Typography>,
     },
     columnHelper.accessor('requestNumber', {
       header: dictionary['navigation'].RequestId,
@@ -86,7 +206,7 @@ const StartedTab = ({ StartedData, dictionary }: { StartedData?: any; dictionary
         <div className='flex items-center gap-2'>
           <Typography
             component={Link}
-            href={getLocalizedUrl(`/apps/taxi/request/requestView/${row.original._id}`, locale as Locale)}
+            href={getLocalizedUrl(`${zoneIdString}/apps/taxi/request/requestView/${row.original._id}${returnQuery}`, locale as Locale)}
             color='primary'
           >{`#${row.original.requestNumber}`}</Typography>
         </div>
@@ -100,7 +220,7 @@ const StartedTab = ({ StartedData, dictionary }: { StartedData?: any; dictionary
                                                 <Tooltip title={row.original.userDetails.firstName} arrow placement="bottom">
                                                   <Typography
                                                     component={Link}
-                                                    href={getLocalizedUrl(`/apps/taxi/user/view/${row.original.userDetails._id}`, locale as Locale)}
+                                                    href={getLocalizedUrl(`${zoneIdString}/apps/taxi/user/view/${row.original.userDetails._id}`, locale as Locale)}
                                                     color="primary"
                                                     sx={{
                                                       whiteSpace: 'nowrap',
@@ -116,7 +236,7 @@ const StartedTab = ({ StartedData, dictionary }: { StartedData?: any; dictionary
                                               ) : (
                                                 <Typography
                                                   component={Link}
-                                                  href={getLocalizedUrl(`/apps/taxi/user/view/${row.original.userDetails._id}`, locale as Locale)}
+                                                  href={getLocalizedUrl(`${zoneIdString}/apps/taxi/user/view/${row.original.userDetails._id}`, locale as Locale)}
                                                   color="primary"
                                                   sx={{
                                                     whiteSpace: 'nowrap',
@@ -141,7 +261,7 @@ const StartedTab = ({ StartedData, dictionary }: { StartedData?: any; dictionary
                                                          component={row.original.driverDetails._id ? Link : 'span'}
                                                          href={
                                                            row.original.driverDetails._id
-                                                             ? getLocalizedUrl(`apps/taxi/driver/view/${row.original.driverDetails._id}`, locale as Locale)
+                                                             ? getLocalizedUrl(`${zoneIdString}/apps/taxi/driver/view/${row.original.driverDetails._id}`, locale as Locale)
                                                              : undefined
                                                          }
                                                          color="primary"
@@ -161,7 +281,7 @@ const StartedTab = ({ StartedData, dictionary }: { StartedData?: any; dictionary
                                                        component={row.original.driverDetails._id ? Link : 'span'}
                                                        href={
                                                          row.original.driverDetails._id
-                                                           ? getLocalizedUrl(`apps/taxi/driver/view/${row.original.driverDetails._id}`, locale as Locale)
+                                                           ? getLocalizedUrl(`${zoneIdString}/apps/taxi/driver/view/${row.original.driverDetails._id}`, locale as Locale)
                                                            : undefined
                                                        }
                                                        color="primary"
@@ -245,15 +365,25 @@ const StartedTab = ({ StartedData, dictionary }: { StartedData?: any; dictionary
     columnHelper.accessor('action', {
       header: dictionary['navigation'].Action,
       cell: ({ row }) => (
-        <div className='flex items-center'>
-          <Link href={`/apps/taxi/request/requestView/${row.original._id}`} className='flex'>
+        <div className='flex items-center gap-1'>
+        <IconButton>
+          <Link href={`/${zoneIdString}/apps/taxi/request/requestView/${row.original._id}${returnQuery}`} className='flex'>
             <i className='tabler-eye text-textSecondary' />
           </Link>
+        </IconButton>
+           <button
+            onClick={() => handleChatHistoryClick(row.original._id)}
+            className='flex items-center bg-transparent'
+            title="View Chat History"
+          >
+
+            <i className='tabler-message text-textSecondary hover:text-primary cursor-pointer' />
+          </button>
         </div>
       ),
       enableSorting: false,
     }),
-  ], [dictionary, locale]);
+  ], [ locale,zoneIdString,dictionary]);
 
   const table = useReactTable({
     data: data,
@@ -268,7 +398,9 @@ const StartedTab = ({ StartedData, dictionary }: { StartedData?: any; dictionary
     onGlobalFilterChange: setGlobalFilter,
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
+    filterFns: {
+      fuzzy: fuzzyFilter,
+    }
   });
 
 
@@ -276,7 +408,7 @@ const StartedTab = ({ StartedData, dictionary }: { StartedData?: any; dictionary
 
   const handlePageChange = async (event: unknown, newPage: number) => {
     try {
-      const { results, totalResults } = await getRequestWithPagination(pageSearch, newPage, pageSize, "RIDE_LATER", "isTripStart");
+      const { results, totalResults } = await getRequestWithPagination(pageSearch, newPage, pageSize, "RIDE_LATER", "isTripStart","All",formattedStartDate,formattedEndDate,zoneIdString);
 
       setData(results);
 
@@ -291,12 +423,12 @@ const StartedTab = ({ StartedData, dictionary }: { StartedData?: any; dictionary
 
     const newPageSize = parseInt(event.target.value);
 
-    const { results, totalResults } = await getRequestWithPagination(pageSearch, 1, newPageSize, "RIDE_LATER", "isTripStart");
+    const { results, totalResults } = await getRequestWithPagination(pageSearch, 1, newPageSize, "RIDE_LATER", "isTripStart","All",formattedStartDate,formattedEndDate,zoneIdString);
 
     setPageSize(newPageSize);
     setData(results);
     setTotalResults(totalResults);
-    setPageIndex(0);
+    setPageIndex(1);
   };
 
   const handleSearch = useCallback(
@@ -305,18 +437,18 @@ const StartedTab = ({ StartedData, dictionary }: { StartedData?: any; dictionary
         const result = await getRequestWithPagination(
           searchTerm,
           1,
-          pageSize, "RIDE_LATER", "isTripStart"
+          pageSize, "RIDE_LATER", "isTripStart","All",formattedStartDate,formattedEndDate,zoneIdString
         );
 
         setPageSearch(searchTerm);
         setData(result.results);
         setTotalResults(result.totalResults);
-        setPageIndex(0); // Reset to first page
+        setPageIndex(1); // Reset to first page
       } catch (error) {
         console.error("Error fetching search results:", error);
       }
     },
-    [pageSize]
+    [pageSize, zoneIdString, formattedStartDate, formattedEndDate]
   );
 
 
@@ -337,17 +469,64 @@ const StartedTab = ({ StartedData, dictionary }: { StartedData?: any; dictionary
             className="flex-auto"
           />
         </div>
-        <div className='flex flex-col sm:flex-row is-full sm:is-auto items-start sm:items-center gap-4'>
+        {/* date filter can be added here in future if needed */}
+        <div className='flex items-center gap-x-4 mb-4 ml-auto'>
+            <AppReactDatepicker
+               selected={startDate}
+               onChange={(date: Date | null) => setStartDate(date)}
+               startDate={startDate}
+               endDate={endDate}
+               maxDate={endDate || undefined}
+               placeholderText={'MM/DD/YYYY'}
+               customInput={
+                 <CustomTextField
+                   label={dictionary['navigation'].StartDate}
+                   fullWidth
+                 />
+               }
+            />
+          <AppReactDatepicker
+              selected={endDate}
+              onChange={(date: Date | null) => setEndDate(date)}
+              startDate={startDate}
+              endDate={endDate}
+              minDate={startDate || undefined}
+              placeholderText={'MM/DD/YYYY'}
+              customInput={
+                <CustomTextField
+                  label={dictionary['navigation'].EndDate}
+                  fullWidth
+                />
+              }
+            />
+        </div>
+        <div className='flex items-center gap-x-4 mb-4'>
           <CustomTextField
             select
-            value={table.getState().pagination.pageSize}
-            onChange={e => table.setPageSize(Number(e.target.value))}
-            className='is-[70px]'
-          >
-            {[5, 10, 25, 50].map(size => (
-              <MenuItem key={size} value={size}>{size}</MenuItem>
-            ))}
+            value={paymentOpt}
+            onChange={(e: any) => handlePaymentOptChange(e)}
+            className='is-[120px]'
+            label={dictionary['navigation'].PaymentOption || 'Payment Option'}
+            >
+            <MenuItem value='All'>{dictionary['navigation'].All}</MenuItem>
+            <MenuItem value='CASH'>{dictionary['navigation'].Cash}</MenuItem>
+            <MenuItem value='CARD'>{dictionary['navigation'].Card}</MenuItem>
+            <MenuItem value='WALLET'>{dictionary['navigation'].Wallet}</MenuItem>
           </CustomTextField>
+        </div>
+        <div className='flex flex-col sm:flex-row is-full sm:is-auto items-start sm:items-center gap-4'>
+              <CustomTextField
+           select
+           value={pageSize}
+           onChange={handlePageSizeChange}
+           className='is-[70px]'
+         >
+           {[5, 10, 25, 50].map(size => (
+             <MenuItem key={size} value={size}>
+               {size}
+             </MenuItem>
+           ))}
+         </CustomTextField>
           <ExportOptions
             data={data}
             tableContainerId="table-container"
@@ -419,6 +598,16 @@ const StartedTab = ({ StartedData, dictionary }: { StartedData?: any; dictionary
         rowsPerPage={pageSize}
         onRowsPerPageChange={handlePageSizeChange}
       />
+          {/* Chat Modal */}
+            {isChatModalOpen && (
+              <ChatDialog
+                messages={chatHistory}
+                onClose={() => setIsChatModalOpen(false)}
+                isLoading={isChatLoading}
+                requestId={selectedRequestId}
+                currentUserId="user123" //  replace with real logged-in user ID
+              />
+            )}
     </Card>
   );
 };

@@ -97,7 +97,7 @@ const zoneStatusObj: ZoneStatusType = {
 
 const columnHelper = createColumnHelper<ZoneTypeWithAction>()
 
-const ZoneListTable = ({ tableData, dictionary }: { tableData?: any, dictionary: any }) => {
+const ZoneListTable = ({ tableData, dictionary,zoneId }: { tableData?: any, dictionary: any,zoneId:any }) => {
   const [status, setStatus] = useState<'active' | 'inactive' | 'block' | ''>('');
   const [addZoneOpen, setAddZoneOpen] = useState(false)
   const [editZoneOpen, setEditZoneOpen] = useState(false)
@@ -184,14 +184,7 @@ const ZoneListTable = ({ tableData, dictionary }: { tableData?: any, dictionary:
 
   const handleConfirmStatus = async (confirmed: boolean) => {
     if (confirmed && statusZone) {
-
       const updatedZone = { ...statusZone, status: !statusZone.status };
-
-      setData((prevData: any[]) =>
-        prevData.map(zone =>
-          zone._id === statusZone._id ? updatedZone : zone
-        )
-      );
 
       try {
         const body = {
@@ -201,6 +194,11 @@ const ZoneListTable = ({ tableData, dictionary }: { tableData?: any, dictionary:
         if (statusZone._id) {
 
           await updateZoneStatus(statusZone._id.toString(), body);
+          setData((prevData: any[]) =>
+            prevData.map(zone =>
+              zone._id === statusZone._id ? updatedZone : zone
+            )
+          );
 
           setStatusConfirmationOpen(false);
 
@@ -216,7 +214,22 @@ const ZoneListTable = ({ tableData, dictionary }: { tableData?: any, dictionary:
 
         console.error('Failed to update zone status:', error);
 
+        const fallbackMessage =
+          dictionary?.['navigation']?.ErrorupdatingzonePleasetryagain || 'Error updating zone. Please try again';
+
+        const anyErr = error as any;
+
+        const errMessage =
+          (error instanceof Error ? error.message : undefined) ||
+          anyErr?.response?.data?.message ||
+          anyErr?.response?.data?.msg ||
+          anyErr?.response?.data?.data?.message ||
+          fallbackMessage;
+
+        toast.error(errMessage || fallbackMessage);
+
         setStatusConfirmationOpen(false);
+        setstatusZone(null);
 
       }
     } else {
@@ -243,13 +256,25 @@ const ZoneListTable = ({ tableData, dictionary }: { tableData?: any, dictionary:
 
   const handlePageSizeChange = async (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const newPageSize = parseInt(event.target.value);
-    const { results, totalResults } = await getByZoneByPagination(pageSearch, pageIndex, newPageSize);
+    const { results, totalResults } = await getByZoneByPagination(pageSearch, 1 , newPageSize , zoneId);
 
     setPageSize(newPageSize);
-
     setData(results);
     setTotalResults(totalResults);
+    setPageIndex(0);
   };
+
+  //  const handlePageSizeChange = async (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+
+  //   const newPageSize = parseInt(event.target.value);
+
+  //   const { results, totalResults } = await getByZoneByPagination(pageSearch, 1, newPageSize,zoneId);
+
+  //   setPageSize(newPageSize);
+  //   setData(results);
+  //   setTotalResults(totalResults);
+  //   setPageIndex(0);
+  // };
 
 
   const handleSearch = useCallback(
@@ -349,7 +374,7 @@ const ZoneListTable = ({ tableData, dictionary }: { tableData?: any, dictionary:
         cell: ({ row }) => (
           <div className='flex items-center'>
             <IconButton>
-              <Link href={getLocalizedUrl(`/apps/taxi/zone/view/${row.original._id}`, locale as Locale)} className='flex'>
+              <Link href={getLocalizedUrl(`${zoneId}/apps/taxi/zone/view/${row.original._id}`, locale as Locale)} className='flex'>
                 <i className='tabler-eye text-textSecondary' />
               </Link>
             </IconButton>
@@ -360,21 +385,12 @@ const ZoneListTable = ({ tableData, dictionary }: { tableData?: any, dictionary:
               options={[
                 {
                   text: dictionary['navigation'].Edit,
-                  icon: 'tabler-pencil',
-                  href: getLocalizedUrl(`/apps/taxi/zone/edit/${row.original._id}`, locale as Locale),
+                  icon: 'tabler-pencil-minus',
+                  href: getLocalizedUrl(`${zoneId}/apps/taxi/zone/edit/${row.original._id}`, locale as Locale),
                   linkProps: {
                     className: 'flex items-center is-full plb-2 pli-4 gap-2 text-textSecondary',
                   },
                   menuItemProps: { className: 'flex items-center gap-2 text-textSecondary', onClick: () => handleEditZone(row.original) }
-                },
-
-                {
-                  text: dictionary['navigation'].Delete,
-                  icon: 'tabler-trash',
-                  menuItemProps: {
-                    className: 'flex items-center gap-2 text-textSecondary',
-                    onClick: () => handleDeleteClick(row.original._id)
-                  }
                 }
               ]}
             />
@@ -480,7 +496,7 @@ const ZoneListTable = ({ tableData, dictionary }: { tableData?: any, dictionary:
               variant='contained'
               component={Link}
               startIcon={<i className='tabler-plus' />}
-              href={getLocalizedUrl('apps/taxi/zone/add', locale as Locale)}
+              href={getLocalizedUrl(`${zoneId}/apps/taxi/zone/add`, locale as Locale)}
               className='is-full sm:is-auto'
             >
               {dictionary['navigation'].CreateZone}

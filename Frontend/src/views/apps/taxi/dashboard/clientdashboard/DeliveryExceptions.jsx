@@ -22,21 +22,23 @@ const LogisticsDeliveryExceptions = ({ type,logisticalCounts,dictionary}) => {
 
 // Static Data: Moving the static chart data outside the component
 const deliveryExceptionsChartSeriesData = {
-  'user': logisticalCounts["user"]?? 0,  
-  'driver': logisticalCounts["driver"]?? 0, 
-  'zone': logisticalCounts["zone"]?? 0,  
+  'user': logisticalCounts["user"]?? 0,
+  'driver': logisticalCounts["driver"]?? 0,
+  'zone': logisticalCounts["zone"]?? 0,
 }
+
+// for dynamic title
+ const organized = type.charAt(0).toUpperCase() + type.slice(1)
 
 
   // State to control visibility
 // Ensure chartSeries is an array using Object.values()
 const chartSeries = Array.isArray(deliveryExceptionsChartSeriesData[type])
-  ? deliveryExceptionsChartSeriesData[type] 
+  ? deliveryExceptionsChartSeriesData[type]
   : Object.values(deliveryExceptionsChartSeriesData[type] ?? { Active: 0, Block: 0 });
 
 // Calculate the total sum of the data (Active + Block)
 const total = chartSeries.reduce((acc, value) => acc + value, 0);
-  
 
   // Options for the chart
   const option = {
@@ -111,11 +113,13 @@ const total = chartSeries.reduce((acc, value) => acc + value, 0);
     }
   }
 
+ 
+
   return (
     <Card className='bs-full'>
-      <CardHeader title={`${type.charAt(0).toUpperCase() + type.slice(1)} ${dictionary['navigation'].TotalCount}`} /> {/* Capitalize title */}
+      <CardHeader title={`${dictionary['navigation'][organized]} ${dictionary['navigation'].TotalCount}`} /> {/* Capitalize title */}
 
-      <CardContent>     
+      <CardContent>
           <AppReactApexCharts
             type='donut'
             height={452}

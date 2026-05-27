@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+
 const { Schema } = mongoose;
 
 // Driver Location Schema
@@ -6,7 +7,7 @@ const driverLocationSchema = new Schema({
   driverId: { type: Schema.Types.ObjectId, required: true },
   userId: {
     type: Schema.Types.ObjectId,
-    ref: 'User'
+    ref: 'User',
   },
   latitude: { type: Number, required: true },
   longitude: { type: Number, required: true },
@@ -19,20 +20,21 @@ const driverLocationSchema = new Schema({
   },
   vehicleId: {
     type: mongoose.SchemaTypes.ObjectId,
-    ref: 'Vehicle'
+    ref: 'Vehicle',
   },
-  zoneId:{
+  zoneId: {
     type: mongoose.SchemaTypes.ObjectId,
     ref: 'Zone',
-    default: null
+    default: null,
   },
   secondaryZone: {
     type: [mongoose.Schema.Types.ObjectId],
-    default: null
+    default: null,
   },
   bearing: { type: Number },
-  speed:{type: Number},
+  speed: { type: Number },
   serviceType: { type: String },
+  color: { type: String },
   isOnline: { type: Boolean, default: false },
   isAvailable: { type: Boolean, default: true },
   lastUpdated: { type: Number, required: true },

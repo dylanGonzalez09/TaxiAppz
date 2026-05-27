@@ -27,7 +27,7 @@ type InvoiceQuestionType = {
 
 const fuzzyFilter: FilterFn<InvoiceQuestionType> = (row, columnId, filterValue) => {
   const cellValue = row.getValue(columnId);
-
+  
   return typeof cellValue === 'string' && cellValue.toLowerCase().includes(filterValue.toLowerCase());
 };
 
@@ -64,7 +64,7 @@ const InvoiceQuestionTable = ({ staticGroup, dictionary }: { staticGroup: Invoic
   const [rowSelection, setRowSelection] = useState({});
   const [data] = useState<InvoiceQuestionType[]>(staticGroup);
   const [globalFilter, setGlobalFilter] = useState('');
-
+  
   // const locale = 'en'; // Define your locale here
 
   const columns = useMemo<ColumnDef<InvoiceQuestionType, any>[]>(() => [

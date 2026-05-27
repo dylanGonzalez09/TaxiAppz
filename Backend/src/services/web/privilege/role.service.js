@@ -1,7 +1,7 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const ApiError = require('../../../utils/ApiError');
-const { Role, Country, Language,User } = require('../../../models');
-const ObjectId = require('mongoose').Types.ObjectId;
+const { Role, Country, Language, User } = require('../../../models');
+const { ObjectId } = require('mongoose').Types;
 const { HttpStatusCode } = require('axios');
 
 /**
@@ -28,49 +28,49 @@ const queryRoles = async (filter, options) => {
   return roles;
 };
 
-
 /**
  * Get roles
-  * @param {ObjectId} clientId
+ * @param {ObjectId} clientId
  * @returns {Promise<Role>}
  */
 const getRoles = async (clientId) => {
-  return Role.find({ clientId: clientId });
+  return Role.find({ clientId });
 };
 
+const getDriverRoleId = async () => {
+  const driverRole = await Role.findOne({ role: 'Driver' }); // Adjust based on your role structure
+  return driverRole ? driverRole._id : null;
+};
 
 /**
  * Get roles
-  * @param {ObjectId} clientId
+ * @param {ObjectId} clientId
  * @returns {Promise<Role>}
  */
 const getDropDownsRoles = async (clientId) => {
+  const roleData = await Role.find({ clientId });
 
-  const roleData = await Role.find({ clientId: clientId });
+  const countryData = await Country.find({ clientId, status: true });
 
-  const countryData = await Country.find({ clientId: clientId, status: true });
-
-  const languageData = await Language.find({status: true, clientId: clientId});
+  const languageData = await Language.find({ status: true, clientId });
 
   const data = {
     role: roleData,
     country: countryData,
-    languageData: languageData
-  }
-
+    languageData,
+  };
 
   return data;
 };
 
 /**
  * Get roles
-  * @param {ObjectId} clientId
+ * @param {ObjectId} clientId
  * @returns {Promise<Role>}
  */
 const getSuperAdminRole = async () => {
   return Role.find();
 };
-
 
 /**
  * Get role by id
@@ -80,7 +80,6 @@ const getSuperAdminRole = async () => {
 const getRoleById = async (id) => {
   return Role.findById(id);
 };
-
 
 /**
  * Update role by id
@@ -107,17 +106,16 @@ const updateRoleById = async (roleId, updateBody) => {
 const deleteRoleById = async (roleId) => {
   const role = await getRoleById(roleId);
   if (!role) {
-    return { status: httpStatus.NOT_FOUND, msg: "Role not found" };
+    return { status: httpStatus.NOT_FOUND, msg: 'Role not found' };
   }
 
-  //chk this role has any users
-  const users = await User.countDocuments({roleIds:{$in: new ObjectId(role._id)}});
-  if(users > 0)
-  {
-    return { status: httpStatus.FORBIDDEN, msg: "This role has been assigned to some users.so you cannot delete it." };
+  // chk this role has any users
+  const users = await User.countDocuments({ roleIds: { $in: new ObjectId(role._id) } });
+  if (users > 0) {
+    return { status: httpStatus.FORBIDDEN, msg: 'This role has been assigned to some users.so you cannot delete it.' };
   }
   await role.deleteOne();
-  return { status: HttpStatusCode.Ok, msg: "data Deleted Successfully" };
+  return { status: HttpStatusCode.Ok, msg: 'data Deleted Successfully' };
 };
 
 module.exports = {
@@ -128,5 +126,6 @@ module.exports = {
   getSuperAdminRole,
   updateRoleById,
   deleteRoleById,
-  getDropDownsRoles
+  getDropDownsRoles,
+  getDriverRoleId,
 };

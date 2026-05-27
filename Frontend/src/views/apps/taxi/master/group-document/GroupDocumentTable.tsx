@@ -1,8 +1,16 @@
+
 /* eslint-disable import/no-unresolved */
 'use client';
 
 import type { ChangeEvent } from 'react';
 import React, { useState, useMemo, useCallback } from 'react';
+
+import Link from 'next/link'
+
+import { useParams } from 'next/navigation';
+
+import { IconButton , MenuItem, Button, Typography, Card , Dialog, DialogActions, DialogContent } from '@mui/material'
+
 
 import TablePagination from '@mui/material/TablePagination';
 import type { ColumnDef, FilterFn } from '@tanstack/react-table';
@@ -11,16 +19,18 @@ import Switch from '@mui/material/Switch'; // Import the Switch component
 
 import { createColumnHelper, flexRender, useReactTable, getCoreRowModel, getFilteredRowModel, getSortedRowModel, getPaginationRowModel } from '@tanstack/react-table';
 
-import { MenuItem, Button, Typography, Card , Dialog, DialogActions, DialogContent } from '@mui/material';
 
 import classnames from 'classnames';
 
 import { StatusCodes as httpStatus } from 'http-status-codes';
 import { toast } from 'react-toastify';
 
+
 import { useIsDemoUser } from '@/utils/demoUser'
 
+import { getLocalizedUrl } from '@/utils/i18n';
 
+import type { Locale } from '@configs/i18n';
 import CustomTextField from '@core/components/mui/TextField';
 
 import ConfirmationDialog from '@components/dialogs/delete-data/';
@@ -45,6 +55,10 @@ const fuzzyFilter: FilterFn<GroupDocumentType> = (row, columnId, filterValue) =>
 
 const columnHelper = createColumnHelper<GroupDocumentType>();
 
+const isLockedDriverGroup = (groupDocument: GroupDocumentType) =>
+  String(groupDocument?.name || '').trim().toLowerCase() === 'driver' &&
+  String(groupDocument?.type || '').trim().toLowerCase() === 'driver';
+
 const GroupDocumentTable = ({ staticGroup, dictionary }: { staticGroup: any, dictionary: any }) => {
   const [addGroupDocumentOpen, setAddGroupDocumentOpen] = useState(false);
   const [editData, setEditData] = useState<GroupDocumentType | undefined>(undefined);
@@ -64,8 +78,19 @@ const GroupDocumentTable = ({ staticGroup, dictionary }: { staticGroup: any, dic
   const [errorMessage, setErrorMessage] = useState('');
   const [errorData, setErrorData] = useState('');
   const { checkDemoStatus } = useIsDemoUser();
+  const { zoneId ,lang: locale} = useParams();
+
 
   const handleStatusToggle = async (grouoDocument: GroupDocumentType) => {
+    if (isLockedDriverGroup(grouoDocument)) {
+      toast.error(
+        dictionary['navigation'].DefaultDriverGroupDocumentCannotBeModified ||
+          'Default Driver group document cannot be modified'
+      );
+
+return;
+    }
+
     if (checkDemoStatus()) {
       toast.error(dictionary['navigation'].editError);
 
@@ -131,7 +156,15 @@ const GroupDocumentTable = ({ staticGroup, dictionary }: { staticGroup: any, dic
           </>
         ),
       }),
+         columnHelper.accessor('type', {
+        header: dictionary['navigation'].Type,
+        cell: ({ row }) => (
+          <>
+            <Typography className='font-medium'>{row.original.type}</Typography>
 
+          </>
+        ),
+      }),
       columnHelper.accessor('status', {
         header: dictionary['navigation'].Status,
         cell: ({ row }) => (
@@ -139,6 +172,7 @@ const GroupDocumentTable = ({ staticGroup, dictionary }: { staticGroup: any, dic
             <Switch
               checked={row.original.status}
               onChange={() => handleStatusToggle(row.original)} // Toggle status on switch change
+              disabled={isLockedDriverGroup(row.original)}
               color={row.original.status ? 'success' : 'error'} // Use 'success' for active, 'error' for inactive
               sx={{
                 '& .MuiSwitch-switchBase': {
@@ -163,26 +197,33 @@ const GroupDocumentTable = ({ staticGroup, dictionary }: { staticGroup: any, dic
         header: dictionary['navigation'].actions,
         cell: ({ row }) => (
           <div className='flex items-center'>
-            <OptionMenu
-              iconButtonProps={{ size: 'medium' }}
-              iconClassName='text-textSecondary'
-              options={[
-                 {
-                  text: dictionary['navigation'].Edit,
-                  icon: 'tabler-pencil-minus',
-                  menuItemProps: {
-                    onClick: () => handleEditClick(row.original),
-                  },
-                },
-                {
-                  text: dictionary['navigation'].Delete,
-                  icon: 'tabler-trash',
-                  menuItemProps: {
-                    onClick: () => handleDeleteClick(row.original),
-                  },
-                }
-              ]}
-            />
+            <IconButton>
+             <Link
+                href={getLocalizedUrl(`${zoneId ? `/${zoneId}` : ''}/apps/taxi/master/document/${row.original.id}`, locale as Locale)}
+                className='flex'
+              >
+                <i className='tabler-arrow-right bg-primary ' />
+              </Link>
+            </IconButton>
+            {isLockedDriverGroup(row.original) ? (
+              <Typography variant='body2' color='text.secondary'>
+
+              </Typography>
+            ) : (
+              <OptionMenu
+                iconButtonProps={{ size: 'medium' }}
+                iconClassName='text-textSecondary'
+                options={[
+                  {
+                    text: dictionary['navigation'].Edit,
+                    icon: 'tabler-pencil-minus',
+                    menuItemProps: {
+                      onClick: () => handleEditClick(row.original),
+                    },
+                  }
+                ]}
+              />
+            )}
           </div>
         ),
         enableSorting: false,
@@ -218,6 +259,15 @@ const GroupDocumentTable = ({ staticGroup, dictionary }: { staticGroup: any, dic
   });
 
   const handleEditClick = (rowData: GroupDocumentType) => {
+    if (isLockedDriverGroup(rowData)) {
+      toast.error(
+        dictionary['navigation'].DefaultDriverGroupDocumentCannotBeModified ||
+          'Default Driver group document cannot be modified'
+      );
+
+return;
+    }
+
     if (checkDemoStatus()) {
       toast.error(dictionary['navigation'].editError);
 
@@ -246,16 +296,25 @@ const GroupDocumentTable = ({ staticGroup, dictionary }: { staticGroup: any, dic
     };
 
 
-  const handleDeleteClick = (original: GroupDocumentType) => {
-    if (checkDemoStatus()) {
-      toast.error(dictionary['navigation'].deleteError);
+//   const handleDeleteClick = (original: GroupDocumentType) => {
+//     if (isLockedDriverGroup(original)) {
+//       toast.error(
+//         dictionary['navigation'].DefaultDriverGroupDocumentCannotBeModified ||
+//           'Default Driver group document cannot be modified'
+//       );
 
-      return;
-      }
+// return;
+//     }
 
-    setDeleteGroupDocumentId(original.id);
-    setDeleteConfirmationOpen(true);
-  };
+//     if (checkDemoStatus()) {
+//       toast.error(dictionary['navigation'].deleteError);
+
+//       return;
+//       }
+
+//     setDeleteGroupDocumentId(original.id);
+//     setDeleteConfirmationOpen(true);
+//   };
 
   const handlePagecurrentForAddRecord = () => {
     // Create a dummy event object
@@ -315,7 +374,7 @@ const GroupDocumentTable = ({ staticGroup, dictionary }: { staticGroup: any, dic
 
   const handlePageChange = async (event: unknown, newPage: number) => {
     try {
-      const { results, totalResults } = await getGroupDocumentByPagination(pageSearch, newPage, pageSize);
+      const { results, totalResults } = await getGroupDocumentByPagination(pageSearch, newPage, pageSize,zoneId);
 
       setData(results);
       setPageIndex(newPage);
@@ -329,7 +388,7 @@ const GroupDocumentTable = ({ staticGroup, dictionary }: { staticGroup: any, dic
 
     const newPageSize = parseInt(event.target.value);
 
-    const { results, totalResults } = await getGroupDocumentByPagination(pageSearch, 1, newPageSize);
+    const { results, totalResults } = await getGroupDocumentByPagination(pageSearch, 1, newPageSize,zoneId);
 
     setPageSize(newPageSize);
     setData(results);
@@ -344,7 +403,8 @@ const GroupDocumentTable = ({ staticGroup, dictionary }: { staticGroup: any, dic
         const result = await getGroupDocumentByPagination(
           searchTerm,
           1, // Reset to first page on new search
-          pageSize
+          pageSize,
+          zoneId
         );
 
         setPageSearch(searchTerm);
@@ -491,6 +551,7 @@ const GroupDocumentTable = ({ staticGroup, dictionary }: { staticGroup: any, dic
         page={pageIndex}
         onPageChange={handlePageChange}
         rowsPerPage={pageSize}
+        zoneId={zoneId}
       />
       <ConfirmationDialogErrorHandle
         open={deleteConfirmationOpen}

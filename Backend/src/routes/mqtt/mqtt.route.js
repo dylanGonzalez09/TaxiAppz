@@ -1,4 +1,5 @@
 const express = require('express');
+
 const router = express.Router();
 const mqttController = require('../../controllers/mqtt/mqtt.controller');
 
@@ -8,7 +9,6 @@ router.post('/web/publish', mqttController.webPublish);
 
 // Route to retrieve stored messages
 router.get('/messages', mqttController.getMessages);
-
 
 // chat message related routes
 

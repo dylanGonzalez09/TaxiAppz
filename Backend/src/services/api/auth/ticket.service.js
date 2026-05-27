@@ -1,35 +1,12 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const ApiError = require('../../../utils/ApiError');
-const { Ticket } = require('../../../models');
+const { Ticket,User } = require('../../../models');
 const mongoose = require('mongoose');
 const { tokenService } = require('../../../services');
 const ObjectId = require('mongoose').Types.ObjectId
 
-const { sendPushNotification } = require('../../../utils/commonFunction');
+const { sendPushNotification,getUserId,getClientId } = require('../../../utils/commonFunction');
 
-const getClientId = async (req) => {
-  clientId = '';
-  if (!req.headers.clientid) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
-  } else {
-    clientId = req.headers.clientid;
-  }
-  return clientId;
-}
-
-const getUserId = async (req) => {
-  let userId = '';
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    res.status(httpStatus.UNAUTHORIZED).send({ message: 'Authorization header is missing or invalid' });
-    return;
-  }
-  // Remove the 'Bearer ' prefix and get the token
-  const token = authHeader.substring(7);
-  const user = await tokenService.verifyTokenAndGetUser(token);
-  userId = user.id
-  return userId;
-}
 
 /**
  * Create a ticket
@@ -37,14 +14,23 @@ const getUserId = async (req) => {
  * @returns {Promise<Ticket>}
  */
 const createTicket = async (req) => {
+
   req.body.clientId = await getClientId(req);
   req.body.user = await getUserId(req);
+
+ const user = await User.findById(req.body.user);
+
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+    req.body.zoneId = user.zoneId;
 
   await sendPushNotification(req.body.user, {
     title: "TICKET STATUS",
     message: "Your Ticket Created... Please Wait For Admin Review Your Ticket ",
 });
-  
+
   return Ticket.create(req.body);
 };
 

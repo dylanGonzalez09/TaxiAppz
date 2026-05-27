@@ -1,4 +1,4 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const pick = require('../../../utils/pick');
 const ApiError = require('../../../utils/ApiError');
 const catchAsync = require('../../../utils/catchAsync');
@@ -19,7 +19,6 @@ const getFavouriteList = catchAsync(async (req, res) => {
 });
 
 const createFavourite = catchAsync(async (req, res) => {
-
   const userId = req.user._id;
   req.body.userId = userId;
 
@@ -66,5 +65,5 @@ module.exports = {
   getFavouriteList,
   createFavourite,
   updateFavourite,
-  deleteFavourite
+  deleteFavourite,
 };

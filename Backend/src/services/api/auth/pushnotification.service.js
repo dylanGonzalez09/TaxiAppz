@@ -1,32 +1,10 @@
 const admin = require('firebase-admin');
-const { User, Notification, Driver, Role, Zone } = require('../../../models');
+const { User, Notification, Driver,Zone,Role } = require('../../../models');
 const { tokenService } = require('../../../services');
 const pick = require('../../../utils/pick');
 const ObjectId = require('mongoose').Types.ObjectId
-
-const getClientId = async (req) => {
-  clientId = '';
-  if (!req.headers.clientid) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
-  } else {
-    clientId = req.headers.clientid;
-  }
-  return clientId;
-}
-
-const getUserId = async (req) => {
-  let userId = '';
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    res.status(httpStatus.UNAUTHORIZED).send({ message: 'Authorization header is missing or invalid' });
-    return;
-  }
-  // Remove the 'Bearer ' prefix and get the token
-  const token = authHeader.substring(7);
-  const user = await tokenService.verifyTokenAndGetUser(token);
-  userId = user.id
-  return userId;
-}
+const { sendBulkEmail } = require('../../../services/email.service');
+const {getUserId,getClientId,getDriverId} = require('../../../utils/commonFunction')
 
 
 const getUser = async (req) => {
@@ -87,27 +65,25 @@ const sendNotification = async (req, userIds, messageData) => {
     );
 
     // Save notification history for each user
-    const notificationPromises = users.map(async (user) => {
-      const response = responses.find(r => 
-        r.status === 'fulfilled' && r.value === user.deviceInfoHash
-      );
-      
-      const notification = new Notification({
-        title: messageData.title,
-        userId: user._id, // Store the individual user ID
-        subTitle: messageData.subTitle || null,
-        message: messageData.message,
-        image: messageData.imageName || null,
-        status: response ? 1 : 0, // 1 = success, 0 = failure
-        notificationType: messageData.notificationType || 'GENERAL',
-        sourceType:'Web',
-        clientId: messageData.clientId || null,
-      });
-      
-      return notification.save();
-    });
+    // const notificationPromises = users.map(async (user) => {
+    //   const response = responses.find(r =>
+    //     r.status === 'fulfilled' && r.value === user.deviceInfoHash
+    //   );
+    //   const notification = new Notification({
+    //     title: messageData.title,
+    //     userId: user._id, // Store the individual user ID
+    //     subTitle: messageData.subTitle || null,
+    //     message: messageData.message,
+    //     image: messageData.imageName || null,
+    //     status: response ? 1 : 0, // 1 = success, 0 = failure
+    //     notificationType: messageData.notificationType || 'GENERAL',
+    //     sourceType:'Web',
+    //     clientId: messageData.clientId || null,
+    //   });
+    //   return notification.save();
+    // });
 
-    await Promise.all(notificationPromises);
+    // await Promise.all(notificationPromises);
 
     // Analyze responses
     const successResponses = responses.filter(r => r.status === 'fulfilled');
@@ -136,7 +112,7 @@ const getNotificationList = async (req) => {
 
   filter.isRead = false;
   filter.userId = new ObjectId(userId);
-  filter.sourceType = 'Web';
+  // filter.sourceType = 'Web';
 
   options.sortBy = options.sortBy || 'createdAt:desc';
 
@@ -147,15 +123,18 @@ const getNotificationList = async (req) => {
 
 
 const getPaginationNotificationList = async (req, res) => {
-
   try {
-    const notificationList = await Notification.find({ sourceType: "Web" });
+
+    const notificationList = await Notification.find({
+      sourceType: "Web",
+      notificationType: { $ne: "EMAIL" } // exclude email
+    }).sort({ createdAt: -1 });
 
     return notificationList;
 
   } catch (error) {
 
-    console.error('Error updating driver online status:', error);
+    console.error('Error fetching notifications:', error);
 
     return res.status(400).json({ message: 'Catch error', error: error.message });
   }
@@ -222,11 +201,6 @@ const getNotificationById = async (id) => {
   return Notification.findById(id);
 };
 
-const getRoleIdsByRoleName = async (roleName) => {
-  const roles = await Role.find({ role: roleName });
-  return roles.map((role) => role.id);
-};
-
 const deleteNotificationById = async (notificationId) => {
   const notification = await getNotificationById(notificationId);
   if (!notification) {
@@ -249,7 +223,6 @@ const deleteNotificationById = async (notificationId) => {
 //     { _id: 1, firstname: 1 }
 //   );
 //   const driverData = await Driver.find({ status: true, clientId: clientId });
-// console.log(driverData,"driverData",userData)
 //   const data = {
 //     users: userData,
 //     driver: driverData,
@@ -258,7 +231,24 @@ const deleteNotificationById = async (notificationId) => {
 
 //   return data;
 // };
-const getDropDowns = async (clientId) => {
+// const getDropDowns = async (clientId) => {
+//   const zonedata = await Zone.find({ clientId: clientId });
+
+//   const data = {
+//     zone: zonedata.map(zone => ({
+//       id: zone._id,
+//       zoneName: zone.zoneName,
+//     })),
+//   };
+//   return data;
+// };
+
+const getRoleIdsByRoleName = async (roleName) => {
+  const roles = await Role.find({ role: roleName });
+  return roles.map((role) => role.id);
+};
+
+const getDropDowns = async (clientId,zoneId) => {
 
 
   const [userRoleIds, driverRoleIds] = await Promise.all([
@@ -270,15 +260,23 @@ const getDropDowns = async (clientId) => {
   const userRoleIdsArray = userRoleIds ? [...userRoleIds] : [];
   const driverRoleIdsArray = driverRoleIds ? [...driverRoleIds] : [];
 
-  const zoneData = await Zone.find({ clientId: clientId,status:true });
+  const zoneData = await Zone.find({ clientId: clientId,status:true, _id: zoneId });
+ // USERS (added email)
   const userData = await User.find({
     clientId: clientId,
-    roleIds: { $in: userRoleIdsArray }  // Corrected: $in is nested under the field name
-  });
-  const driverData = await User.find({
+    zoneId: zoneId,
+    roleIds: { $in: userRoleIdsArray }
+  }).select("firstName phoneNumber email");
+ const driverData = await Driver.find({
     clientId: clientId,
-    roleIds: { $in: driverRoleIdsArray }  // Corrected: $in is nested under the field name
+    serviceLocation: zoneId,
+  }).populate({
+    path: 'userId',
+    match: {
+      roleIds: { $in: driverRoleIdsArray },
+    },
   });
+
 
   const data = {
     zone: zoneData.map(zone => ({
@@ -296,6 +294,71 @@ const getDropDowns = async (clientId) => {
   return datas;
 };
 
+const getDropDownsByZone = async (clientId, zoneIds = []) => {
+  const [userRoleIds, driverRoleIds] = await Promise.all([
+    getRoleIdsByRoleName('User'),
+    getRoleIdsByRoleName('Driver'),
+  ]);
+
+  const userRoleIdsArray = userRoleIds ? [...userRoleIds] : [];
+  const driverRoleIdsArray = driverRoleIds ? [...driverRoleIds] : [];
+  const normalizedZoneIds = (zoneIds || [])
+    .filter(Boolean)
+    .map((id) => new ObjectId(id));
+  const hasZoneFilter = normalizedZoneIds.length > 0;
+
+  const zoneQuery = { clientId: clientId, status: true };
+
+  if (hasZoneFilter) {
+    zoneQuery._id = { $in: normalizedZoneIds };
+  }
+
+  const userQuery = {
+    clientId: clientId,
+    active: true,
+    roleIds: { $in: userRoleIdsArray },
+  };
+
+  if (hasZoneFilter) {
+    userQuery.zoneId = { $in: normalizedZoneIds };
+  }
+
+  const driverQuery = {
+    clientId: clientId,
+  };
+
+  if (hasZoneFilter) {
+    driverQuery.$or = [
+      { serviceLocation: { $in: normalizedZoneIds } },
+      { secondaryZone: { $in: normalizedZoneIds } },
+    ];
+  }
+
+  const [zoneData, userDataRaw, driverDataRaw] = await Promise.all([
+    Zone.find(zoneQuery),
+    User.find(userQuery).select('firstName phoneNumber email'),
+    Driver.find(driverQuery).populate({
+      path: 'userId',
+      match: {
+        roleIds: { $in: driverRoleIdsArray },
+        active: true,
+      },
+    }),
+  ]);
+
+  const driverData = driverDataRaw.filter((driver) => !!driver.userId);
+
+  return {
+    zonedata: {
+      zone: zoneData.map((zone) => ({
+        id: zone._id,
+        zoneName: zone.zoneName,
+      })),
+    },
+    Userdata: userDataRaw,
+    Driverdata: driverData,
+  };
+};
 
 /**
  * Send Push Notification to a single device
@@ -329,12 +392,16 @@ const sendPushNotification = async (token, title, message) => {
 
     const response = await admin.messaging().send(messagePayload);
 
+
     return response;
   } catch (error) {
     console.error('Error sending notification:', error);
     throw error;
   }
 };
+
+
+
 
 
 /**
@@ -346,6 +413,9 @@ const getPushNotificationById = async (id) => {
   return Notification.findById(id);
 };
 
+
+
+
 /**
 * Update Sos by id
 * @param {ObjectId} notificationId
@@ -355,7 +425,7 @@ const getPushNotificationById = async (id) => {
 const updateNotificationById = async (notificationId, updateBody) => {
   const notificationRating = await getPushNotificationById(notificationId);
   if (!notificationRating) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'sos not found');
+      throw new ApiError(httpStatus.NOT_FOUND, 'sos not found');
   }
 
   Object.assign(notificationRating, updateBody);
@@ -383,8 +453,85 @@ const updateAllNotificationByuserId = async (req) => {
   const updatedNotifications = await Notification.find({ userId: user._id });
   return updatedNotifications;
 };
+const sendPromotionEmail = async (req, data) => {
+  try {
 
+    const { userIds = [], driverIds = [], subject, message } = data;
 
+    const clientId = await getClientId(req);
+
+    // Get users emails
+    const users = await User.find({
+      _id: { $in: userIds },
+      clientId: clientId
+    }).select('email');
+
+    // Get drivers emails
+    const drivers = await Driver.find({
+      _id: { $in: driverIds },
+      clientId: clientId
+    }).populate({
+      path: 'userId',
+      select: 'email'
+    });
+
+    const userEmails = users
+      .map(user => user.email)
+      .filter(Boolean);
+
+    const driverEmails = drivers
+      .map(driver => driver.userId?.email)
+      .filter(Boolean);
+
+    const recipients = [...userEmails, ...driverEmails];
+
+    if (!recipients.length) {
+      throw new Error("No email recipients found");
+    }
+
+    // Send emails
+    await sendBulkEmail(recipients, subject, message);
+
+    // Save email notification
+    await Notification.create({
+      title: subject,
+      message: message,
+      userIds: userIds,
+      driverIds: driverIds,
+      notificationType: 'EMAIL', // important
+      sourceType: 'Web',
+      clientId: clientId
+    });
+
+    return {
+      success: true,
+      totalEmails: recipients.length,
+      recipients
+    };
+
+  } catch (error) {
+    console.error('Error sending promotion email:', error);
+    throw error;
+  }
+};
+const getEmailNotificationList = async (req) => {
+
+  const clientId = await getClientId(req);
+
+  const options = pick(req.query, ['sortBy', 'limit', 'page']);
+
+  const filter = {
+    clientId: new ObjectId(clientId),
+    notificationType: 'EMAIL',
+    sourceType: 'Web'
+  };
+
+  options.sortBy = options.sortBy || 'createdAt:desc';
+
+  const notifications = await Notification.paginate(filter, options);
+
+  return notifications;
+};
 module.exports = {
   sendNotification,
   getNotificationList,
@@ -392,8 +539,11 @@ module.exports = {
   getUserList,
   deleteNotificationById,
   getDropDowns,
+  getDropDownsByZone,
   sendPushNotification,
   getPaginationNotificationList,
   updateNotificationById,
-  updateAllNotificationByuserId
+  updateAllNotificationByuserId,
+  sendPromotionEmail,
+  getEmailNotificationList
 };

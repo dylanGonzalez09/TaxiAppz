@@ -8,30 +8,45 @@ const driverController = require('../../../controllers/api/auth/driver.controlle
 const authValidation = require('../../../validations/api/auth/auth.validation');
 const authController = require('../../../controllers/api/auth/auth.controller');
 const { userUpload } = require('../../../middlewares/upload');
+const catchAsync = require('../../../utils/catchAsync');
+
 const router = express.Router();
 
 // Routes with authentication and validation
 router.route('/getProfile').get(auth('Driver'), validate(driverValidation.getDriver), driverController.getDriver);
-router.route('/getServiceType').get(auth('Driver'),driverController.getServiceType);
+router.route('/getServiceType').get(auth('Driver'), driverController.getServiceType);
 router.post('/create', validate(driverValidation.mobileCreateDriver), driverController.createDriver);
 router.post('/login', validate(authValidation.login), authController.otpSent);
 router.post('/verify', validate(authValidation.verify), authController.verify);
 router.get('/getCategory/list', driverController.getCategoriesWithoutPagination);
+
 router.get('/getVehicle/list', driverController.getVehiclesWithoutPagination);
-router.get('/getVehicle/:zoneId',driverController.getVehiclesByZoneWithoutPagination);
+router.get('/getBrand/:vehicleId', driverController.getBrandByVehicle);
+router.get('/getVehicleModel/:brandId', driverController.getVehicleModelByBrand);
+router.get('/getVehicleVariant/:vehicleModelId', driverController.getVehicleVariantByVehicleModel);
+
+router.get('/getVehicle/:zoneId', driverController.getVehiclesByZoneWithoutPagination);
 router.get('/getVehicleModel/list', driverController.getVehicleModelWithoutPagination);
-router.get('/getCountry/list',driverController.getCountryActiveWithOutPagination);
-router.route('/onlineUpdate').put(auth('Driver'), driverController.updateDriverOnline);
-router.get('/getVehicleModel/:vehicleId',driverController.getVehicleModelByVehicle);
-router.route('/updateDrivers').put(auth('Driver'), validate(driverValidation.updateDriver), userUpload.single('documentImage'), driverController.updateDriver);
-router.route('/request/history').get(auth('Driver'), validate(driverValidation.getDriver), driverController.getRequestsHistory);
-router.route('/demoStatusUpdate').put(auth('Driver'), driverController.updateDriverStatusByDemo);
+router.get('/getCountry/list', driverController.getCountryActiveWithOutPagination);
+// router.route('/onlineUpdate').put(auth('Driver'), driverController.updateDriverOnline);
+router.route('/onlineUpdate').put(auth('Driver'), catchAsync(driverController.updateDriverOnline));
+// router.get('/getVehicleModel/:vehicleId',driverController.getVehicleModelByVehicle);
+router
+  .route('/updateDrivers')
+  .put(
+    auth('Driver'),
+    validate(driverValidation.updateDriver),
+    userUpload.single('profilePic'),
+    driverController.updateDriver,
+  );
+router
+  .route('/request/history')
+  .get(auth('Driver'), validate(driverValidation.getDriver), driverController.getRequestsHistory);
+
 router.get('/earings', driverController.getDriverEarings);
 router.get('/history', driverController.getDriverHistory);
-router.route('/demoStatusUpdate').put(auth('Driver'), driverController.updateDriverStatusByDemo);
 
 module.exports = router;
-
 
 /**
  * @swagger
@@ -223,7 +238,7 @@ module.exports = router;
  *                 message:
  *                   type: string
  *                   example: "An unexpected error occurred."
-* /driver/getCategory/list:
+ * /driver/getCategory/list:
  *   get:
  *     summary: Get categories
  *     description: Retrieve a list of all categories without pagination.
@@ -262,7 +277,7 @@ module.exports = router;
  *                 message:
  *                   type: string
  *                   example: Categories retrieved successfully
- * 
+ *
  * /driver/getVehicle/list:
  *   get:
  *     summary: Get vehicles
@@ -317,7 +332,7 @@ module.exports = router;
  *                 message:
  *                   type: string
  *                   example: Vehicles retrieved successfully
- * 
+ *
  * /driver/getVehicleModel/list:
  *   get:
  *     summary: Get vehicle models
@@ -363,7 +378,7 @@ module.exports = router;
  *                 message:
  *                   type: string
  *                   example: Vehicle models retrieved successfully
- * 
+ *
  * /driver/getCountry/list:
  *   get:
  *     summary: Get countries

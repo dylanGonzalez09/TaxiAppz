@@ -3,28 +3,29 @@ const auth = require('../../../middlewares/auth');
 const validate = require('../../../middlewares/validate');
 const requestValidation = require('../../../validations/web/request/request.validation');
 const requestController = require('../../../controllers/web/request/request.controller');
+const catchAsync = require('../../../utils/catchAsync');
 
 const router = express.Router();
 
 router.route('/create').post(auth('Request'), validate(requestValidation.createRequest), requestController.createRequest);
-router.route('/place/create').post(auth('Request'),requestController.createRequestPlace);
+router.route('/place/create').post(auth('Request'), requestController.createRequestPlace);
 router.route('/getRequests').get(auth('Request'), validate(requestValidation.getRequests), requestController.getRequests);
-router.route('/getRequest/list').get(auth('Request'), validate(requestValidation.getRequests), requestController.getRequestsWithOutPagination);
-router.route('/getRequest/pagination').get(auth('Request'),requestController.getRequestsWithPagination);
+router
+  .route('/getRequest/list')
+  .get(auth('Request'), validate(requestValidation.getRequests), requestController.getRequestsWithOutPagination);
+router.route('/getRequest/pagination').get(auth('Request'), requestController.getRequestsWithPagination);
 router.route('/getRequest/:requestId').get(validate(requestValidation.getRequestById), requestController.getRequestById);
-router.route('/updateRequest/:requestId').patch(auth('Request'), validate(requestValidation.updateRequest), requestController.updateRequest);
-router.route('/deleteRequest/:requestId').delete(auth('Request'), validate(requestValidation.deleteRequest), requestController.deleteRequest);
-router.route('/getRequestByUserId/:requestId').get(auth('Request'),  requestController.getRequestsByUserId);
-router.route('/getRequest/history/:phoneNumber').get(auth('Request'), validate(requestValidation.getRequestHistoryById), requestController.getRequestsHistory);
-router.route('/eta').post(auth('Request'),requestController.getTypes);
-// Web-specific ETA endpoint (no clientId required, optional auth)
-router.route('/web/eta').post(auth('Request'),requestController.getWebTypes);
-// Web-specific request creation (no clientId required, auth required)
-router.route('/web/create').post(auth('Request'), requestController.createWebRequest);
-// Web-specific request status (for polling)
-router.route('/web/status/:requestId').get(auth('Request'), requestController.getWebRequestStatus);
-// Web-specific request cancellation
-router.route('/web/cancel').post(auth('Request'), requestController.cancelWebRequest);
+router
+  .route('/updateRequest/:requestId')
+  .patch(auth('Request'), validate(requestValidation.updateRequest), requestController.updateRequest);
+router
+  .route('/deleteRequest/:requestId')
+  .delete(auth('Request'), validate(requestValidation.deleteRequest), requestController.deleteRequest);
+router.route('/getRequestByUserId/:requestId').get(auth('Request'), requestController.getRequestsByUserId);
+router
+  .route('/getRequest/history/:phoneNumber')
+  .get(auth('Request'), validate(requestValidation.getRequestHistoryById), requestController.getRequestsHistory);
+router.route('/eta').post(auth('Request'), requestController.getTypes);
 router.route('/getTripReports').get(requestController.getTripReports);
 router.route('/getTripCount').get(requestController.getTripCount);
 router.route('/getLastTrips').get(requestController.getLastTrips);
@@ -42,14 +43,25 @@ router.route('/getTodayEarnings').get(requestController.getTodayEarnings);
 router.route('/getTodayReport').get(requestController.getTodayReport);
 router.route('/getWeeklyReport').get(requestController.getWeeklyReport);
 router.route('/getMonthlyReport').get(requestController.getMonthlyReport);
-router.route('/getYearlyRevenue').get(requestController.getYearlyRevenue);
+// router.route('/getYearlyRevenue').get(requestController.getYearlyRevenue);
+router.route('/getYearlyRevenue').get(catchAsync(requestController.getYearlyRevenue));
 router.route('/getTripsByDriver').get(requestController.getTripsByDriver);
 router.route('/getTripsByUser').get(requestController.getTripsByUser);
-router.route('/getErrorLogs').get(requestController.getErrorLogs);
+
+router.route('/getChatHistory').get(requestController.getChatHistory);
+
+
+// Web-specific ETA endpoint (no clientId required, optional auth)
+router.route('/web/eta').post(auth('Request'),requestController.getWebTypes);
+// Web-specific request creation (no clientId required, auth required)
+router.route('/web/create').post(auth('Request'), requestController.createWebRequest);
+// Web-specific request status (for polling)
+router.route('/web/status/:requestId').get(auth('Request'), requestController.getWebRequestStatus);
+// Web-specific request cancellation
+router.route('/web/cancel').post(auth('Request'), requestController.cancelWebRequest);
 
 
 module.exports = router;
-
 
 /**
  * @swagger
@@ -80,10 +92,10 @@ module.exports = router;
  *                   example: "Delivery"
  *                 userId:
  *                   type: string
- *                   example: "60b0aa1b7704d52e5a5b17"
+ *                   example: "60b0aa1b7704dba62e5a5b17"
  *                 driverId:
  *                   type: string
- *                   example: "60b0aa1b7704d52e5a5b17"
+ *                   example: "60b0aa1b7704dba62e5a5b17"
  *                 isCompleted:
  *                   type: boolean
  *                   example: false

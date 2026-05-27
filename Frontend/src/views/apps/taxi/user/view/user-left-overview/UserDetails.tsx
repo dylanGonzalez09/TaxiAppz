@@ -5,11 +5,9 @@ import Typography from '@mui/material/Typography';
 import Chip from '@mui/material/Chip';
 import Divider from '@mui/material/Divider';
 
+import { BASE_IMAGE_URL } from '@/app/api/apps/taxi/endpoint'
 import { useIsDemoUser } from '@/utils/demoUser';
-
 import CustomAvatar from '@core/components/mui/Avatar';
-
-import { BASE_IMAGE_URL } from '@apis/endpoint';
 
 // Define the type for user data
 interface UserData {
@@ -26,6 +24,8 @@ interface UserData {
   profilePic: string | null;
 }
 
+
+
 // Define props for UserDetails
 interface UserDetailsProps {
   userData: UserData;
@@ -33,7 +33,6 @@ interface UserDetailsProps {
 }
 
 const UserDetails: React.FC<UserDetailsProps> = ({ userData,dictionary }) => {
-
   const { checkDemoStatus } = useIsDemoUser();
 
   const isDemo = checkDemoStatus();
@@ -54,16 +53,16 @@ const UserDetails: React.FC<UserDetailsProps> = ({ userData,dictionary }) => {
         <div className="flex flex-col gap-6">
           <div className="flex items-center justify-center flex-col gap-4">
             <div className="flex flex-col items-center gap-4">
-              <CustomAvatar
-               
-               // alt="user-profile"
-               
-                src={userData?.avatar
-                  ? `${BASE_IMAGE_URL}/uploads/user/${userData.avatar}`
-                  : '/images/avatars/1.png'}
-                variant="rounded"
-                size={120}
-              />
+             <CustomAvatar
+                      alt="user-profile"
+                      src={
+                        userData?.avatar
+                          ? `${BASE_IMAGE_URL}${userData.avatar}`
+                          : '/images/avatars/1.png'
+                      }
+                      variant="circular"
+                      size={120}
+                    />
               <Typography variant="h5">{`${userData?.firstName} `}</Typography>
             </div>
             {userData?.email && (
@@ -80,8 +79,8 @@ const UserDetails: React.FC<UserDetailsProps> = ({ userData,dictionary }) => {
               <CustomAvatar variant="rounded" color="primary" skin="light">
                 <i className="tabler-checkbox" />
               </CustomAvatar>
-              <div>
-                <Typography variant="h6">{userData?.rating}</Typography>
+             <div>
+                <Typography variant="h6">{userData.rating}</Typography>
                 <Typography>{dictionary['navigation'].Rating}</Typography>
               </div>
             </div>
@@ -111,7 +110,7 @@ const UserDetails: React.FC<UserDetailsProps> = ({ userData,dictionary }) => {
               {dictionary['navigation'].Status}:
             </Typography>
             <Typography color="text.primary">
-              {userData?.active ? 'Active' : 'Inactive'}
+              {userData?.active ? dictionary['navigation'].active || 'Active' : dictionary['navigation'].inactive || 'Inactive'}
             </Typography>
           </div>
 

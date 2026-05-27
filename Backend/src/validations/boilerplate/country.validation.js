@@ -42,40 +42,39 @@ const getCountry = {
   }),
 };
 
-const getCountryWithOutPagination = {
-};
+const getCountryWithOutPagination = {};
 
 const updateCountry = {
   params: Joi.object().keys({
     countryId: Joi.string().custom(objectId),
   }),
   body: Joi.object()
-      .keys({
-        name: Joi.string(),
-        dial_code: Joi.string(),
-        code: Joi.string(),
-        currency_name: Joi.string(),
-        currency_code: Joi.string(),
-        currency_symbol: Joi.string(),
-        status: Joi.boolean(),
-        capital: Joi.string(),
-        citizenship: Joi.string(),
-        country_code: Joi.string(),
-        currency: Joi.string(),
-        currency_sub_unit: Joi.string(),
-        full_name: Joi.string(),
-        iso_3166_3: Joi.string(),
-        region_code: Joi.string(),
-        sub_region_code: Joi.string(),
-        eea: Joi.string(),
-        currency_decimals: Joi.string(),
-        flag: Joi.string(),
-        flag_base_64: Joi.string(),
-        time_zone: Joi.string(),
-        gmt_offset: Joi.string(),
-        clientId: Joi.string().custom(objectId).optional(),
-      })
-      .min(1),
+    .keys({
+      name: Joi.string(),
+      dial_code: Joi.string(),
+      code: Joi.string(),
+      currency_name: Joi.string(),
+      currency_code: Joi.string(),
+      currency_symbol: Joi.string(),
+      status: Joi.boolean(),
+      capital: Joi.string(),
+      citizenship: Joi.string(),
+      country_code: Joi.string(),
+      currency: Joi.string(),
+      currency_sub_unit: Joi.string(),
+      full_name: Joi.string(),
+      iso_3166_3: Joi.string(),
+      region_code: Joi.string(),
+      sub_region_code: Joi.string(),
+      eea: Joi.string(),
+      currency_decimals: Joi.string(),
+      flag: Joi.string(),
+      flag_base_64: Joi.string(),
+      time_zone: Joi.string(),
+      gmt_offset: Joi.string(),
+      clientId: Joi.string().custom(objectId).optional(),
+    })
+    .min(1),
 };
 
 const deleteCountry = {
@@ -100,6 +99,5 @@ module.exports = {
   getCountryWithOutPagination,
   updateCountry,
   deleteCountry,
-  updateCoutryStatus
+  updateCoutryStatus,
 };
-

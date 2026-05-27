@@ -20,16 +20,11 @@ async function migrateData() {
     await sourceClient.connect();
     await destClient.connect();
 
-
     const sourceDb = sourceClient.db(sourceConfig.dbName);
     const destDb = destClient.db(destConfig.dbName);
 
-
-
     // List collections from the source database
     const collections = await sourceDb.listCollections().toArray();
-
-
 
     for (const collection of collections) {
       const collectionName = collection.name;
@@ -44,11 +39,7 @@ async function migrateData() {
         // Write data to the destination collection
         const destCollection = destDb.collection(collectionName);
         try {
-          await destCollection.updateOne(
-            { _id: data._id },
-            { $set: data },
-            { upsert: true }
-          );
+          await destCollection.updateOne({ _id: data._id }, { $set: data }, { upsert: true });
         } catch (err) {
           console.error(`Failed to insert document into collection ${collectionName}:`, err);
         }

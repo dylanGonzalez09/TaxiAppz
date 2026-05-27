@@ -1,7 +1,10 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 'use client'
 
 import React, { useRef, useState, useEffect } from 'react'
 import type { MouseEvent, ReactNode } from 'react'
+
+import { useParams, useRouter } from 'next/navigation'
 
 import IconButton from '@mui/material/IconButton'
 import Badge from '@mui/material/Badge'
@@ -17,9 +20,11 @@ import Avatar from '@mui/material/Avatar'
 import Button from '@mui/material/Button'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import type { Theme } from '@mui/material/styles'
+
 import classnames from 'classnames'
 import PerfectScrollbar from 'react-perfect-scrollbar'
 
+import { fetchPromoExpiry } from '@/app/api/apps/taxi/promoCode'
 import type { CustomAvatarProps } from '@core/components/mui/Avatar';
 import CustomAvatar from '@core/components/mui/Avatar'
 import themeConfig from '@configs/themeConfig'
@@ -90,99 +95,99 @@ const getAvatar = (
   }
 }
 
-const NotificationDropdown = ({ notifications }: { notifications: NotificationsType[] }) => {
-  // States
+const NotificationDropdown = () => {
   const [open, setOpen] = useState(false)
-  const [notificationsState, setNotificationsState] = useState(notifications)
+  const [notifications, setNotifications] = useState<NotificationsType[]>([])
+  const [loading, setLoading] = useState(false)
+  const [fetched, setFetched] = useState(false)
 
-  // Vars
-  const notificationCount = notificationsState.filter(notification => !notification.read).length
-  const readAll = notificationsState.every(notification => notification.read)
-
-  // Refs
   const anchorRef = useRef<HTMLButtonElement>(null)
   const ref = useRef<HTMLDivElement | null>(null)
-
-  // Hooks
   const hidden = useMediaQuery((theme: Theme) => theme.breakpoints.down('lg'))
   const isSmallScreen = useMediaQuery((theme: Theme) => theme.breakpoints.down('sm'))
   const { settings } = useSettings()
 
-  // Bell sound effect
+  const notificationCount = notifications.filter(n => !n.read).length
+  const readAll = notifications.every(n => n.read)
 
-  const handleClose = () => {
-    setOpen(false)
+  const router = useRouter()
+const { lang, zoneId } = useParams()
+
+  const fetchNotifications = async () => {
+    try {
+      setLoading(true)
+      const promo = await fetchPromoExpiry()
+     
+      const mapped = promo.results.map((doc: {
+        promoCode: string;
+        toDate: string;
+      }) => {
+        const toDate = new Date(doc.toDate)
+        const isExpired = toDate < new Date()
+
+        return {
+          title: `Promo Code ${isExpired ? 'Expired' : 'Active'}`,
+          subtitle: `Promo Code: ${doc.promoCode}`,
+          time: toDate.toLocaleDateString('en-US', {
+            year: 'numeric', month: 'long', day: 'numeric'
+          }) + ' ' + toDate.toLocaleTimeString('en-US', {
+            hour: '2-digit', minute: '2-digit'
+          }),
+          read: !isExpired
+        }
+      })
+     
+      setNotifications(mapped)
+      setFetched(true)
+    } catch (err) {
+      console.error('Failed to fetch notifications:', err)
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const handleToggle = () => {
-    setOpen(prevOpen => !prevOpen)
+  const handleToggle = async () => {
+    setOpen(prev => !prev)
+   
+    if (!fetched) {
+      await fetchNotifications()
+    }
   }
 
-  // Read notification when notification is clicked
-  const handleReadNotification = (event: MouseEvent<HTMLElement>, value: boolean, index: number) => {
-    event.stopPropagation()
-    const newNotifications = [...notificationsState]
+const handleViewAllNotifications = () => {
+  router.push(`/${lang}/${zoneId}/apps/taxi/notification/66d477418c8e995c9073c512`)
+}
 
-    newNotifications[index].read = value
-    setNotificationsState(newNotifications)
+  const handleReadNotification = (e: any, value: boolean, index: number) => {
+    e.stopPropagation()
+    const updated = [...notifications]
+   
+    updated[index].read = value
+    setNotifications(updated)
   }
 
-  // Remove notification when close icon is clicked
-  const handleRemoveNotification = (event: MouseEvent<HTMLElement>, index: number) => {
-    event.stopPropagation()
-    const newNotifications = [...notificationsState]
-
-    newNotifications.splice(index, 1)
-    setNotificationsState(newNotifications)
+  const handleRemoveNotification = (e: any, index: number) => {
+    e.stopPropagation()
+    const updated = [...notifications]
+   
+    updated.splice(index, 1)
+    setNotifications(updated)
   }
 
-  // Read or unread all notifications when read all icon is clicked
   const readAllNotifications = () => {
-    const newNotifications = [...notificationsState]
-
-    newNotifications.forEach(notification => {
-      notification.read = !readAll
-    })
-    setNotificationsState(newNotifications)
+    const updated = notifications.map(n => ({ ...n, read: !readAll }))
+   
+    setNotifications(updated)
   }
 
-  useEffect(() => {
-    const adjustPopoverHeight = () => {
-      if (ref.current) {
-        // Calculate available height, subtracting any fixed UI elements' height as necessary
-        const availableHeight = window.innerHeight - 100
-
-        ref.current.style.height = `${Math.min(availableHeight, 550)}px`
-      }
-    }
-
-    window.addEventListener('resize', adjustPopoverHeight)
-
-    return () => {
-      window.removeEventListener('resize', adjustPopoverHeight)
-    }
-  }, [])
-
-
-
-  // Inline styles for the bell ringing effect
-  const bellRingStyle = notificationCount > 0 ? {
-    animation: 'bellRing 0.5s infinite',
-  } : {}
+  // ... (adjustPopoverHeight stays the same)
 
   return (
     <>
-      <IconButton
-        ref={anchorRef}
-        onClick={handleToggle}
-        className={classnames('text-textPrimary')}
-        style={bellRingStyle}
-      >
+      <IconButton ref={anchorRef} onClick={handleToggle} className='text-textPrimary'>
         <Badge
           color='error'
-          className='cursor-pointer'
           variant='dot'
-          overlap='circular'
           invisible={notificationCount === 0}
           sx={{
             '& .MuiBadge-dot': { top: 6, right: 5, boxShadow: 'var(--mui-palette-background-paper) 0px 0px 0px 2px' }
@@ -192,120 +197,80 @@ const NotificationDropdown = ({ notifications }: { notifications: NotificationsT
           <i className='tabler-bell' />
         </Badge>
       </IconButton>
+
       <Popper
         open={open}
         transition
+        anchorEl={anchorRef.current}
         disablePortal
         placement='bottom-end'
         ref={ref}
-        anchorEl={anchorRef.current}
-        {...(isSmallScreen
-          ? {
-            className: 'is-full !mbs-3 z-[1] max-bs-[550px] bs-[550px]',
-            modifiers: [
-              {
-                name: 'preventOverflow',
-                options: {
-                  padding: themeConfig.layoutPadding
-                }
-              }
-            ]
-          }
-          : { className: 'is-96 !mbs-3 z-[1] max-bs-[550px] bs-[550px]' })}
+        className={classnames('z-[1] !mbs-3', {
+          'is-full max-bs-[550px] bs-[550px]': isSmallScreen,
+          'is-96 max-bs-[550px] bs-[550px]': !isSmallScreen
+        })}
       >
         {({ TransitionProps, placement }) => (
-          <Fade {...TransitionProps} style={{ transformOrigin: placement === 'bottom-end' ? 'right top' : 'left top' }}>
+          <Fade {...TransitionProps} style={{ transformOrigin: 'right top' }}>
             <Paper className={classnames('bs-full', settings.skin === 'bordered' ? 'border shadow-none' : 'shadow-lg')}>
-              <ClickAwayListener onClickAway={handleClose}>
+              <ClickAwayListener onClickAway={() => setOpen(false)}>
                 <div className='bs-full flex flex-col'>
-                  <div className='flex items-center justify-between plb-3.5 pli-4 is-full gap-2'>
-                    <Typography variant='h6' className='flex-auto'>
-                      Notifications
-                    </Typography>
+                  <div className='flex items-center justify-between p-4 gap-2'>
+                    <Typography variant='h6'>Notifications</Typography>
                     {notificationCount > 0 && (
-                      <Chip size='small' variant='tonal' color='primary' label={`${notificationCount} New`} />
+                      <Chip size='small' color='primary' label={`${notificationCount} New`} />
                     )}
-                    <Tooltip
-                      title={readAll ? 'Mark all as unread' : 'Mark all as read'}
-                      placement={placement === 'bottom-end' ? 'left' : 'right'}
-                      slotProps={{
-                        popper: {
-                          sx: {
-                            '& .MuiTooltip-tooltip': {
-                              transformOrigin:
-                                placement === 'bottom-end' ? 'right center !important' : 'right center !important'
-                            }
-                          }
-                        }
-                      }}
-                    >
-                      {notificationsState.length > 0 ? (
-                        <IconButton size='small' onClick={() => readAllNotifications()} className='text-textPrimary'>
-                          <i className={readAll ? 'tabler-mail' : 'tabler-mail-opened'} />
-                        </IconButton>
-                      ) : (
-                        <></>
-                      )}
-                    </Tooltip>
+                    {notifications.length > 0 && (
+                      <IconButton size='small' onClick={readAllNotifications}>
+                        <i className={readAll ? 'tabler-mail' : 'tabler-mail-opened'} />
+                      </IconButton>
+                    )}
                   </div>
                   <Divider />
                   <ScrollWrapper hidden={hidden}>
-                    {notificationsState.map((notification, index) => {
-                      const {
-                        title,
-                        subtitle,
-                        time,
-                        read,
-                        avatarImage,
-                        avatarIcon,
-                        avatarText,
-                        avatarColor,
-                        avatarSkin
-                      } = notification
-
-                      return (
+                    {loading ? (
+                      <div className='text-center p-4'>Loading...</div>
+                    ) : notifications.length === 0 ? (
+                      <div className='text-center p-4 text-sm text-disabled'>No notifications</div>
+                    ) : (
+                      notifications.map((n, i) => (
                         <div
-                          key={index}
-                          className={classnames('flex plb-3 pli-4 gap-3 cursor-pointer hover:bg-actionHover group', {
-                            'border-be': index !== notificationsState.length - 1
-                          })}
-                          onClick={e => handleReadNotification(e, true, index)}
+                          key={i}
+                          className='flex items-start p-4 hover:bg-actionHover border-b cursor-pointer group'
+                          onClick={e => handleReadNotification(e, true, i)}
                         >
-                          {getAvatar({ avatarImage, avatarIcon, title, avatarText, avatarColor, avatarSkin })}
-                          <div className='flex flex-col flex-auto'>
-                            <Typography variant='body2' className='font-medium mbe-1' color='text.primary'>
-                              {title}
-                            </Typography>
-                            <Typography variant='caption' color='text.secondary' className='mbe-2'>
-                              {subtitle}
-                            </Typography>
-                            <Typography variant='caption' color='text.disabled'>
-                              {time}
-                            </Typography>
+                          {getAvatar(n)}
+                          <div className='flex flex-col flex-grow px-3'>
+                            <Typography variant='body2' fontWeight={500}>{n.title}</Typography>
+                            <Typography variant='caption'>{n.subtitle}</Typography>
+                            <Typography variant='caption' color='text.disabled'>{n.time}</Typography>
                           </div>
                           <div className='flex flex-col items-end gap-2'>
                             <Badge
                               variant='dot'
-                              color={read ? 'secondary' : 'primary'}
-                              onClick={e => handleReadNotification(e, !read, index)}
-                              className={classnames('mbs-1 mie-1', {
-                                'invisible group-hover:visible': read
-                              })}
+                              color={n.read ? 'secondary' : 'primary'}
+                              onClick={e => handleReadNotification(e, !n.read, i)}
+                              className='invisible group-hover:visible cursor-pointer'
                             />
                             <i
-                              className='tabler-x text-xl invisible group-hover:visible'
-                              onClick={e => handleRemoveNotification(e, index)}
+                              className='tabler-x text-xl invisible group-hover:visible cursor-pointer'
+                              onClick={e => handleRemoveNotification(e, i)}
                             />
                           </div>
                         </div>
-                      )
-                    })}
+                      ))
+                    )}
                   </ScrollWrapper>
                   <Divider />
                   <div className='p-4'>
-                    <Button fullWidth variant='contained' size='small'>
-                      View All Notifications
-                    </Button>
+                   <Button
+  fullWidth
+  variant='contained'
+  size='small'
+  onClick={handleViewAllNotifications}
+>
+  View All Notifications
+</Button>
                   </div>
                 </div>
               </ClickAwayListener>

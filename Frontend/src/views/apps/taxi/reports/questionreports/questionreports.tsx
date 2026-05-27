@@ -32,7 +32,7 @@ type QuestionReportsType = {
 
 const fuzzyFilter: FilterFn<QuestionReportsType> = (row, columnId, filterValue) => {
   const cellValue = row.getValue(columnId);
-
+  
   return typeof cellValue === 'string' && cellValue.toLowerCase().includes(filterValue.toLowerCase());
 };
 
@@ -65,7 +65,7 @@ const DebouncedInput = ({
 
 const columnHelper = createColumnHelper<QuestionReportsType>();
 
-const QuestionReportsTable = ({ staticGroup, dictionary }: { staticGroup: QuestionReportsType[], dictionary: any }) => {
+const QuestionReportsTable = ({ staticGroup, dictionary,zoneId }: { staticGroup: QuestionReportsType[], dictionary: any,zoneId:any }) => {
   const [rowSelection, setRowSelection] = useState({});
   const [data] = useState<QuestionReportsType[]>(staticGroup);
   const [globalFilter, setGlobalFilter] = useState('');
@@ -97,7 +97,7 @@ const QuestionReportsTable = ({ staticGroup, dictionary }: { staticGroup: Questi
         <div className='flex items-center'>
           <IconButton>
             <Link
-                          href={getLocalizedUrl(`/apps/taxi/reports/invoicequestion/${row.original._id}`, locale as Locale)}
+                          href={getLocalizedUrl(`${zoneId}/apps/taxi/reports/invoicequestion/${row.original._id}`, locale as Locale)}
                           className='flex'
                         >
                           <i className='tabler-eye text-textSecondary' />
@@ -107,7 +107,7 @@ const QuestionReportsTable = ({ staticGroup, dictionary }: { staticGroup: Questi
       ),
       enableSorting: false
     })
-  ], [dictionary, locale]);
+  ], [ locale,zoneId,dictionary]);
 
   const table = useReactTable({
     data,
@@ -142,7 +142,7 @@ const QuestionReportsTable = ({ staticGroup, dictionary }: { staticGroup: Questi
             <MenuItem value={10}>10</MenuItem>
             <MenuItem value={15}>15</MenuItem>
             <MenuItem value={25}>25</MenuItem>
-
+            
           </CustomTextField>
           <ExportOptions
             data={data}

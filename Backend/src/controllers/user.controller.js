@@ -1,11 +1,10 @@
-const httpStatus = require('http-status');
+const httpStatus = require('../config/httpStatus');
 const pick = require('../utils/pick');
 const ApiError = require('../utils/ApiError');
 const { handleMongoError } = require('../utils/errorHandler');
 const catchAsync = require('../utils/catchAsync');
 const { userService } = require('../services');
-const Response = require('./../config/response');
-
+const Response = require('../config/response');
 
 const createUser = catchAsync(async (req, res, next) => {
   if (!req.headers.clientid) {
@@ -14,16 +13,20 @@ const createUser = catchAsync(async (req, res, next) => {
     req.body.clientId = req.headers.clientid;
   }
 
+  if (!req.headers.zoneid) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Zone ID not found');
+  } else {
+    req.body.zoneId = req.headers.zoneid;
+  }
+
   try {
     const user = await userService.createUser(req.body);
     const response = Response(true, user, 'Success');
     res.status(httpStatus.CREATED).send(response);
   } catch (error) {
-      return handleMongoError(error, next);
+    return handleMongoError(error, next);
   }
 });
-
-
 
 const getUsers = catchAsync(async (req, res) => {
   const filter = pick(req.query, ['name', 'role']);
@@ -41,7 +44,6 @@ const getUser = catchAsync(async (req, res) => {
 });
 
 const getUserWithOutPagination = catchAsync(async (req, res) => {
- 
   const user = await userService.getAllUsers(req);
   if (!user) {
     throw new ApiError(httpStatus.NOT_FOUND, 'user not found');
@@ -50,15 +52,15 @@ const getUserWithOutPagination = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).send(response);
 });
 
-
 const getUserPagination = catchAsync(async (req, res) => {
   const filter = pick(req.query, ['firstName', 'phoneNumber']);
   const options = pick(req.query, ['sortBy', 'limit', 'page']);
   if (req.query.search) {
     filter.$or = [
-      { firstName: {$regex: '^'+req.query.search,$options: 'i'} },
-      { phoneNumber: {$regex: '^'+req.query.search,$options: 'i'} },
-
+      { firstName: { $regex: `^${req.query.search}`, $options: 'i' } },
+      { lastName: { $regex: `^${req.query.search}`, $options: 'i' } },
+      { phoneNumber: { $regex: `^${req.query.search}`, $options: 'i' } },
+      { email: { $regex: `^${req.query.search}`, $options: 'i' } },
     ];
   }
   const user = await userService.getAllUser(req, filter, options);
@@ -70,8 +72,18 @@ const getUserPagination = catchAsync(async (req, res) => {
 });
 
 const getAdminPagination = catchAsync(async (req, res) => {
-  const filter = pick(req.query, ['name', 'role']);
+  const filter = pick(req.query, ['firstName', 'phoneNumber']);
   const options = pick(req.query, ['sortBy', 'limit', 'page']);
+
+  if (req.query.search) {
+    filter.$or = [
+      { firstName: { $regex: `^${req.query.search}`, $options: 'i' } },
+      { lastName: { $regex: `^${req.query.search}`, $options: 'i' } },
+      { email: { $regex: `^${req.query.search}`, $options: 'i' } },
+      { phoneNumber: { $regex: `^${req.query.search}`, $options: 'i' } },
+    ];
+  }
+
   const user = await userService.getAllAdmins(req, filter, options);
   if (!user) {
     throw new ApiError(httpStatus.NOT_FOUND, 'admin not found');
@@ -105,7 +117,7 @@ const updateUser = catchAsync(async (req, res) => {
 
 const deleteUser = catchAsync(async (req, res) => {
   const user = await userService.deleteUserById(req.params.userId);
-  const response = Response(true, user, "User deleted successfully");
+  const response = Response(true, user, 'User deleted successfully');
   res.status(httpStatus.OK).send(response);
 });
 
@@ -139,5 +151,5 @@ module.exports = {
   updateActiveStatus,
   getUserByEmailDetails,
   getUserPagination,
-  getAdminPagination
+  getAdminPagination,
 };

@@ -66,7 +66,7 @@ const Notifications = (dictionary:any) => {
         }
       />
       <Form>
-        <div className='overflow-x-auto'>
+        <div className='overflow-x-auto' id="table-container">
           <table className={tableStyles.table}>
             <thead>
               <tr>

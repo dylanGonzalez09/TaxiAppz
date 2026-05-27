@@ -2,9 +2,32 @@
 import { get, post, patch, del } from './apiService'
 import { ENDPOINTS } from './endpoint'
 
-export const fetchGroupDocument = async () => {
+const getApiErrorMessage = (error: any, fallback: string) => {
+  const responseData = error?.response?.data
+
+  if (typeof responseData?.message === 'string' && responseData.message.trim()) {
+    return responseData.message
+  }
+
+  if (Array.isArray(responseData?.message) && responseData.message.length > 0) {
+    return String(responseData.message[0])
+  }
+
+  if (typeof responseData?.msg === 'string' && responseData.msg.trim()) {
+    return responseData.msg
+  }
+
+  if (typeof error?.message === 'string' && error.message.trim()) {
+    return error.message
+  }
+
+  return fallback
+}
+
+export const fetchGroupDocument = async (overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.groupDocument.list)
+    const response = await get(ENDPOINTS.groupDocument.list, undefined, overrideZoneId);
+
 
 
     if (response.success) {
@@ -19,9 +42,9 @@ export const fetchGroupDocument = async () => {
   }
 }
 
-export const getGroupDocumentByPagination = async (searchTerm: string, page: number, limit: number) => {
+export const getGroupDocumentByPagination = async (searchTerm: string, page: number, limit: number, overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.groupDocument.getByPagination(searchTerm, page, limit))
+    const response = await get(ENDPOINTS.groupDocument.getByPagination(searchTerm, page, limit), undefined, overrideZoneId);
 
     if (response.success) {
 
@@ -32,7 +55,27 @@ export const getGroupDocumentByPagination = async (searchTerm: string, page: num
       return null
     }
   } catch (error) {
-   
+
+
+    return null
+  }
+}
+
+
+export const getActiveGroupDocumentByPagination = async (searchTerm: string, page: number, limit: number, overrideZoneId?: any) => {
+  try {
+    const response = await get(ENDPOINTS.groupDocument.getActiveByPagination(searchTerm, page, limit), undefined, overrideZoneId);
+
+    if (response.success) {
+
+
+
+      return response.data
+    } else {
+      return null
+    }
+  } catch (error) {
+
 
     return null
   }
@@ -46,12 +89,10 @@ export const createGroupDocument = async (role: any) => {
     if (response.success) {
       return response.data
     } else {
-      return null
+      throw new Error(response?.message || 'Error saving group document')
     }
   } catch (error) {
-    console.error('Error creating role:', error)
-
-    return null
+    throw new Error(getApiErrorMessage(error, 'Error saving group document'))
   }
 }
 
@@ -62,12 +103,10 @@ export const updateGroupDocument = async (id: string, role: any) => {
     if (response.success) {
       return response.data
     } else {
-      return null
+      throw new Error(response?.message || 'Error saving group document')
     }
   } catch (error) {
-    console.error('Error updating role:', error)
-
-    return null
+    throw new Error(getApiErrorMessage(error, 'Error saving group document'))
   }
 }
 
@@ -81,7 +120,7 @@ export const getByGroupDocumentId = async (id: string) => {
       return null
     }
   } catch (error) {
-   
+
 
     return null
   }
@@ -97,7 +136,6 @@ export const deleteByGroupDocumentById = async (id: string) => {
       return null
     }
   } catch (error) {
-    console.error('Error deleting role by ID:', error)
 
     return null
   }
@@ -113,7 +151,6 @@ export const updateGroupDocumentStatus = async (id: string, groupDocument: any) 
       return null;
     }
   } catch (error) {
-    console.error('Error updating vehicleModel:', error);
 
     return null;
   }

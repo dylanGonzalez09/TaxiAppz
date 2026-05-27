@@ -2,8 +2,8 @@ const mongoose = require('mongoose');
 const Language = require('../src/models/boilerplate/languages.model');
 require('dotenv').config();
 
-
-mongoose.connect(process.env.MONGODB_URL)
+mongoose
+  .connect(process.env.MONGODB_URL)
   .then(() => {
     console.log('Successfully connected to MongoDB Atlas');
   })
@@ -13,18 +13,16 @@ mongoose.connect(process.env.MONGODB_URL)
 
 const LanguageData = [
   {
-    name: "en",
-    code: "en",
-    status: true
+    name: 'en',
+    code: 'en',
+    status: true,
   },
   {
-    name: "ar",
-    code: "ar",
-    status: true
-  }
+    name: 'ar',
+    code: 'ar',
+    status: true,
+  },
 ];
-
-
 
 // Function to seed data
 async function seedData() {
@@ -43,5 +41,3 @@ async function seedData() {
 
 // Call the seed function
 seedData();
-
-

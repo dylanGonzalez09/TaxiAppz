@@ -16,7 +16,6 @@ router.route('/getDropDown/list/:clientId').get(roleController.getDropDownList);
 
 module.exports = router;
 
-
 /**
  * @swagger
  * components:

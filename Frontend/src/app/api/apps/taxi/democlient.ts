@@ -37,9 +37,9 @@ export const getClientByPagination = async (searchTerm: string, page: number, li
   }
 }
 
-export const createClient = async (democlient: any) => {
+export const createClient = async (democlient: any,overrideZoneId: any) => {
   try {
-    const response = await post(ENDPOINTS.democlient.create, democlient);
+    const response = await post(ENDPOINTS.democlient.create, democlient,overrideZoneId);
 
     if (response.success) {
       return { success: true, data: response.data };
@@ -82,7 +82,7 @@ export const updateClientStatus = async (id: any, democlient: any) => {
       return null;
     }
   } catch (error) {
-    console.error('Error updating role:', error);
+    ;
 
     return null;
   }

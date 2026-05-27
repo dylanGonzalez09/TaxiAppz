@@ -7,7 +7,7 @@ import { Card, CardContent, Typography, Divider, Button, Box, Avatar } from '@mu
 import EditProfileDrawer from './EditProfileDrawer';
 import EditPasswordDrawer from './EditPasswordDrawer';
 
-const UserDetails = ({ profileData, dictionary }: { profileData: any; dictionary: any }) => {
+const UserDetails = ({ profileData, dictionary,zoneId }: { profileData: any; dictionary: any,zoneId:any }) => {
   const [editProfileOpen, setEditProfileOpen] = useState(false);
   const [editPasswordOpen, setEditPasswordOpen] = useState(false);
 const [data, setData] = useState(profileData);
@@ -42,13 +42,13 @@ const [data, setData] = useState(profileData);
 
           {/* Information Section */}
           <Box display="flex" flexDirection="column" gap={2} mt={4}>
-            <Typography variant="h6" color="text.secondary">Profile</Typography>
+            <Typography variant="h6" color="text.secondary">{dictionary['navigation'].Profile}</Typography>
             <Divider sx={{ mb: 2 }} />
-            <ProfileDetail label="First Name" value={data.firstName} />
-            <ProfileDetail label="Last Name" value={data.lastName} />
+            <ProfileDetail label={dictionary['navigation'].FirstName || "First Name"} value={data.firstName} />
+            <ProfileDetail label={dictionary['navigation'].LastName || "Last Name"} value={data.lastName} />
             {/* <ProfileDetail label="Gender" value={data.gender} /> */}
-            <ProfileDetail label="Phone Number" value={data.phoneNumber} />
-            <ProfileDetail label="Email" value={data.email} />
+            <ProfileDetail label={dictionary['navigation'].phoneNumber || "Phone Number"} value={data.phoneNumber} />
+            <ProfileDetail label={dictionary['navigation'].Email || "Email"} value={data.email} />
           </Box>
 
           {/* Action Buttons */}
@@ -80,8 +80,8 @@ const [data, setData] = useState(profileData);
                 boxShadow: 3,
                 '&:hover': { boxShadow: 6 },
               }}
-            >Edit Password
-              {dictionary['navigation'].editPassword}
+            >
+              {dictionary['navigation'].EditPassword}
             </Button>
           </Box>
         </CardContent>
@@ -94,6 +94,7 @@ const [data, setData] = useState(profileData);
         dictionary={dictionary}
         setData={setData}
         handleClose={toggleEditProfile}
+        zoneId={zoneId}
       />
 
       <EditPasswordDrawer

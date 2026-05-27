@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/consistent-type-imports */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable import/no-unresolved */
@@ -28,9 +27,9 @@ import { createGroupDocument, updateGroupDocument } from '@apis/groupDocument';
 
 import { ENDPOINTS } from '@/app/api/apps/taxi/endpoint';
 
-import { useIsDemoUser } from '@/utils/demoUser' 
+import { useIsDemoUser } from '@/utils/demoUser'
 
-import { validateTextOnly } from '@/utils/validation';
+// import { validateTextOnly } from '@/utils/validation';
 
 
 import type { GroupDocumentType } from '@/types/apps/masterType';
@@ -47,6 +46,7 @@ interface AddGroupDocumentDrawerProps {
   page: number;
   onPageChange: (event: React.ChangeEvent<unknown>, newPage: number) => void
   rowsPerPage: number;
+  zoneId:any
 }
 
 const AddGroupDocumentDrawer: React.FC<AddGroupDocumentDrawerProps> = ({
@@ -59,12 +59,59 @@ const AddGroupDocumentDrawer: React.FC<AddGroupDocumentDrawerProps> = ({
   count,
   page,
   onPageChange,
-  rowsPerPage
+  rowsPerPage,
+  zoneId
 }) => {
   const [loading, setLoading] = useState(false); // Loading state
   const [zones, setZones] = useState<any[]>([]); // State for storing zones
   const { checkDemoStatus } = useIsDemoUser();
   const isSubmitDisabled = checkDemoStatus() || loading;
+
+const validateGroupDocumentName = (value: string, dictionary?: any) => {
+  const trimmed = (value || '').trim();
+
+  if (!trimmed) {
+    return dictionary?.navigation?.groupDocumentRequired || "Name is required";
+  }
+
+  if (trimmed.length < 3) {
+    return "Minimum 3 characters required";
+  }
+
+  if (trimmed.length > 50) {
+    return "Maximum 50 characters allowed";
+  }
+
+  // Only letters and spaces for all language
+  if (!/^[\p{L}\s]*$/u.test(value)) {
+  return dictionary['navigation']?.onlyText || 'Only text characters are allowed';
+}
+
+  const withoutSpaces = trimmed.replace(/\s/g, '');
+
+  // Block: sss, aaaa
+  if (new Set(withoutSpaces).size === 1) {
+    return "Enter a valid document name";
+  }
+
+  //  Block: abab, abcabc
+  for (let len = 2; len <= Math.floor(withoutSpaces.length / 2); len++) {
+    if (withoutSpaces.length % len === 0) {
+      const pattern = withoutSpaces.substring(0, len);
+
+      if (pattern.repeat(withoutSpaces.length / len) === withoutSpaces) {
+        return "Enter a valid document name";
+      }
+    }
+  }
+
+  //Block: sassjjjjjj / helloooo
+  if (/(.)\1{2,}/.test(withoutSpaces)) {
+    return "Too many repeated characters";
+  }
+
+  return true;
+};
 
   const getClientId = async () => {
 
@@ -72,9 +119,8 @@ const AddGroupDocumentDrawer: React.FC<AddGroupDocumentDrawerProps> = ({
     const session = await getSession();
 
     const clientId = session?.user?.image?.clientId; // Access clientId
-    const companyId = session?.user?.image?.companyId; // Access companyId
 
-    return { clientId, companyId };
+    return { clientId };
   };
 
   useEffect(() => {
@@ -91,7 +137,7 @@ const AddGroupDocumentDrawer: React.FC<AddGroupDocumentDrawerProps> = ({
 
         }
 
-        const dropDownData = await fetch(ENDPOINTS.zone.dropDownList(clientId));
+        const dropDownData = await fetch(ENDPOINTS.zone.dropDownList(clientId,zoneId));
 
         const data = await dropDownData.json();
 
@@ -107,13 +153,14 @@ const AddGroupDocumentDrawer: React.FC<AddGroupDocumentDrawerProps> = ({
     }, 4000);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [dictionary,zoneId]);
 
-  const { handleSubmit, control, reset, setValue, formState: { errors } } = useForm({
+  const { handleSubmit, control,trigger, reset, setValue, formState: { errors } } = useForm({
     mode: 'all',
     defaultValues: {
       name: '',
-      zoneId: '',
+      zoneId: zoneId,
+        type: 'driver',
 
     },
   });
@@ -122,11 +169,13 @@ const AddGroupDocumentDrawer: React.FC<AddGroupDocumentDrawerProps> = ({
     if (editData) {
       setValue('name', editData.name);
       setValue('zoneId', editData.zoneId);  // Set the zoneId from editData
+      setValue('type', 'driver');
+
 
     } else {
       reset(); // Reset form values if no editData
     }
-  }, [editData, setValue, reset]);
+  }, [editData, setValue, reset , zoneId]);
 
 
   // Helper function to handle page change logic
@@ -156,6 +205,8 @@ const AddGroupDocumentDrawer: React.FC<AddGroupDocumentDrawerProps> = ({
     try {
       let response;
 
+      data.type = 'driver';
+
 
       // Call the appropriate API function
       if (editData) {
@@ -169,6 +220,7 @@ const AddGroupDocumentDrawer: React.FC<AddGroupDocumentDrawerProps> = ({
       const newData: GroupDocumentType = {
         id: response.id,
         name: response.name,
+        type: response.type,
         zoneId: response.zoneId,
         zoneName: zones.find(zone => zone.id === response.zoneId)?.zoneName || 'Unknown Zone',
         status: true
@@ -201,7 +253,12 @@ const AddGroupDocumentDrawer: React.FC<AddGroupDocumentDrawerProps> = ({
       }
     } catch (error) {
       // Show error message if something goes wrong
-      toast.error(dictionary['navigation'].ErrorsavinggroupdocumentPleasetryagain);
+      const errorMessage =
+        error instanceof Error && error.message
+          ? error.message
+          : dictionary['navigation'].ErrorsavinggroupdocumentPleasetryagain
+
+      toast.error(errorMessage);
     } finally {
       setLoading(false); // Start loading
     }
@@ -231,24 +288,7 @@ const AddGroupDocumentDrawer: React.FC<AddGroupDocumentDrawerProps> = ({
       <div className='p-5'>
         <form onSubmit={handleSubmit(handleFormSubmit)} className='flex flex-col gap-5'>
           <Grid container spacing={2}>
-            <Grid item xs={12}>
-              <Controller
-                name="name"
-                control={control}
-                rules={{ required: dictionary['navigation'].groupDocumentRequired, validate: value => validateTextOnly(value, dictionary) }}
-                render={({ field }) => (
-                  <CustomTextField
-                    {...field}
-                    fullWidth
-                    label={dictionary['navigation'].groupDocument}
-                    placeholder={dictionary['navigation'].enterGroupDocument}
-                    error={!!errors.name}
-                    helperText={errors.name ? errors.name.message : ''}
-                  />
-                )}
-              />
-            </Grid>
-            <Grid item xs={12}>
+             {/* <Grid item xs={12}>
               <Controller
                 name="zoneId"
                 control={control}
@@ -270,17 +310,55 @@ const AddGroupDocumentDrawer: React.FC<AddGroupDocumentDrawerProps> = ({
                   </CustomTextField>
                 )}
               />
+            </Grid> */}
+               <Grid item xs={12}>
+<Controller
+  name="name"
+  control={control}
+  rules={{
+    required: dictionary['navigation'].groupDocumentRequired,
+    validate: (value) => validateGroupDocumentName(value, dictionary)
+  }}
+  render={({ field }) => (
+    <CustomTextField
+      {...field}
+      fullWidth
+      label={dictionary['navigation'].groupDocument}
+      placeholder={dictionary['navigation'].enterGroupDocument}
+      error={!!errors.name}
+      helperText={errors.name ? errors.name.message : ''}
+      onChange={(e) => {
+        const value = e.target.value.replace(/^\s+/, ""); // trim start only
+
+        field.onChange(value);
+      }}
+    />
+  )}
+/>
+</Grid>
+               <Grid item xs={12}>
+              <Controller
+                name="type"
+                control={control}
+                rules={{ required: 'Type is required' }}
+                render={({ field }) => (
+                  <CustomTextField
+                    select
+                    fullWidth
+                    label={dictionary['navigation'].Type}
+                    {...field}
+                    error={!!errors.type}
+                    helperText={errors.type?.message}
+                  >
+                    <MenuItem value="driver">Driver</MenuItem>
+                  </CustomTextField>
+                )}
+              />
             </Grid>
+
           </Grid>
-          <div className='flex justify-end mt-4'>
-            <Button
-              onClick={handleReset}
-              variant="outlined"
-              color="secondary"
-              style={{ marginRight: '10px' }}
-            >
-              {dictionary['navigation'].cancel}
-            </Button>
+          <div className='flex justify-end mt-4 gap-5'>
+            
             <Button
               type='submit'
               variant='contained'
@@ -289,6 +367,14 @@ const AddGroupDocumentDrawer: React.FC<AddGroupDocumentDrawerProps> = ({
               endIcon={loading && <CircularProgress size={20} color="inherit" />} // Show loading spinner
             >
               {editData ? (loading ? dictionary['navigation'].Updating : dictionary['navigation'].Update) : (loading ? dictionary['navigation'].Creating : dictionary['navigation'].Create)}
+            </Button>
+            <Button
+              onClick={handleReset}
+              variant="outlined"
+              color='error'
+              
+            >
+              {dictionary['navigation'].cancel}
             </Button>
           </div>
         </form>

@@ -5,7 +5,9 @@ import { useRef, useState } from 'react'
 import type { MouseEvent } from 'react'
 
 // Next Imports
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter  } from 'next/navigation'
+
+
 
 // MUI Imports
 import { styled } from '@mui/material/styles'
@@ -23,6 +25,8 @@ import Button from '@mui/material/Button'
 
 // Third-party Imports
 import { signOut, useSession } from 'next-auth/react'
+
+import { clearPrivilegeCache } from '@/utils/privillage'
 
 // Type Imports
 import type { Locale } from '@configs/i18n'
@@ -55,15 +59,22 @@ const UserDropdown = () => {
   const { data: session } = useSession()
 
   const { settings } = useSettings()
-  const { lang: locale } = useParams()
+  const { lang: locale,zoneId } = useParams()
 
-  const handleDropdownOpen = () => {
+  // const pathname = usePathname()
+
+  // const segments = pathname.split('/')  
+
+  // const currentLanguage = segments[1] || 'en' 
+
+  
+const handleDropdownOpen = () => {
     !open ? setOpen(true) : setOpen(false)
   }
 
   const handleDropdownClose = (event?: MouseEvent<HTMLLIElement> | (MouseEvent | TouchEvent), url?: string) => {
     if (url) {
-      router.push(getLocalizedUrl(url, locale as Locale))
+     router.push(getLocalizedUrl(`${zoneId}${url}`, locale as Locale))
     }
 
     if (anchorRef.current && anchorRef.current.contains(event?.target as HTMLElement)) {
@@ -75,7 +86,11 @@ const UserDropdown = () => {
 
   const handleUserLogout = async () => {
     try {
-      localStorage.removeItem('isDemoUser') 
+      localStorage.removeItem('isDemoUser');
+      localStorage.removeItem('newZoneId');
+      localStorage.removeItem('userRole');
+      localStorage.removeItem('moduleSettings')
+      await clearPrivilegeCache();
       await signOut({ callbackUrl: process.env.NEXT_PUBLIC_APP_URL })
     } catch (error) {
       console.error(error)
@@ -93,8 +108,11 @@ const UserDropdown = () => {
       >
         <Avatar
           ref={anchorRef}
+          
           alt={session?.user?.name || ''}
-          src={session?.user?.image || ''}
+          
+          // src={session?.user?.image || ''}
+         
           onClick={handleDropdownOpen}
           className='cursor-pointer bs-[38px] is-[38px]'
         />
@@ -118,7 +136,7 @@ const UserDropdown = () => {
               <ClickAwayListener onClickAway={e => handleDropdownClose(e as MouseEvent | TouchEvent)}>
                 <MenuList>
                   <div className='flex items-center plb-2 pli-6 gap-2' tabIndex={-1}>
-                    <Avatar src={session?.user?.image || ''} />
+                    {/* <Avatar src={session?.user?.image || ''} /> */}
                     <div className='flex items-start flex-col'>
                       <Typography className='font-medium' color='text.primary'>
                         {session?.user?.image?.firstName || ''}
@@ -141,7 +159,7 @@ const UserDropdown = () => {
                     <Button
                       fullWidth
                       variant='contained'
-                      color='primary'
+                      color='error'
                       size='small'
                       endIcon={<i className='tabler-logout' />}
                       onClick={handleUserLogout}

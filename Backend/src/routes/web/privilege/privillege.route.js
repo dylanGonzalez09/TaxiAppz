@@ -6,24 +6,50 @@ const privilegeController = require('../../../controllers/web/privilege/privileg
 
 const router = express.Router();
 
-router.route('/create').post(auth('Privillege'),validate(privillegeValidation.createPrivillege), privilegeController.createPrivillege);
-router.route('/getPrivilleges').get(auth('Privillege'),validate(privillegeValidation.getPrivilleges), privilegeController.getPrivilleges);
-router.route('/getPrivillege/:privillegeId').get(auth('Privillege'),validate(privillegeValidation.getPrivillege), privilegeController.getPrivillege);
-router.route('/updatePrivillege/:privillegeId').patch(auth('Privillege'),validate(privillegeValidation.updatePrivillege), privilegeController.updatePrivillege);
-router.route('/deletePrivillege/:privillegeId').delete(auth('Privillege'),validate(privillegeValidation.deletePrivillege), privilegeController.deletePrivillege);
-router.route('/getPrivillegeDetails').get(auth('Privillege'),validate(privillegeValidation.getPrivillegesDetails), privilegeController.PrivillegeDetails);
-router.route('/getPrivillegeWithRole/:roleId').get(auth('Privillege'),validate(privillegeValidation.getPrivillegesDetails), privilegeController.PrivillegeWithRole);
-router.route('/privillegeUpdate/:privillegeId').patch(auth('Privillege'),validate(privillegeValidation.updatePrivillege), privilegeController.updatePrivillege);
-router.route('/giveprivillege/:privillegeId').patch(auth('Privillege'),validate(privillegeValidation.updatePrivillege), privilegeController.privillegeUpdate);
-router.route('/getPrivillegeWithRoleName/:roleId').get(auth('Privillege'),validate(privillegeValidation.getPrivillegesDetails), privilegeController.PrivillegeWithRoleName);
+router
+  .route('/create')
+  .post(auth('Privillege'), validate(privillegeValidation.createPrivillege), privilegeController.createPrivillege);
+router
+  .route('/getPrivilleges')
+  .get(auth('Privillege'), validate(privillegeValidation.getPrivilleges), privilegeController.getPrivilleges);
+router
+  .route('/getPrivillege/:privillegeId')
+  .get(auth('Privillege'), validate(privillegeValidation.getPrivillege), privilegeController.getPrivillege);
+router
+  .route('/updatePrivillege/:privillegeId')
+  .patch(auth('Privillege'), validate(privillegeValidation.updatePrivillege), privilegeController.updatePrivillege);
+router
+  .route('/deletePrivillege/:privillegeId')
+  .delete(auth('Privillege'), validate(privillegeValidation.deletePrivillege), privilegeController.deletePrivillege);
+router
+  .route('/getPrivillegeDetails')
+  .get(auth('Privillege'), validate(privillegeValidation.getPrivillegesDetails), privilegeController.PrivillegeDetails);
+router
+  .route('/getPrivillegeWithRole/:roleId')
+  .get(auth('Privillege'), validate(privillegeValidation.getPrivillegesDetails), privilegeController.PrivillegeWithRole);
+router
+  .route('/privillegeUpdate/:privillegeId')
+  .patch(auth('Privillege'), validate(privillegeValidation.updatePrivillege), privilegeController.updatePrivillege);
+router
+  .route('/giveprivillege/:privillegeId')
+  .patch(auth('Privillege'), validate(privillegeValidation.updatePrivillege), privilegeController.privillegeUpdate);
+router
+  .route('/getPrivillegeWithRoleName/:roleId')
+  .get(auth('Privillege'), validate(privillegeValidation.getPrivillegesDetails), privilegeController.PrivillegeWithRoleName);
 
-//web
-router.patch('/admin/giveprivillege/:privillegeId',validate(privillegeValidation.updatePrivillege), privilegeController.privillegeUpdate);
-router.get('/admin/getPrivillegeWithRole/:roleId',validate(privillegeValidation.getPrivillegesDetails), privilegeController.PrivillegeWithRole);
-
+// web
+router.patch(
+  '/admin/giveprivillege/:privillegeId',
+  validate(privillegeValidation.updatePrivillege),
+  privilegeController.privillegeUpdate,
+);
+router.get(
+  '/admin/getPrivillegeWithRole/:roleId',
+  validate(privillegeValidation.getPrivillegesDetails),
+  privilegeController.PrivillegeWithRole,
+);
 
 module.exports = router;
-
 
 /**
  * @swagger

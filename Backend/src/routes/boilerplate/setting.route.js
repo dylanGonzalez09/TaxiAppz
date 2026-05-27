@@ -7,32 +7,45 @@ const { settingUpload } = require('../../middlewares/upload');
 
 const router = express.Router();
 
-router.route('/create').post(auth('Setting'),validate(settingValidation.createSetting), settingController.createSettings);
-router.route('/getSettings').get(auth('Setting'),validate(settingValidation.getSettings), settingController.getSettings);
-router.route('/getSetting/:settingId').get(auth('Setting'),validate(settingValidation.getSetting), settingController.getSetting);
+router.route('/create').post(auth('Setting'), validate(settingValidation.createSetting), settingController.createSettings);
+router.route('/getSettings').get(auth('Setting'), validate(settingValidation.getSettings), settingController.getSettings);
+router
+  .route('/getSetting/:settingId')
+  .get(auth('Setting'), validate(settingValidation.getSetting), settingController.getSetting);
 router.route('/getSettings/list').get(settingController.getSettingWithOutPagination);
-router.route('/updateSetting/:settingId').patch(auth('Setting'),validate(settingValidation.updateSetting), settingController.updateSetting);
-router.route('/deleteSetting/:settingId').delete(auth('Setting'),validate(settingValidation.deleteSetting), settingController.deleteSetting);
-router.route('/getSettingsApi/list').get(auth('Setting'),settingController.getSettingApi);
-router.route('/getSettings/:settingId').get( settingController.getSettingsById);
-// auth('Setting'),
+router
+  .route('/updateSetting/:settingId')
+  .patch(auth('Setting'), validate(settingValidation.updateSetting), settingController.updateSetting);
+router
+  .route('/deleteSetting/:settingId')
+  .delete(auth('Setting'), validate(settingValidation.deleteSetting), settingController.deleteSetting);
+router.route('/getSettingsApi/list').get(auth('Setting'), settingController.getSettingApi);
+router.route('/getSettings/:settingId').get(auth('Setting'), settingController.getSettingsById);
 router.route('/getDefaultLanguage').get(settingController.getDefaultLanguage);
+
 router.route('/bulkInsert').post(
   auth('Setting'),
   settingUpload.fields([
-      { name: 'logo', maxCount: 1 },
-      { name: 'feviIcon', maxCount: 1 },
-      { name: 'notificationSound', maxCount: 1 },
-      { name: 'tripSound', maxCount: 1 }
+    { name: 'logo', maxCount: 1 },
+    { name: 'notificationSound', maxCount: 1 },
+    { name: 'tripSound', maxCount: 1 },
   ]),
-  settingController.bulkInsertSettings
+  settingController.bulkInsertSettings,
 );
 
-router.route('/bulkUpdate').patch(auth('Setting'),settingUpload.fields([{ name: 'logo', maxCount: 1 },{ name: 'feviIcon', maxCount: 1 },{ name: 'notificationSound', maxCount: 1 }, { name: 'tripSound', maxCount: 1 }]),  settingController.bulkUpdateSettings);
-router.route('/getDefaultLanguage').get(auth('Setting'), settingController.getDefaultLanguage);
+router.route('/bulkUpdate').patch(
+  auth('Setting'),
+  settingUpload.fields([
+    { name: 'logo', maxCount: 1 },
+    { name: 'notificationSound', maxCount: 1 },
+    { name: 'tripSound', maxCount: 1 },
+  ]),
+  settingController.bulkUpdateSettings,
+);
+
+router.route('/getmoduleSettings').get(auth('Setting'),settingController.getModuleSettings)
 
 module.exports = router;
-
 
 /**
  * @swagger

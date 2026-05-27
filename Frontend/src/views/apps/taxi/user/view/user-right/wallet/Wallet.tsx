@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 'use client'
 
 import React, { useState, useMemo } from 'react'
@@ -41,9 +40,17 @@ type WalletDetailsType = {
 const formatDate = (date: Date | string) => {
   const parsedDate = new Date(date);
 
-  return isNaN(parsedDate.getTime())
-    ? 'Invalid Date'
-    : parsedDate.toLocaleDateString(); // or your custom format
+  if (isNaN(parsedDate.getTime())) return 'Invalid Date';
+
+  return parsedDate.toLocaleString(undefined, {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true
+  });
 };
 
 const columnHelper = createColumnHelper<WalletTransactionType>()
@@ -64,21 +71,30 @@ const WalletTable = ({ userId, TransactionsData, walletDetails, addWalletButton,
         header: dictionary['navigation'].Sl,
         cell: ({ row }: { row: any }) => <Typography>{row.index + 1}</Typography>
       },
-      columnHelper.accessor('amount', {
-        header: dictionary['navigation'].Amount,
-        cell: ({ row }) => (
-          <div className='flex items-center'>
-            {row.original.type === 'Earned' ? (
-              <i className='tabler-trending-up text-success mr-2' />
-            ) : (
-              <i className='tabler-trending-down text-error mr-2' />
-            )}
-            <Typography color={row.original.type === 'Earned' ? 'success.main' : 'error.main'}>
-              {parseFloat(row.original.amount ? row.original.amount.toFixed(2) : "0")}
-            </Typography>
-          </div>
-        ),
-      }),
+columnHelper.accessor('amount', {
+  header: dictionary['navigation'].Amount,
+  cell: ({ row }) => {
+    const amount = row.original.amount || 0
+    const isZero = amount === 0
+    const isEarned = row.original.type === 'Earned'
+
+    return (
+      <div className='flex items-center'>
+        {!isZero && (
+          isEarned ? (
+            <i className='tabler-trending-up text-success mr-2' />
+          ) : (
+            <i className='tabler-trending-down text-error mr-2' />
+          )
+        )}
+
+        <Typography color={isEarned ? 'success.main' : 'error.main'}>
+          {parseFloat(amount.toFixed(2))}
+        </Typography>
+      </div>
+    )
+  },
+}),
       columnHelper.accessor('purpose', {
         header: dictionary['navigation'].Purpose,
         cell: ({ row }) => row.original.purpose,
@@ -103,7 +119,7 @@ const WalletTable = ({ userId, TransactionsData, walletDetails, addWalletButton,
       //   cell: ({ row }) => formatDate(row.original?.createdAt),
       // }),
     ],
-    []
+    [dictionary]
   )
 
   const table = useReactTable({
@@ -112,6 +128,9 @@ const WalletTable = ({ userId, TransactionsData, walletDetails, addWalletButton,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    filterFns: {
+      fuzzy: () => true,
+    }
   })
 
   const handleAddAmount = (amount: number) => {
@@ -158,7 +177,7 @@ const WalletTable = ({ userId, TransactionsData, walletDetails, addWalletButton,
       <div className='mb-1'>
         <WalletDetails walletDetails={localWalletDetails} dictionary={dictionary} />
       </div>
-      <div className='overflow-x-auto'>
+      <div className='overflow-x-auto' id="table-container">
         <table className={tableStyles.table}>
           <thead>
             {table.getHeaderGroups().map(headerGroup => (

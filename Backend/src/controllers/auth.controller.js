@@ -1,6 +1,9 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const catchAsync = require('../utils/catchAsync');
-const { authService, userService, tokenService, emailService } = require('../services');
+const { authService, userService, tokenService, emailService, mqttService } = require('../services');
+const { mqttConfig } = require('../config/string');
+const ApiError = require('../utils/ApiError');
+const { User } = require('../models');
 
 const register = catchAsync(async (req, res) => {
   const user = await userService.createUser(req.body);
@@ -13,6 +16,7 @@ const login = catchAsync(async (req, res) => {
   const user = await authService.loginUserWithEmailAndPassword(email, password);
 
   const tokens = await tokenService.generateAuthTokens(user);
+
   res.send({ user, tokens });
 });
 
@@ -53,6 +57,26 @@ const verifyEmail = catchAsync(async (req, res) => {
   res.status(httpStatus.NO_CONTENT).send();
 });
 
+const checkEmail = catchAsync(async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Email is required');
+  }
+
+  const isTaken = await User.isEmailTaken(email);
+
+  const responseData = {
+    email,
+    isTaken: Boolean(isTaken),
+  };
+
+  res.status(200).json({
+    success: true,
+    data: responseData,
+  });
+});
+
 const getUserFromToken = catchAsync(async (req, res) => {
   // Extract the token from the Authorization header
   const authHeader = req.headers.authorization;
@@ -71,11 +95,9 @@ const getUserFromToken = catchAsync(async (req, res) => {
   // This function should be implemented in your tokenService
 
   if (!user) {
-
     res.status(httpStatus.UNAUTHORIZED).send({ message: 'Invalid or expired token' });
 
     return;
-
   }
 
   res.send({ user });
@@ -91,5 +113,6 @@ module.exports = {
   sendVerificationEmail,
   verifyEmail,
   getUserFromToken,
-  deleteAccount
+  deleteAccount,
+  checkEmail,
 };

@@ -6,24 +6,32 @@ const rentalController = require('../../controllers/boilerplate/rental.controlle
 
 const router = express.Router();
 
-router.route('/create').post(auth('Rental'),validate(rentalValidation.createRental), rentalController.createRental);
-router.route('/getRentals').get(auth('Rental'),validate(rentalValidation.getRentals), rentalController.getRentals);
-router.route('/getRentalWithPagination/:zoneId').get(auth('Rental'),validate(rentalValidation.getRentalWithPagination), rentalController.getRentalWithPagination);
+router.route('/create').post(auth('Rental'), validate(rentalValidation.createRental), rentalController.createRental);
+router.route('/getRentals').get(auth('Rental'), validate(rentalValidation.getRentals), rentalController.getRentals);
+router
+  .route('/getRentalWithPagination/:zoneId')
+  .get(auth('Rental'), validate(rentalValidation.getRentalWithPagination), rentalController.getRentalWithPagination);
 
-router.route('/getRental/:rentalId').get(auth('Rental'),validate(rentalValidation.getRental), rentalController.getRental);
-router.route('/updateRental/:rentalId').patch(auth('Rental'),validate(rentalValidation.updateRental), rentalController.updateRental);
-router.route('/deleteRental/:rentalId').delete(auth('Rental'),validate(rentalValidation.deleteRental), rentalController.deleteRental);
+router.route('/getRental/:rentalId').get(auth('Rental'), validate(rentalValidation.getRental), rentalController.getRental);
+router
+  .route('/updateRental/:rentalId')
+  .patch(auth('Rental'), validate(rentalValidation.updateRental), rentalController.updateRental);
+router
+  .route('/deleteRental/:rentalId')
+  .delete(auth('Rental'), validate(rentalValidation.deleteRental), rentalController.deleteRental);
 
-router.patch('/updateRentalStatus/:rentalId', auth('Rental'), validate(rentalValidation.UpdateRentalStatus), rentalController.UpdateRentalStatus);
+router.patch(
+  '/updateRentalStatus/:rentalId',
+  auth('Rental'),
+  validate(rentalValidation.UpdateRentalStatus),
+  rentalController.UpdateRentalStatus,
+);
 router.route('/getDropDown/list/:clientId').get(rentalController.getDropDownList);
-router.route('/allPackages').post(auth('Rental'),rentalController.getAllPackages);
+router.route('/allPackages').post(auth('Rental'), rentalController.getAllPackages);
 router.route('/getRentalCount').get(rentalController.getRentalCount);
-router.route('/getAllZones').get(auth('Rental'),rentalController.getZoneWithPagination);
-router.route('/getRentalPackagesByZone/:zoneId').get(rentalController.getRentalPackagesByZone);
+router.route('/getAllZones').get(auth('Rental'), rentalController.getZoneWithPagination);
 
 module.exports = router;
-
-
 
 /**
  * @swagger
@@ -431,5 +439,3 @@ module.exports = router;
  *       "403":
  *         description: Forbidden, authenticated user does not have permission to access the language
  */
-
-

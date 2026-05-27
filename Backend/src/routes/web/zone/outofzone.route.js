@@ -6,12 +6,25 @@ const outOfZoneController = require('../../../controllers/web/zone/outofzone.con
 
 const router = express.Router();
 
-router.route('/create').post(auth('OutOfZone'),validate(outOfZoneValidation.createOutOfZone), outOfZoneController.createOutOfZone);
+router
+  .route('/create')
+  .post(auth('OutOfZone'), validate(outOfZoneValidation.createOutOfZone), outOfZoneController.createOutOfZone);
 router.route('/outofzonewithpagination').get(auth('OutOfZone'), outOfZoneController.getOutOfZones);
-router.route('/getOutOfZone/list').get(auth('OutOfZone'),outOfZoneController.getOutOfZoneWithoutPagination);
-router.route('/updateOutOfZone/:outOfZoneId').patch(auth('OutOfZone'), validate(outOfZoneValidation.updateOutOfZone), outOfZoneController.UpdateOutOfZone);
-router.route('/deleteOutOfZone/:outOfZoneId').delete(auth('OutOfZone'), validate(outOfZoneValidation.deleteOutOfZone), outOfZoneController.deleteOutOfZone);
-router.route('/getOutOfZone').get(auth('OutOfZone'), validate(outOfZoneValidation.getOutOfZone), outOfZoneController.getOutOfZoneWithoutPagination);
-router.patch('/updateOutOfZoneStatus/:outOfZoneId', auth('OutOfZone'), validate(outOfZoneValidation.UpdateOutOfZoneStatus), outOfZoneController.UpdateOutOfZoneStatus);
+router.route('/getOutOfZone/list').get(auth('OutOfZone'), outOfZoneController.getOutOfZoneWithoutPagination);
+router
+  .route('/updateOutOfZone/:outOfZoneId')
+  .patch(auth('OutOfZone'), validate(outOfZoneValidation.updateOutOfZone), outOfZoneController.UpdateOutOfZone);
+router
+  .route('/deleteOutOfZone/:outOfZoneId')
+  .delete(auth('OutOfZone'), validate(outOfZoneValidation.deleteOutOfZone), outOfZoneController.deleteOutOfZone);
+router
+  .route('/getOutOfZone')
+  .get(auth('OutOfZone'), validate(outOfZoneValidation.getOutOfZone), outOfZoneController.getOutOfZoneWithoutPagination);
+router.patch(
+  '/updateOutOfZoneStatus/:outOfZoneId',
+  auth('OutOfZone'),
+  validate(outOfZoneValidation.UpdateOutOfZoneStatus),
+  outOfZoneController.UpdateOutOfZoneStatus,
+);
 
 module.exports = router;

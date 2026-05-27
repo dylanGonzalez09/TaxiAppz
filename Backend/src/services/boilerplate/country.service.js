@@ -1,4 +1,4 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const ApiError = require('../../utils/ApiError');
 const { Country } = require('../../models');
 
@@ -20,7 +20,7 @@ const createCountry = async (countryBody) => {
  * @param {number} [options.page] - Current page (default = 1)
  * @returns {Promise<QueryResult>}
  */
-const queryCountrys = async (filter, options,clientId) => {
+const queryCountrys = async (filter, options, clientId) => {
   if (clientId) {
     filter.clientId = clientId;
   }
@@ -29,7 +29,16 @@ const queryCountrys = async (filter, options,clientId) => {
   const countrys = await Country.paginate(filter, options);
   return countrys;
 };
+const queryActiveCountrys = async (filter, options, clientId) => {
+  if (clientId) {
+    filter.clientId = clientId;
+    filter.status = true;
+  }
+  options.sortBy = options.sortBy || 'name:asc';
 
+  const countrys = await Country.paginate(filter, options);
+  return countrys;
+};
 
 /**
  * Get countrys
@@ -37,9 +46,8 @@ const queryCountrys = async (filter, options,clientId) => {
  * @returns {Promise<Country>}
  */
 const getCountrys = async (clientId) => {
-  return Country.find({clientId : clientId});
+  return Country.find({ clientId });
 };
-
 
 /**
  * Get countrys
@@ -47,9 +55,8 @@ const getCountrys = async (clientId) => {
  * @returns {Promise<Country>}
  */
 const getCountrysByActive = async (clientId) => {
-  return Country.find({ clientId : clientId , status: true });
+  return Country.find({ clientId, status: true });
 };
-
 
 /**
  * Get country by id
@@ -59,7 +66,6 @@ const getCountrysByActive = async (clientId) => {
 const getCountryById = async (countryId) => {
   return Country.findById(countryId);
 };
-
 
 /**
  * Update country by id
@@ -89,7 +95,7 @@ const deleteCountryById = async (countryId) => {
     throw new ApiError(httpStatus.NOT_FOUND, 'country not found');
   }
   await country.deleteOne();
-  return { status: "success",   msg:"data Deleted Successfully" };
+  return { status: 'success', msg: 'data Deleted Successfully' };
 };
 
 const getCountries = async () => {
@@ -104,5 +110,6 @@ module.exports = {
   updateCountryById,
   deleteCountryById,
   getCountrysByActive,
-  getCountries
+  getCountries,
+  queryActiveCountrys,
 };

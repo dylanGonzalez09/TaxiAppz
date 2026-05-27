@@ -6,14 +6,23 @@ const countryController = require('../../controllers/boilerplate/country.control
 
 const router = express.Router();
 
-router.route('/create').post(auth('Country'),validate(countryValidation.createCountry), countryController.createCountry);
+router.route('/create').post(auth('Country'), validate(countryValidation.createCountry), countryController.createCountry);
 router.route('/getCountryWithPagination/:clientId').get(auth('Country'), countryController.getCountrys);
-router.route('/getCountryes/:countryId').get(auth('Country'),validate(countryValidation.getCountry), countryController.getCountry);
-router.route('/getCountry/list').get(auth('Country'),countryController.getCountryWithOutPagination);
-router.route('/getCountry/active/list').get(auth('Country'),countryController.getCountryActiveWithOutPagination);
-router.route('/updateCountry/:countryId').patch(auth('Country'),validate(countryValidation.updateCountry), countryController.updateCountry);
-router.route('/deleteCountry/:countryId').delete(auth('Country'),validate(countryValidation.deleteCountry), countryController.deleteCountry);
-router.route('/updateCountryStatus/:countryId').patch(auth('Country'),validate(countryValidation.updateCoutryStatus), countryController.updateCountryStatus);
+router.route('/getActiveCountryWithPagination/:clientId').get(auth('Country'), countryController.getActiveCountrys);
+router
+  .route('/getCountryes/:countryId')
+  .get(auth('Country'), validate(countryValidation.getCountry), countryController.getCountry);
+router.route('/getCountry/list').get(auth('Country'), countryController.getCountryWithOutPagination);
+router.route('/getCountry/active/list').get(auth('Country'), countryController.getCountryActiveWithOutPagination);
+router
+  .route('/updateCountry/:countryId')
+  .patch(auth('Country'), validate(countryValidation.updateCountry), countryController.updateCountry);
+router
+  .route('/deleteCountry/:countryId')
+  .delete(auth('Country'), validate(countryValidation.deleteCountry), countryController.deleteCountry);
+router
+  .route('/updateCountryStatus/:countryId')
+  .patch(auth('Country'), validate(countryValidation.updateCoutryStatus), countryController.updateCountryStatus);
 router.route('/getCountries').get(countryController.getCountries);
 
 module.exports = router;

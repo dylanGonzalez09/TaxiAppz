@@ -18,7 +18,7 @@ import { StatusCodes as httpStatus } from 'http-status-codes';
 
 import { toast } from 'react-toastify';
 
-import { useIsDemoUser } from '@/utils/demoUser'
+import { useIsDemoUser } from '@/utils/demoUser' 
 
 import CustomTextField from '@core/components/mui/TextField';
 
@@ -47,7 +47,7 @@ const fuzzyFilter: FilterFn<CategoryType> = (row, columnId, filterValue) => {
 
 const columnHelper = createColumnHelper<CategoryType>();
 
-const CategoryTable = ({ Categories, dictionary }: { Categories: any, dictionary: any }) => {
+const CategoryTable = ({ Categories, dictionary,zoneId }: { Categories: any, dictionary: any,zoneId:any }) => {
   const [addCategoryOpen, setAddCategoryOpen] = useState(false);
   const [editData, setEditData] = useState<CategoryType | undefined>(undefined);
   const [rowSelection, setRowSelection] = useState({});
@@ -70,8 +70,8 @@ const CategoryTable = ({ Categories, dictionary }: { Categories: any, dictionary
   const handleStatusToggle = async (category: CategoryType) => {
     if (checkDemoStatus()) {
       toast.error(dictionary['navigation'].editError);
-
-    return;
+      
+    return;  
       }
 
     setStatusCategory(category);
@@ -127,7 +127,7 @@ const CategoryTable = ({ Categories, dictionary }: { Categories: any, dictionary
           </>
         ),
       }),
-
+      
       columnHelper.accessor('categoryImage', {
         header: dictionary['navigation'].categoryimage,
         cell: ({ row }) => (
@@ -227,7 +227,7 @@ const CategoryTable = ({ Categories, dictionary }: { Categories: any, dictionary
   const handleEditClick = (rowData: CategoryType) => {
     if (checkDemoStatus()) {
       toast.error(dictionary['navigation'].editError);
-
+      
       return;
       }
 
@@ -238,7 +238,7 @@ const CategoryTable = ({ Categories, dictionary }: { Categories: any, dictionary
   const handleDeleteClick = (original: CategoryType) => {
     if (checkDemoStatus()) {
       toast.error(dictionary['navigation'].deleteError);
-
+      
       return;
       }
 
@@ -247,16 +247,16 @@ const CategoryTable = ({ Categories, dictionary }: { Categories: any, dictionary
   };
 
   const handleConfirmDelete = async (confirmed: boolean) => {
-      if (confirmed && deleteCategoryId)
+      if (confirmed && deleteCategoryId) 
         {
           try
           {
               const response = await deleteCategoryById(deleteCategoryId);
-
+            
               if (response.status === httpStatus.FORBIDDEN) {
                 setErrorMessage(response.msg);
                 setErrorDialogOpen(true);
-              }
+              } 
               else {
                 if (data.length != 1) {
                   setData(data.filter((category: { id: string; }) => category.id !== deleteCategoryId));
@@ -265,7 +265,7 @@ const CategoryTable = ({ Categories, dictionary }: { Categories: any, dictionary
                   handlePageChangeForAddRecord();
                 }
               }
-
+    
               setErrorData(response.status);
               setDeleteConfirmationOpen(false);
               setDeleteCategoryId(null);
@@ -510,6 +510,7 @@ const CategoryTable = ({ Categories, dictionary }: { Categories: any, dictionary
         page={pageIndex}
         onPageChange={handlePageChange}
         rowsPerPage={pageSize}
+        zoneId={zoneId}
       />
       <ConfirmationDialogErrorHandle
         open={deleteConfirmationOpen}

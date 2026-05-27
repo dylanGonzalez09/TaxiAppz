@@ -1,39 +1,21 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const ApiError = require('../../utils/ApiError');
-const { Driver, Vehicle, Role,Wallet,Request,DriverDocument,Users,GroupDocument,Document,User,Zone,Settings } = require('../../models');
-const { driverService } = require('..');
+const { Driver,Vehicle, Role,Wallet,Request,DriverDocument,Users,GroupDocument,Document,User,Zone, RequestMeta } = require('../../models');
 const ObjectId = require('mongoose').Types.ObjectId
 const { HttpStatusCode } = require('axios');
 const { sendNotification } = require('../../utils/commonFunction');
 const mqttService = require('../../services/mqtt/mqtt.service');
 const moment = require('moment');
+const {getClientId} = require('../../utils/commonFunction')
+const { mqttConfig } = require('../../config/string');
 
-const getClientId = async (req) => {
-  clientId = '';
-  if (!req.headers.clientid) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
-  } else {
-    clientId = req.headers.clientid;
-  }
-  return clientId;
-}
-
-const getRoleIdsByRoleName = async (roleName) => {
-  const roles = await Role.find({ role: roleName });
-  return roles.map((role) => new ObjectId(role.id));
+const getDriverByUserId = async (userId) => {
+  return Driver.findOne({ userId });
 };
 
-
-const getCompanyId = async (req) => {
-  companyId = '';
-  if (!req.headers.companyid) {
-    companyId = null;
-  } else {
-    companyId = req.headers.companyid;
-
-  }
-  return companyId;
-}
+const updateDriverById = async (driverId, updateData) => {
+  return Driver.findByIdAndUpdate(driverId, updateData, { returnDocument: 'after' });
+};
 
 /**
  * Create a driver
@@ -114,15 +96,6 @@ const getDriversById = async (id) => {
     },
     { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
     {
-      $lookup: {
-        from: 'companies', // Collection name of Company
-        localField: 'companyId',
-        foreignField: '_id',
-        as: 'company',
-      },
-    },
-    { $unwind: { path: '$company', preserveNullAndEmptyArrays: true } },
-    {
       $project: {
         _id: 1,
         type: 1,
@@ -136,6 +109,7 @@ const getDriversById = async (id) => {
         carColour: 1,
         carModel: 1,
         serviceLocation: 1,
+        secondaryZone: 1,
         rejectCount: 1,
         documentUploadStatus: 1,
         referenceCount: 1,
@@ -150,11 +124,13 @@ const getDriversById = async (id) => {
         loginMethod: 1,
         approvedBy: 1,
         notes: 1,
-        companyId: 1,
         vehicleName: '$vehicle.vehicleName',
         vehicleId: '$vehicle._id',
         vehicleModelName: '$vehicleModel.modelname',
         vehicleModelId: '$vehicleModel._id',
+        vehicleBrand: 1,
+        vehicleVariant: 1,
+        licensePlateNumber: '$carNumber',
         firstName: '$user.firstName',
         lastName: '$user.lastName',
         email: '$user.email',
@@ -164,10 +140,9 @@ const getDriversById = async (id) => {
         phoneNumber: '$user.phoneNumber',
         profilePic: '$user.profilePic',
         userId: '$user._id',
-        companyName: '$company.companyName',
-        companyId: '$company._id',
         country: '$user.countryCode',
-        gender: '$user.gender'
+        gender: '$user.gender',
+        referralCode: '$user.referralCode'
       },
     },
   ];
@@ -223,29 +198,19 @@ const deleteDriverById = async (driverId) => {
 
 
 
-const aggregateDrivers = async (req, filter, options) => {
+const aggregateDrivers = async (req, filter, options, clientId, zoneId) => {
   try {
-    const clientId = await getClientId(req);
-    const companyId = await getCompanyId(req);
     const limit = parseInt(options.limit, 10) || 10;
     const page = parseInt(options.page, 10) || 1;
 
     filter = {
       ...filter,
       clientId: new ObjectId(clientId),
-      ...(companyId && { companyId: new ObjectId(companyId) }),
+      serviceLocation: new ObjectId(zoneId),
     };
 
-    const filterTwo = { clientId: new ObjectId(clientId) };
-
-    if (req.query.search) {
-      filterTwo.$or = [
-        { firstName: { $regex: '^' + req.query.search, $options: 'i' } },
-        { phoneNumber: { $regex: '^' + req.query.search, $options: 'i' } },
-      ];
-    }
-
-    const countPipeline = [
+    // Common initial stages
+    const baseStages = [
       { $match: filter },
       {
         $lookup: {
@@ -268,23 +233,40 @@ const aggregateDrivers = async (req, filter, options) => {
             },
           ]
         : []),
-      { $count: 'total' },
     ];
 
-    const countResult = await Driver.aggregate(countPipeline);
-    const totalResults = countResult[0]?.total || 0;
-
-    const results = await Driver.aggregate([
-      { $match: filter },
+    // --- Updated Count Pipeline ---
+    const countPipeline = [
+      ...baseStages,
+      ...(req.query.status === 'pending'
+        ? [{ $match: { isApprove: false } }]
+        : []),
       {
-        $lookup: {
-          from: 'vehicles',
-          localField: 'type',
-          foreignField: '_id',
-          as: 'vehicle',
+        $facet: {
+          count: [{ $count: 'total' }],
         },
       },
-      { $unwind: { path: '$vehicle', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          total: { $arrayElemAt: ['$count.total', 0] },
+        },
+      },
+      {
+        $project: {
+          total: { $ifNull: ['$total', 0] },
+        },
+      },
+    ];
+
+    const [countResult] = await Driver.aggregate(countPipeline);
+    const totalResults = countResult.total || 0;
+
+    // --- Main Results Pipeline ---
+    const results = await Driver.aggregate([
+      ...baseStages,
+      ...(req.query.status === 'pending'
+        ? [{ $match: { isApprove: false } }]
+        : []),
       {
         $lookup: {
           from: 'wallets',
@@ -293,46 +275,11 @@ const aggregateDrivers = async (req, filter, options) => {
           as: 'walletData',
         },
       },
-      { $unwind: { path: '$walletData', preserveNullAndEmptyArrays: true } },
       {
-        $lookup: {
-          from: 'vehiclemodels',
-          localField: 'carModel',
-          foreignField: '_id',
-          as: 'vehicleModel',
-        },
+        $addFields: {
+          walletData: { $arrayElemAt: ['$walletData', 0] }
+        }
       },
-      { $unwind: { path: '$vehicleModel', preserveNullAndEmptyArrays: true } },
-      {
-        $lookup: {
-          from: 'users',
-          localField: 'userId',
-          foreignField: '_id',
-          as: 'user',
-        },
-      },
-      { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
-      ...(req.query.search
-        ? [
-            {
-              $match: {
-                $or: [
-                  { 'user.firstName': { $regex: `^${req.query.search}`, $options: 'i' } },
-                  { 'user.phoneNumber': { $regex: `^${req.query.search}`, $options: 'i' } },
-                ],
-              },
-            },
-          ]
-        : []),
-      {
-        $lookup: {
-          from: 'companies',
-          localField: 'companyId',
-          foreignField: '_id',
-          as: 'company',
-        },
-      },
-      { $unwind: { path: '$company', preserveNullAndEmptyArrays: true } },
       {
         $lookup: {
           from: 'requests',
@@ -340,34 +287,6 @@ const aggregateDrivers = async (req, filter, options) => {
           foreignField: 'driverId',
           as: 'requests',
         },
-      },
-      {
-        $lookup: {
-          from: 'driversubscriptions',
-          localField: '_id',
-          foreignField: 'driverId',
-          as: 'driverSubscriptionDetails'
-        }
-      },
-      {
-        $unwind: {
-          path: '$driverSubscriptionDetails',
-          preserveNullAndEmptyArrays: true,
-        }
-      },
-      {
-        $lookup: {
-          from: 'subscriptions',
-          localField: 'driverSubscriptionDetails.subScriptionId',
-          foreignField: '_id',
-          as: 'SubscriptionDetails'
-        }
-      },
-      {
-        $unwind: {
-          path: '$SubscriptionDetails',
-          preserveNullAndEmptyArrays: true,
-        }
       },
       {
         $lookup: {
@@ -393,54 +312,32 @@ const aggregateDrivers = async (req, filter, options) => {
       {
         $addFields: {
           tripCount: { $size: '$requests' },
-          isDriverSubscriptionValid: {
-            $cond: {
-              if: { $ifNull: ['$driverSubscriptionDetails', false] }, // Check if demoKeyDetails exists
-              then: { // If demoKeyDetails exists
-                $cond: {
-                  if: { $gt: ['$driverSubscriptionDetails.Enddate', new Date()] }, // Check if EndDate is in future
-                  then: { // If demoKeyDetails exists
-                    $cond: {
-                      if: { $eq: ['$driverSubscriptionDetails.status', true] }, // Check if EndDate is in future
-                      then: true,
-                      else: false
-                    }
-                  },
-                  else: false
-                }
-              },
-              else: null // If demoKeyDetails is null
-            }
+
+        },
+      },
+      {
+        $addFields: {
+          totalVehicleCount: {
+            $cond: [{ $ne: [{ $ifNull: ['$type', null] }, null] }, 1, 0],
           },
-          subscriptionName: "$SubscriptionDetails.name", // Get the subscription package name
-          remainingDays: {
+          activeVehicleCount: {
             $cond: [
               {
                 $and: [
-                  { $ifNull: ["$driverSubscriptionDetails.Enddate", false] }, // Check if Enddate exists
-                  { $gt: ["$driverSubscriptionDetails.Enddate", new Date()] }  // Check if it's in future
-                ]
+                  { $eq: ['$status', true] },
+                  { $ne: [{ $ifNull: ['$type', null] }, null] },
+                ],
               },
-              {
-                $ceil: {
-                  $divide: [
-                    { $subtract: ["$driverSubscriptionDetails.Enddate", new Date()] }, // milliseconds difference
-                    86400000 // milliseconds in a day (1000*60*60*24)
-                  ]
-                }
-              },
-              null // Return null if no valid end date
-            ]
-          }
+              1,
+              0,
+            ],
+          },
         },
       },
       {
         $project: {
           _id: 1,
           type: 1,
-          isDriverSubscriptionValid: 1,
-          subscriptionName: 1,
-          remainingDays: 1,
           isAvailable: 1,
           isActive: 1,
           isApprove: 1,
@@ -449,8 +346,12 @@ const aggregateDrivers = async (req, filter, options) => {
           carNumber: 1,
           carYear: 1,
           carModel: 1,
+          vehicleVariant: 1,
+          vehicleBrand: 1,
           carColour: 1,
           serviceLocation: 1,
+          specialPrice: 1,
+          secondaryZone: 1,
           serviceType: 1,
           rejectCount: 1,
           documentUploadStatus: 1,
@@ -461,32 +362,41 @@ const aggregateDrivers = async (req, filter, options) => {
           acceptanceRatio: 1,
           subscriptionType: 1,
           serviceCategory: 1,
-          companyId: 1,
           brandLabel: 1,
           loginMethod: 1,
           approvedBy: 1,
           status: 1,
           notes: 1,
           createdAt: 1,
-          vehicleName: '$vehicle.vehicleName',
-          vehicleId: '$vehicle._id',
-          vehicleModelName: '$vehicleModel.modelname',
-          vehicleModelId: '$vehicleModel._id',
+          // vehicleName: '$vehicle.vehicleName',
+          // vehicleId: '$vehicle._id',
+          // vehicleModelName: '$vehicleModel.modelname',
+          // vehicleModelId: '$vehicleModel._id',
+          // driverVehicleId: '$driverVehicleDetails._id',
+          // vehicleMake: '$driverVehicleDetails.vehicleMake',
+          // driverVehicleModelName: '$driverVehicleDetails.vehicleModelName',
+          // manufactureYear: '$driverVehicleDetails.manufactureYear',
+          // licensePlateNumber: '$driverVehicleDetails.licensePlateNumber',
+          // vehicleColor: '$driverVehicleDetails.vehicleColor',
+          // passengerCapacity: '$driverVehicleDetails.passengerCapacity',
+          // driverVehicleStatus: '$driverVehicleDetails.status',
+          totalVehicleCount: 1,
+          activeVehicleCount: 1,
           firstName: '$user.firstName',
-          // lastName: '$user.lastName',
           email: '$user.email',
           rating: {
             $round: [
               { $toDouble: { $ifNull: ['$ratingDetails.averageRating', 0.0] } },
-              2,
+              1,
             ],
           },
           roleid: '$user.roleIds',
           phoneNumber: '$user.phoneNumber',
+          regDate: '$user.regDate',
+          regTime: '$user.regTime',
           profilePic: '$user.profilePic',
           userId: '$user._id',
           country: '$user.countryCode',
-          companyName: '$company.companyName',
           tripCount: 1,
           completedTripCount: 1,
           cancelledTripCount: 1,
@@ -496,11 +406,9 @@ const aggregateDrivers = async (req, filter, options) => {
               2,
             ],
           },
-          completedTripCount: 1, // Include completed trip count
-          cancelledTripCount: 1, // Include cancelled trip count,
           onlineBy: {
-            $cond:{
-              if:{$eq:['$user.onlineBy',1]},
+            $cond: {
+              if: { $eq: ['$user.onlineBy', 1] },
               then: 'Online',
               else: 'Offline'
             }
@@ -526,6 +434,7 @@ const aggregateDrivers = async (req, filter, options) => {
     throw error;
   }
 };
+
 
 
 /**
@@ -557,79 +466,30 @@ const getDropDowns = async (clientId) => {
   return data;
 };
 // get Driver wallet balance
-const getDriverWallet = async () => {
+const getDriverWallet = async (zoneId, clientId) => {
   try {
-    // const result = await Driver.aggregate([
-    //   {
-    //     $lookup: {
-    //       from: 'users',
-    //       localField: 'userId',
-    //       foreignField: '_id',
-    //       as: 'userData',
-    //     },
-    //   },
-    //   {
-    //     $unwind: {
-    //       path: '$userData',
-    //       preserveNullAndEmptyArrays: true,
-    //     },
-    //   },
-
-    //   {
-    //     $lookup: {
-    //       from: 'drivers',
-    //       localField: 'driverId',
-    //       foreignField: '_id',
-    //       as: 'driverData',
-    //     },
-    //   },
-    //   {
-    //     $unwind: {
-    //       path: '$driverData',
-    //       preserveNullAndEmptyArrays: true,
-    //     },
-    //   },
-
-    //   {
-    //     $lookup: {
-    //       from: 'users',
-    //       localField: 'driverData.userId',
-    //       foreignField: '_id',
-    //       as: 'driverUserData',
-    //     },
-    //   },
-    //   {
-    //     $unwind: {
-    //       path: '$driverUserData',
-    //       preserveNullAndEmptyArrays: true,
-    //     },
-    //   },
-    //   {
-    //     $lookup: {
-    //       from: 'wallets',
-    //       localField: 'driverId',
-    //       foreignField: 'driverId',
-    //       as: 'walletData',
-    //     },
-    //   },
-    //   {
-    //     $unwind: {
-    //       path: '$walletData',
-    //       preserveNullAndEmptyArrays: true,
-    //     },
-    //   },
-    //   {
-    //     $project: {
-    //       driverId: '$userData._id',
-    //       driverName:'$userData.firstName',
-    //       phoneNumber: '$userData.phoneNumber',
-    //       walletBalance: '$walletData.balance',
-    //       _id: 0,
-    //     },
-    //   },
-    // ]);
+    const zoneObjectId = new ObjectId(zoneId);
+    const clientObjectId = new ObjectId(clientId);
 
     const result = await Wallet.aggregate([
+      {
+        $lookup: {
+          from: 'drivers',
+          localField: 'userId',            // Match Wallet.userId
+          foreignField: 'userId',          // To Driver.userId
+          as: 'driverData',
+        },
+      },
+      { $unwind: { path: '$driverData', preserveNullAndEmptyArrays: false } },
+
+      // ✅ Filter matched drivers using zoneId and clientId
+      {
+        $match: {
+          'driverData.serviceLocation': zoneObjectId,
+          'driverData.clientId': clientObjectId,
+        },
+      },
+
       {
         $lookup: {
           from: 'users',
@@ -638,26 +498,18 @@ const getDriverWallet = async () => {
           as: 'userData',
         },
       },
-      {
-        $unwind: {
-          path: '$userData',
-          preserveNullAndEmptyArrays: true,
-        }
-      },
+      { $unwind: { path: '$userData', preserveNullAndEmptyArrays: true } },
+
       {
         $lookup: {
           from: 'countries',
           localField: 'userData.countryCode',
           foreignField: '_id',
-          as: 'countryDetails'
-        }
+          as: 'countryDetails',
+        },
       },
-      {
-        $unwind: {
-          path: '$countryDetails',
-          preserveNullAndEmptyArrays: true,
-        }
-      },
+      { $unwind: { path: '$countryDetails', preserveNullAndEmptyArrays: true } },
+
       {
         $addFields: {
           roundedBalance: {
@@ -667,416 +519,95 @@ const getDriverWallet = async () => {
       },
       {
         $project: {
-          driverId: '$userData._id',
-          driverName: { $concat: ['$userData.firstName'] },
+          driverId: '$driverData._id',
+          userId:'$userData._id',
+          driverName: {
+            $concat: ['$userData.firstName', ' ', '$userData.lastName']
+          },
           phoneNumber: '$userData.phoneNumber',
-          walletBalance: { $concat: [{ $ifNull: ['$countryDetails.currencySymbol', "₹"] }, ' ', { $toString: { $ifNull: ['$roundedBalance', 0.00] } }] },
+          walletBalance: {
+            $concat: [
+              { $ifNull: ['$countryDetails.currencySymbol', '₹'] },
+              ' ',
+              { $toString: '$roundedBalance' }
+            ]
+          },
           _id: 0,
         },
       },
     ]);
+
     return result;
   } catch (error) {
-    console.error(error);
-    throw new Error('Error fetching request data');
+    console.error('Error in getDriverWallet:', error);
+    throw new Error('Error fetching wallet data');
   }
 };
 
-const getDriverReport = async (req,filter,options,clientId) => {
-  try
-  {
-      const { onlineBy } = req.query;
-      const limit = parseInt(options.limit, 10) || 10;
-      const page = parseInt(options.page, 10) || 1;
+// const getDriverReport = async (zoneId,clientId) => {
+//   try {
+//     const result = await Driver.aggregate([
 
-      const today = moment().format('YYYY-MM-DD');
-      const yesterday = moment().subtract(1, 'days').format('YYYY-MM-DD');
-      const startOfMonth = moment().startOf('month').format('YYYY-MM-DD');
-      const startOfWeek = moment().subtract(7, 'days').format('YYYY-MM-DD');
+//             {
+//               $match: {
+//         zoneId: new ObjectId(zoneId),
+//         clientId: new ObjectId(clientId)
+//       },
+//     },
+//       {
+//         $lookup: {
+//           from: 'users',
+//           localField: 'userId',
+//           foreignField: '_id',
+//           as: 'userData',
+//         },
+//       },
+//       {
+//         $unwind: {
+//           path: '$userData',
+//           preserveNullAndEmptyArrays: true,
+//         },
+//       },
 
-      const driverRoleIds = await getRoleIdsByRoleName("Driver");
+//       {
+//         $lookup: {
+//           from: 'vehicles',
+//           localField: 'type',
+//           foreignField: '_id',
+//           as: 'vehicleData',
+//         },
+//       },
+//       {
+//         $unwind: {
+//           path: '$vehicleData',
+//           preserveNullAndEmptyArrays: true, // Allow drivers without vehicles
+//         },
+//       },
 
-      if(onlineBy)
-      {
-          if(onlineBy != '')
-          {
-              filter.onlineBy = onlineBy == 'ONLINE' ? 1 : 0;
-          }
-      }
+//       {
+//         $project: {
+//           driverName: {
+//             $ifNull: [
+//               { $concat: ['$userData.firstName', ' ', '$userData.lastName'] },
+//               'N/A',
+//             ],
+//           },
+//           vehicleType: {
+//             $ifNull: ['$vehicleData.vehicleName', 'Unknown Vehicle'],
+//           },
 
-      filter.roleIds = { $in: driverRoleIds };
-      filter.clientId = new ObjectId(clientId);
+//           _id: 0,
+//         },
+//       },
+//     ]);
 
-      const basePipeline = [
-        { $match: filter},
-        { $lookup: { from: 'drivers', localField: '_id', foreignField: 'userId', as: 'driver'}},
-        { $unwind: {path: '$driver'} },
-        { $lookup: { from: 'vehicles', localField: 'driver.type', foreignField: '_id', as: 'vehicles'}},
-        { $unwind: {path: '$vehicles'} },
-        {
-            $lookup:{
-                from: 'requests',
-                localField: 'driver._id',
-                foreignField: 'driverId',
-                pipeline: [
-                    { $group: { _id: null, completed: { $sum: { $cond: [{ $eq: ['$isCompleted', true] }, 1, 0] } }, cancelled: { $sum: { $cond: [{ $eq: ['$isCancelled', true] }, 1, 0] } } } }
-                ],
-                as: 'tripStatus'
-            }
-        },
-        {
-            $lookup: {
-                from: 'driverlogs',
-                localField: '_id',
-                foreignField: 'driverId',
-                pipeline: [
-                    { 
-                        $addFields: {
-                            date: { $dateFromString: { dateString: "$date" } }, 
-                            workingTime: {
-                              $cond: {
-                                if: { $eq: ["$workingTime", "00:00:00"] }, // If workingTime is "00:00:00"
-                                then: {
-                                  $let: {
-                                    vars: {
-                                      // Calculate the difference between current time and onlineTime
-                                      currentTime: new Date(),
-                                      timeDifference: { $subtract: [new Date(), "$onlineTime"] }
-                                    },
-                                    in: {
-                                      // Convert time difference to hours, minutes, seconds
-                                      $concat: [
-                                        { $toString: { $floor: { $divide: ["$$timeDifference", 3600000] } } }, // Hours
-                                        ":",
-                                        { $toString: { $floor: { $divide: [{ $mod: ["$$timeDifference", 3600000] }, 60000] } } }, // Minutes
-                                        ":",
-                                        { $toString: { $floor: { $divide: [{ $mod: ["$$timeDifference", 60000] }, 1000] } } } // Seconds
-                                      ]
-                                    }
-                                  }
-                                },
-                                else: {
-                                $let: {
-                                    vars: {
-                                        timeParts: { $split: ["$workingTime", ":"] } // Split HH:MM:SS
-                                    },
-                                    in: {
-                                        $add: [
-                                            { $multiply: [{ $toInt: { $arrayElemAt: ["$$timeParts", 0] } }, 3600] }, // Hours * 3600
-                                            { $multiply: [{ $toInt: { $arrayElemAt: ["$$timeParts", 1] } }, 60] },  // Minutes * 60
-                                            { $toInt: { $arrayElemAt: ["$$timeParts", 2] } }                          // Seconds
-                                        ]
-                                    }
-                                }
-                              }
-                              }
-                            }
-                        }
-                    },
-                    { $match: { date: { $eq: new Date(today)} } }, 
-                    { $project: { _id: 0, workingTime: 1 } } 
-                ],
-                as: 'todayLogs'
-            }
-        },
-        {
-            $lookup: {
-                from: 'driverlogs',
-                localField: '_id',
-                foreignField: 'driverId',
-                pipeline: [
-                      { 
-                        $addFields: {
-                            date: { $dateFromString: { dateString: "$date" } },
-                            workingTime: {
-                              $cond: {
-                                if: { $eq: ["$workingTime", "00:00:00"] }, // If workingTime is "00:00:00"
-                                then: {
-                                  $let: {
-                                    vars: {
-                                      // Calculate the difference between current time and onlineTime
-                                      currentTime: new Date(),
-                                      timeDifference: { $subtract: [new Date(), "$onlineTime"] }
-                                    },
-                                    in: {
-                                      // Convert time difference to hours, minutes, seconds
-                                      $concat: [
-                                        { $toString: { $floor: { $divide: ["$$timeDifference", 3600000] } } }, // Hours
-                                        ":",
-                                        { $toString: { $floor: { $divide: [{ $mod: ["$$timeDifference", 3600000] }, 60000] } } }, // Minutes
-                                        ":",
-                                        { $toString: { $floor: { $divide: [{ $mod: ["$$timeDifference", 60000] }, 1000] } } } // Seconds
-                                      ]
-                                    }
-                                  }
-                                },
-                                else: {
-                                  $let: {
-                                      vars: {
-                                          timeParts: { $split: ["$workingTime", ":"] }
-                                      },
-                                      in: {
-                                          $add: [
-                                              { $multiply: [{ $toInt: { $arrayElemAt: ["$$timeParts", 0] } }, 3600] },
-                                              { $multiply: [{ $toInt: { $arrayElemAt: ["$$timeParts", 1] } }, 60] },
-                                              { $toInt: { $arrayElemAt: ["$$timeParts", 2] } }
-                                          ]
-                                      }
-                                  }
-                                }
-                              }
-                            }
-                        }
-                    },
-                    { $match: { date: { $eq: new Date(yesterday)} } },
-                    { $project: { _id: 0, workingTime: 1 } }
-                ],
-                as: 'yesterdayLogs'
-            }
-        },
-        {
-            $lookup: {
-                from: 'driverlogs',
-                localField: '_id',
-                foreignField: 'driverId',
-                pipeline: [
-                      { 
-                        $addFields: {
-                            date: { $dateFromString: { dateString: "$date" } },
-                            workingTime: {
-                              $cond: {
-                                if: { $eq: ["$workingTime", "00:00:00"] }, // If workingTime is "00:00:00"
-                                then: {
-                                  $let: {
-                                    vars: {
-                                      // Calculate the difference between current time and onlineTime
-                                      currentTime: new Date(),
-                                      timeDifference: { $subtract: [new Date(), "$onlineTime"] }
-                                    },
-                                    in: {
-                                      // Convert time difference to hours, minutes, seconds
-                                      $concat: [
-                                        { $toString: { $floor: { $divide: ["$$timeDifference", 3600000] } } }, // Hours
-                                        ":",
-                                        { $toString: { $floor: { $divide: [{ $mod: ["$$timeDifference", 3600000] }, 60000] } } }, // Minutes
-                                        ":",
-                                        { $toString: { $floor: { $divide: [{ $mod: ["$$timeDifference", 60000] }, 1000] } } } // Seconds
-                                      ]
-                                    }
-                                  }
-                                },
-                                else: {
-                                  $let: {
-                                      vars: {
-                                          timeParts: { $split: ["$workingTime", ":"] }
-                                      },
-                                      in: {
-                                          $add: [
-                                              { $multiply: [{ $toInt: { $arrayElemAt: ["$$timeParts", 0] } }, 3600] },
-                                              { $multiply: [{ $toInt: { $arrayElemAt: ["$$timeParts", 1] } }, 60] },
-                                              { $toInt: { $arrayElemAt: ["$$timeParts", 2] } }
-                                          ]
-                                      }
-                                  }
-                                }
-                              }
-                            }
-                        }
-                    },
-                    { $match: { date: { $gte: new Date(startOfWeek), $lte: new Date(today) } } },
-                    { $project: { _id: 0, workingTime: 1 } }
-                ],
-                as: 'weekLogs'
-            }
-        },          
-        {
-            $lookup: {
-                from: 'driverlogs',
-                localField: '_id',
-                foreignField: 'driverId',
-                pipeline: [
-                      { 
-                        $addFields: {
-                            date: { $dateFromString: { dateString: "$date" } },
-                            workingTime: {
-                              $cond: {
-                                if: { $eq: ["$workingTime", "00:00:00"] }, // If workingTime is "00:00:00"
-                                then: {
-                                  $let: {
-                                    vars: {
-                                      // Calculate the difference between current time and onlineTime
-                                      currentTime: new Date(),
-                                      timeDifference: { $subtract: [new Date(), "$onlineTime"] }
-                                    },
-                                    in: {
-                                      // Convert time difference to hours, minutes, seconds
-                                      $concat: [
-                                        { $toString: { $floor: { $divide: ["$$timeDifference", 3600000] } } }, // Hours
-                                        ":",
-                                        { $toString: { $floor: { $divide: [{ $mod: ["$$timeDifference", 3600000] }, 60000] } } }, // Minutes
-                                        ":",
-                                        { $toString: { $floor: { $divide: [{ $mod: ["$$timeDifference", 60000] }, 1000] } } } // Seconds
-                                      ]
-                                    }
-                                  }
-                                },
-                                else: {
-                                  $let: {
-                                      vars: {
-                                          timeParts: { $split: ["$workingTime", ":"] }
-                                      },
-                                      in: {
-                                          $add: [
-                                              { $multiply: [{ $toInt: { $arrayElemAt: ["$$timeParts", 0] } }, 3600] },
-                                              { $multiply: [{ $toInt: { $arrayElemAt: ["$$timeParts", 1] } }, 60] },
-                                              { $toInt: { $arrayElemAt: ["$$timeParts", 2] } }
-                                          ]
-                                      }
-                                  } // If not "00:00:00", leave the original workingTime
-                                }
-                              }
-                            }
-                        }
-                    },
-                    { $match: { date: { $gte: new Date(startOfMonth), $lte: new Date(today) } } },
-                    { $project: { _id: 0, workingTime: 1 } }
-                ],
-                as: 'monthLogs'
-            }
-        },
-        {
-            $addFields: {
-              todayWorking: { $sum: { $ifNull: ['$todayLogs.workingTime',0]} },
-              yesterdayWorking: { $sum: { $ifNull: ['$yesterdayLogs.workingTime',0]} },
-              weekWorking: { $sum: { $ifNull: ['$weekLogs.workingTime',0]} },
-              monthWorking: { $sum: { $ifNull: ['$monthLogs.workingTime',0]} },
-              tripCompleted: { $ifNull: [{ $arrayElemAt: ['$tripStatus.completed', 0] }, 0] },
-              tripCancelled: { $ifNull: [{ $arrayElemAt: ['$tripStatus.cancelled', 0] }, 0] }
-            }
-        },
-        {
-            $addFields:{
-              todayWorkingTime:{
-                $concat: [
-                  { $toString: {$cond: [{ $gte: [{ $floor: { $divide: ["$todayWorking",3600]}},10]},
-                    { $floor: { $divide: ["$todayWorking", 3600] } },
-                    { $concat: ["0",{ $toString: { $floor: {$divide: ["$todayWorking", 3600] } } }] } ] },
-                  },
-                  ":",
-                  { $toString: { $cond: [{ $gte: [{ $floor: { $divide: [{ $mod: ["$todayWorking", 3600] }, 60] } }, 10] }, 
-                    { $floor: { $divide: [{ $mod: ["$todayWorking", 3600] }, 60] } }, 
-                    { $concat: ["0", { $toString: { $floor: { $divide: [{ $mod: ["$todayWorking", 3600] }, 60] } } } ] }] }, 
-                  },
-                  ":",
-                  { $toString: { $cond: [{ $gte: [{ $mod: ["$todayWorking", 60] }, 10] }, 
-                    { $mod: ["$todayWorking", 60] }, 
-                    { $concat: ["0", { $toString: { $mod: ["$todayWorking", 60] } }] }] } 
-                  }
-                ]
-              },
-              yesterdayWorkingTime:{
-                $concat: [
-                  { $toString: {$cond: [{ $gte: [{ $floor: { $divide: ["$yesterdayWorking",3600]}},10]},
-                    { $floor: { $divide: ["$yesterdayWorking", 3600] } },
-                    { $concat: ["0",{ $toString: { $floor: {$divide: ["$yesterdayWorking", 3600] } } }] } ] },
-                  },
-                  ":",
-                  { $toString: { $cond: [{ $gte: [{ $floor: { $divide: [{ $mod: ["$yesterdayWorking", 3600] }, 60] } }, 10] }, 
-                    { $floor: { $divide: [{ $mod: ["$yesterdayWorking", 3600] }, 60] } }, 
-                    { $concat: ["0", { $toString: { $floor: { $divide: [{ $mod: ["$yesterdayWorking", 3600] }, 60] } } }] }] },  
-                  },
-                  ":",
-                  { $toString: { $cond: [{ $gte: [{ $mod: ["$yesterdayWorking", 60] }, 10] }, 
-                    { $mod: ["$yesterdayWorking", 60] }, 
-                    { $concat: ["0", { $toString: { $mod: ["$yesterdayWorking", 60] } }] }] }  
-                  }
-                ]
-              },
-              weeklyWorkingTime:{
-                $concat: [
-                  { $toString: {$cond: [{ $gte: [{ $floor: { $divide: ["$weekWorking",3600]}},10]},
-                    { $floor: { $divide: ["$weekWorking", 3600] } },
-                    { $concat: ["0",{ $toString: { $floor: {$divide: ["$weekWorking", 3600] } } }] } ] },
-                  },
-                  ":",
-                  { $toString: { $cond: [{ $gte: [{ $floor: { $divide: [{ $mod: ["$weekWorking", 3600] }, 60] } }, 10] }, 
-                    { $floor: { $divide: [{ $mod: ["$weekWorking", 3600] }, 60] } }, 
-                    { $concat: ["0", { $toString: { $floor: { $divide: [{ $mod: ["$weekWorking", 3600] }, 60] } } }] }] }, 
-                  },
-                  ":",
-                  { $toString: { $cond: [{ $gte: [{ $mod: ["$weekWorking", 60] }, 10] }, 
-                    { $mod: ["$weekWorking", 60] }, 
-                    { $concat: ["0", { $toString: { $mod: ["$weekWorking", 60] } }] }] } 
-                  }
-                ]
-              },
-              monthlyWorkingTime:{
-                $concat: [
-                  { $toString: {$cond: [{ $gte: [{ $floor: { $divide: ["$monthWorking",3600]}},10]},
-                    { $floor: { $divide: ["$monthWorking", 3600] } },
-                    { $concat: ["0",{ $toString: { $floor: {$divide: ["$monthWorking", 3600] } } }] } ] },
-                  },
-                  ":",
-                  { $toString: { $cond: [{ $gte: [{ $floor: { $divide: [{ $mod: ["$monthWorking", 3600] }, 60] } }, 10] }, 
-                    { $floor: { $divide: [{ $mod: ["$monthWorking", 3600] }, 60] } }, 
-                    { $concat: ["0", { $toString: { $floor: { $divide: [{ $mod: ["$monthWorking", 3600] }, 60] } } }] }] },
-                  },
-                  ":",
-                  { $toString: { $cond: [{ $gte: [{ $mod: ["$monthWorking", 60] }, 10] }, 
-                    { $mod: ["$monthWorking", 60] }, 
-                    { $concat: ["0", { $toString: { $mod: ["$monthWorking", 60] } }] }] } 
-                  }
-                ]
-              },
-            }
-        },
-      ];
+//     return result;
+//   } catch (error) {
+//     console.error(error);
+//     throw new Error('Error fetching driver report');
+//   }
+// };
 
-  
-
-      const dataPipeline = [
-        ...basePipeline,
-        {
-          $project: {
-            driverName:{
-              $ifNull:[
-                {$concat: ['$firstName']},
-                'N/A',
-              ]
-            },
-            phoneNumber: { $ifNull: ['$phoneNumber', null] },
-            currentStatus: { 
-              $cond: {
-                if: { $eq: ["$onlineBy", 0] },
-                then: "Offline",   
-                else: "Online"
-              }
-            },
-            driverStatus: { $cond:{
-              if:{ $eq: ["$active",true]},
-              then: "Active",
-              else: "Inactive"
-            } },
-            vehicleType: { $ifNull: ['$vehicles.vehicleName', null] },
-            todayWorkingTime: 1,
-            yesterdayWorkingTime: 1,
-            weeklyWorkingTime: 1,
-            monthlyWorkingTime: 1,
-            tripCompleted: 1,
-            tripCancelled: 1,
-          }
-        }
-      ];
-
-      const driverReports = await User.aggregate(dataPipeline);
-      return driverReports;
-  }
-  catch (error) {
-      // throw new Error(`Failed to fetch driver trips: ${error.message}`);
-      console.error('Error in aggregation:', error);
-      throw error;
-  }
-};
 const getUserById = async (id) => {
   return Users.findById(id);
 };
@@ -1089,10 +620,10 @@ const getUserId = async(id) => {
 const getEaringsReport = async (driverid) => {
   try {
     const today = new Date();
-    today.setHours(0, 0, 0, 0); 
+    today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1); 
-    
+    tomorrow.setDate(today.getDate() + 1);
+
     const reports = await Request.aggregate([
       {
         $match: {
@@ -1119,33 +650,33 @@ const getEaringsReport = async (driverid) => {
       {
         $group: {
           _id: null,
-          completed: { 
-            $sum: { 
-              $cond: [{ 
+          completed: {
+            $sum: {
+              $cond: [{
                 $and: [
                   {$eq: ['$isCompleted', true]},
                   {$eq: ['$isCancelled', false]},
                   { $eq: [{ $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, '$currentDate'] }
                 ],
               },
-              1, 0] 
-            } 
+              1, 0]
+            }
           },
-          cancelled: { 
-            $sum: { 
-              $cond: [{ 
+          cancelled: {
+            $sum: {
+              $cond: [{
                 $and: [
                   {$eq: ['$isCompleted', false]},
                   {$eq: ['$isCancelled', true]},
                   { $eq: [{ $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, '$currentDate'] }
                 ],
-              }, 
-              1, 0] 
-            } 
+              },
+              1, 0]
+            }
           },
           ongoing: {
             $sum: {
-              $cond: [{ 
+              $cond: [{
                 $and: [
                   {$eq: ['$isTripStart', true]},
                   {$eq: ['$isCompleted', false]},
@@ -1169,8 +700,8 @@ const getEaringsReport = async (driverid) => {
               1, 0],
             },
           },
-          cashPayments: { 
-            $sum: { 
+          cashPayments: {
+            $sum: {
               $cond: [{
                 $and:[
                   {$eq: ['$isCompleted', true]},
@@ -1178,33 +709,33 @@ const getEaringsReport = async (driverid) => {
                   { $eq: [{ $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, '$currentDate'] }
                 ]
               },
-              { $ifNull: ["$billData.totalAmount", 0] }, 
+              { $ifNull: ["$billData.totalAmount", 0] },
               0],
-            } 
+            }
           },
-          cardPayments: { 
-            $sum: { 
-              $cond: [{ 
+          cardPayments: {
+            $sum: {
+              $cond: [{
                 $and:[
                   {$eq: ['$isCompleted', true]},
                   { $eq: ["$paymentOpt", "CARD"] },
                   { $eq: [{ $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, '$currentDate'] }
                 ]
-              }, 
-              { $ifNull: ["$billData.totalAmount", 0] }, 
-              0] 
-            } 
+              },
+              { $ifNull: ["$billData.totalAmount", 0] },
+              0]
+            }
           },
           walletPayments: {
             $sum: {
-              $cond: [{ 
+              $cond: [{
                 $and:[
                   {$eq: ['$isCompleted', true]},
                   { $eq: ["$paymentOpt", "WALLET"] },
                   { $eq: [{ $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, '$currentDate'] }
                 ]
-              }, 
-              { $ifNull: ["$billData.totalAmount", 0] }, 
+              },
+              { $ifNull: ["$billData.totalAmount", 0] },
               0]
             },
           },
@@ -1248,11 +779,11 @@ const getWeeklyEarningsReport = async (driverId) => {
     const startOfWeek = new Date(today);
     startOfWeek.setDate(today.getDate() - dayOfWeek);
     startOfWeek.setHours(0, 0, 0, 0);
-    
+
     const endOfWeek = new Date(startOfWeek);
     endOfWeek.setDate(startOfWeek.getDate() + 6);
     endOfWeek.setHours(23, 59, 59, 999);
-    
+
     // Get all completed trips for the week
     const weeklyData = await Request.aggregate([
       {
@@ -1303,16 +834,16 @@ const getWeeklyEarningsReport = async (driverId) => {
       },
       { $sort: { _id: 1 } }
     ]);
-    
+
     // Map MongoDB's day numbers (1-7, where 1 is Sunday) to our format (0-6, where 0 is Sunday)
     const dayNames = ['sun', 'mon', 'tue', 'wed', 'thur', 'fri', 'sat'];
-    
+
     // Create array with all days of the week
     const fullWeekData = dayNames.map((dayName, index) => {
       const dayData = weeklyData.find(d => d._id === index + 1);
       const currentDate = new Date(startOfWeek);
       currentDate.setDate(startOfWeek.getDate() + index);
-      
+
       return {
         dayName,
         completedTrips: dayData ? dayData.completedTrips : 0,
@@ -1320,7 +851,7 @@ const getWeeklyEarningsReport = async (driverId) => {
         isInPast: currentDate <= today
       };
     });
-    
+
     return fullWeekData;
   } catch (error) {
     console.error('Error fetching weekly report:', error);
@@ -1373,7 +904,7 @@ const getMonthlyEarningsReport = async (driverId) => {
             month: {
               $cond: [
                 { $gte: ["$createdAt", startOfCurrentMonth] }, // For current month
-                "currentMonth", 
+                "currentMonth",
                 "previousMonth" // Otherwise previous month
               ]
             }
@@ -1415,10 +946,10 @@ const getYesterdayEarningsReport = async (driverId) => {
     const yesterday = new Date(today);
     yesterday.setDate(today.getDate() - 1);
     yesterday.setHours(0, 0, 0, 0);
-    
+
     const yesterdayEnd = new Date(yesterday);
     yesterdayEnd.setHours(23, 59, 59, 999);
-    
+
     const yesterdayDateString = yesterday.toISOString().split('T')[0]; // Format: YYYY-MM-DD
 
     const reports = await Request.aggregate([
@@ -1445,61 +976,61 @@ const getYesterdayEarningsReport = async (driverId) => {
       {
         $group: {
           _id: null,
-          completed: { 
-            $sum: { 
-              $cond: [{ 
+          completed: {
+            $sum: {
+              $cond: [{
                 $and: [
                   {$eq: ['$isCompleted', true]},
                   {$eq: ['$isCancelled', false]},
                 ],
               },
-              1, 0] 
-            } 
+              1, 0]
+            }
           },
-          cancelled: { 
-            $sum: { 
-              $cond: [{ 
+          cancelled: {
+            $sum: {
+              $cond: [{
                 $and: [
                   {$eq: ['$isCompleted', false]},
                   {$eq: ['$isCancelled', true]},
                 ],
-              }, 
-              1, 0] 
-            } 
+              },
+              1, 0]
+            }
           },
-          cashPayments: { 
-            $sum: { 
+          cashPayments: {
+            $sum: {
               $cond: [{
                 $and:[
                   {$eq: ['$isCompleted', true]},
                   { $eq: ["$paymentOpt", "CASH"] },
                 ]
               },
-              { $ifNull: ["$billData.totalAmount", 0] }, 
+              { $ifNull: ["$billData.totalAmount", 0] },
               0],
-            } 
+            }
           },
-          cardPayments: { 
-            $sum: { 
-              $cond: [{ 
+          cardPayments: {
+            $sum: {
+              $cond: [{
                 $and:[
                   {$eq: ['$isCompleted', true]},
                   { $eq: ["$paymentOpt", "CARD"] },
                 ]
-              }, 
-              { $ifNull: ["$billData.totalAmount", 0] }, 
-              0] 
-            } 
+              },
+              { $ifNull: ["$billData.totalAmount", 0] },
+              0]
+            }
           },
           walletPayments: {
             $sum: {
-              $cond: [{ 
+              $cond: [{
                 $and:[
                   {$eq: ['$isCompleted', true]},
                   { $eq: ["$paymentOpt", "WALLET"] },
                 ]
-              }, 
-              { $ifNull: ["$billData.totalAmount", 0] }, 
+              },
+              { $ifNull: ["$billData.totalAmount", 0] },
               0]
             },
           },
@@ -1550,7 +1081,7 @@ const getDriverTripsByMonth = async (driverId, month, year) => {
           year: { $year: "$createdAt" }
         },
         tripCount: { $sum: 1 },
-        earnings: { $sum: "$fareAmount" } 
+        earnings: { $sum: "$fareAmount" }
       }
     },
     {
@@ -1584,8 +1115,8 @@ const getRequest = async (zoneId, userId) => {
 
   const groupDocument = await GroupDocument.find({zoneId: new ObjectId(zoneId),status:true}).select('_id').lean();
   const groupDocumentIds = groupDocument.map(doc => doc._id);
-  
-  const documents = await Document.find({required:true,documentId:{$in:groupDocumentIds}}).select('_id').lean();
+
+  const documents = await Document.find({required:true,documentId:{$in:groupDocumentIds},status:true}).select('_id').lean();
 
   const document = documents.map(doc => doc._id);
   // const document = await Document.find({ clientId: clientId,status:true });
@@ -1714,6 +1245,10 @@ const getRequest = async (zoneId, userId) => {
       $addFields: {
         active: {
           $cond: [
+            { $eq: ['$status', false] },
+            false,
+            {
+              $cond: [
             {
               $or: [
                 { $eq: [{ $size: '$driverDocumentDetails' }, 0] }, // No documents
@@ -1760,6 +1295,8 @@ const getRequest = async (zoneId, userId) => {
             },
             false, // Inactive
             true // Active
+              ]
+            }
           ]
         },
         blockReason: {
@@ -1828,9 +1365,9 @@ const getRequest = async (zoneId, userId) => {
                             then: 'APPROVED',
                             else: 'DENIED' // Not all documents are approved
                           }
-                        },
+                        }
                       }
-                    }
+                    },
                   }
                 }
               }
@@ -1844,6 +1381,18 @@ const getRequest = async (zoneId, userId) => {
             else: false,
           },
         }
+      },
+    },
+    {
+      $addFields: {
+        // Show AdminBlocked only if docs are approved and admin disabled driver.
+        blockReason: {
+          $cond: [
+            { $and: [{ $eq: ['$status', false] }, { $eq: ['$blockReason', 'APPROVED'] }] },
+            'AdminBlocked',
+            '$blockReason',
+          ],
+        },
       },
     },
     {
@@ -1889,24 +1438,67 @@ const updateDriversStatus = async (req,driverId, updateBody) => {
     return { status: httpStatus.NOT_FOUND, msg: "Driver not found" };
   }
 
+  const hasActiveTrip = await Request.exists({
+    driverId: driver._id,
+    isCancelled: false,
+    isCompleted: false,
+  });
+
+  if (updateBody.status === false && hasActiveTrip) {
+    driver.pendingAdminBlock = true;
+    await driver.save();
+    return {
+      status: httpStatus.FORBIDDEN,
+      msg: 'This driver is on trip. Driver will be blocked automatically after trip completion.',
+    };
+  }
+
+  if (updateBody.status === true && driver.pendingAdminBlock) {
+    driver.pendingAdminBlock = false;
+  }
+
+  // Force driver offline whenever admin changes active status.
+  if (driverInUser.onlineBy === 1) {
+    driverInUser.onlineBy = 0;
+  }
+
+  // if(driverInUser.onlineBy === 1){
+  //     return { status: httpStatus.FORBIDDEN, msg: "Blocking cannot be done while driver is online." }
+  // }
+
   let inProgress = await getRequest(driver.serviceLocation, driverInUser._id);
 
-  const topic = `driver/detail/` + driver.driverId;
+  const topic = `${mqttConfig.DRIVER_DETAIL}${driver._id}`;
 
   if (inProgress != null && Array.isArray(inProgress)) {
     inProgress = inProgress[0];
-    inProgress.documentStatus = inProgress.blockReason;
+    inProgress.documentStatus = updateBody.status ? 'APPROVED' : 'AdminBlocked';
+    inProgress.blockReason = updateBody.status ? 'APPROVED' : 'AdminBlocked';
+    inProgress.active = updateBody.status
   }
 
-  if(driver.status === true)
-  {
-    Object.assign(driver, updateBody);
-    await driver.save();
+  // If admin blocks the driver, ensure request-meta "in progress" state is inactive.
+  if (updateBody.status === false) {
+    await RequestMeta.updateMany(
+      { driverId: driver._id, active: true },
+      { $set: { active: false } }
+    );
+  }
+
+
+  if(driver.status === true){
+
+    // Object.assign(driver, updateBody);
+
+        driver.isActive = updateBody.status
+        driver.status = updateBody.status
+        driver.pendingAdminBlock = false
+        await driver.save();
 
 
     driverInUser.active = updateBody.status;
     driverInUser.blockReson = 'Admin Blocked';
-    
+
     await driverInUser.save();
 
     await mqttService.publishMessage(topic, inProgress).then((successMessage) => {
@@ -1923,7 +1515,7 @@ const updateDriversStatus = async (req,driverId, updateBody) => {
 
     // Send notification
     await sendNotification(req, driverInUser._id, messageData);
-    return { status: HttpStatusCode.Ok, msg: "Status Changed Successfully" };
+    return { status: httpStatus.OK, msg: "Status Changed Successfully" };
     // return driverInUser;
   }
   else
@@ -1932,19 +1524,19 @@ const updateDriversStatus = async (req,driverId, updateBody) => {
     const groupDocument = await GroupDocument.find({zoneId: new ObjectId(driver.serviceLocation),status:true}).select('_id').lean();
 
     const groupDocumentIds = groupDocument.map(doc => doc._id);
-    
-    const documents = await Document.find({required:true,documentId:{$in:groupDocumentIds}}).select('_id').lean();
+
+    const documents = await Document.find({required:true,documentId:{$in:groupDocumentIds},status:true}).select('_id').lean();
 
     const documentIds = documents.map(doc => doc._id);
 
     const driverDocument = await DriverDocument.countDocuments({driverId: new ObjectId(driver._id),documentStatus:"APPROVED",documentId:{$in:documentIds}});
 
-    const driverWallet = await Wallet.findOne({userId: new ObjectId(driverInUser._id)});
-    const settings = await Settings.findOne({name:"driverBlockWalletBalance"});
-
-    if(documentIds.length <= driverDocument && driverWallet.balance >= settings.value)
+    if(documentIds.length <= driverDocument)
     {
-      Object.assign(driver, updateBody);
+      // Object.assign(driver, updateBody);
+      driver.isActive = updateBody.status
+      driver.status = updateBody.status
+      driver.pendingAdminBlock = false
       await driver.save();
 
       driverInUser.active = updateBody.status;
@@ -1970,21 +1562,423 @@ const updateDriversStatus = async (req,driverId, updateBody) => {
     }
     else
     {
-      if(documentIds.length > driverDocument)
-      {
-        return { status: httpStatus.FORBIDDEN, msg: "Driver's required documents are not uploded or not approved...so you cannot change status for this driver" };
-      }
-      else if(driverWallet.balance < settings.value)
-      {
-        return { status: httpStatus.FORBIDDEN, msg: "Insufficient balance in driver wallet...so you cannot change status for this driver" };
-      }
+      return { status: httpStatus.FORBIDDEN, msg: "Driver's required documents are not uploded or not approved...so you cannot change status for this driver" };
     }
   }
 };
+const getDriverReport = async (req,filter,options,zoneId,clientId) => {
+  try
+  {
+      const { onlineBy } = req.query;
+      const limit = parseInt(options.limit, 10) || 10;
+      const page = parseInt(options.page, 10) || 1;
 
-const getZones = async(clientId) =>
-{
-  const zone = await Zone.find({zoneLevel: 'PRIMARY',clientId : clientId}).select('_id zoneName zoneLevel status');
+      const today = moment().format('YYYY-MM-DD');
+      const yesterday = moment().subtract(1, 'days').format('YYYY-MM-DD');
+      const startOfMonth = moment().startOf('month').format('YYYY-MM-DD');
+      const startOfWeek = moment().subtract(7, 'days').format('YYYY-MM-DD');
+
+      const driverRoleIds = await getRoleIdsByRoleName("Driver");
+
+      if(onlineBy)
+      {
+          if(onlineBy != '')
+          {
+              filter.onlineBy = onlineBy == 'ONLINE' ? 1 : 0;
+          }
+      }
+
+      filter.roleIds = { $in: driverRoleIds };
+      filter.clientId = new ObjectId(clientId);
+
+      const basePipeline = [
+        { $match: filter},
+        { $lookup: { from: 'drivers', localField: '_id', foreignField: 'userId', as: 'driver'}},
+        { $unwind: {path: '$driver'} },
+        { $lookup: { from: 'vehicles', localField: 'driver.type', foreignField: '_id', as: 'vehicles'}},
+        { $unwind: {path: '$vehicles'} },
+        {
+            $lookup:{
+                from: 'requests',
+                localField: 'driver._id',
+                foreignField: 'driverId',
+                pipeline: [
+                    { $group: { _id: null, completed: { $sum: { $cond: [{ $eq: ['$isCompleted', true] }, 1, 0] } }, cancelled: { $sum: { $cond: [{ $eq: ['$isCancelled', true] }, 1, 0] } } } }
+                ],
+                as: 'tripStatus'
+            }
+        },
+        {
+            $lookup: {
+                from: 'driverlogs',
+                localField: '_id',
+                foreignField: 'driverId',
+                pipeline: [
+                    {
+                        $addFields: {
+                            date: { $dateFromString: { dateString: "$date" } },
+                            workingTime: {
+                              $cond: {
+                                if: { $eq: ["$workingTime", "00:00:00"] }, // If workingTime is "00:00:00"
+                                then: {
+                                  $let: {
+                                    vars: {
+                                      // Calculate the difference between current time and onlineTime
+                                      currentTime: new Date(),
+                                      timeDifference: { $subtract: [new Date(), "$onlineTime"] }
+                                    },
+                                    in: {
+                                      // Convert time difference to hours, minutes, seconds
+                                      $concat: [
+                                        { $toString: { $floor: { $divide: ["$$timeDifference", 3600000] } } }, // Hours
+                                        ":",
+                                        { $toString: { $floor: { $divide: [{ $mod: ["$$timeDifference", 3600000] }, 60000] } } }, // Minutes
+                                        ":",
+                                        { $toString: { $floor: { $divide: [{ $mod: ["$$timeDifference", 60000] }, 1000] } } } // Seconds
+                                      ]
+                                    }
+                                  }
+                                },
+                                else: {
+                                $let: {
+                                    vars: {
+                                        timeParts: { $split: ["$workingTime", ":"] } // Split HH:MM:SS
+                                    },
+                                    in: {
+                                        $add: [
+                                            { $multiply: [{ $toInt: { $arrayElemAt: ["$$timeParts", 0] } }, 3600] }, // Hours * 3600
+                                            { $multiply: [{ $toInt: { $arrayElemAt: ["$$timeParts", 1] } }, 60] },  // Minutes * 60
+                                            { $toInt: { $arrayElemAt: ["$$timeParts", 2] } }                          // Seconds
+                                        ]
+                                    }
+                                }
+                              }
+                              }
+                            }
+                        }
+                    },
+                    { $match: { date: { $eq: new Date(today)} } },
+                    { $project: { _id: 0, workingTime: 1 } }
+                ],
+                as: 'todayLogs'
+            }
+        },
+        {
+            $lookup: {
+                from: 'driverlogs',
+                localField: '_id',
+                foreignField: 'driverId',
+                pipeline: [
+                      {
+                        $addFields: {
+                            date: { $dateFromString: { dateString: "$date" } },
+                            workingTime: {
+                              $cond: {
+                                if: { $eq: ["$workingTime", "00:00:00"] }, // If workingTime is "00:00:00"
+                                then: {
+                                  $let: {
+                                    vars: {
+                                      // Calculate the difference between current time and onlineTime
+                                      currentTime: new Date(),
+                                      timeDifference: { $subtract: [new Date(), "$onlineTime"] }
+                                    },
+                                    in: {
+                                      // Convert time difference to hours, minutes, seconds
+                                      $concat: [
+                                        { $toString: { $floor: { $divide: ["$$timeDifference", 3600000] } } }, // Hours
+                                        ":",
+                                        { $toString: { $floor: { $divide: [{ $mod: ["$$timeDifference", 3600000] }, 60000] } } }, // Minutes
+                                        ":",
+                                        { $toString: { $floor: { $divide: [{ $mod: ["$$timeDifference", 60000] }, 1000] } } } // Seconds
+                                      ]
+                                    }
+                                  }
+                                },
+                                else: {
+                                  $let: {
+                                      vars: {
+                                          timeParts: { $split: ["$workingTime", ":"] }
+                                      },
+                                      in: {
+                                          $add: [
+                                              { $multiply: [{ $toInt: { $arrayElemAt: ["$$timeParts", 0] } }, 3600] },
+                                              { $multiply: [{ $toInt: { $arrayElemAt: ["$$timeParts", 1] } }, 60] },
+                                              { $toInt: { $arrayElemAt: ["$$timeParts", 2] } }
+                                          ]
+                                      }
+                                  }
+                                }
+                              }
+                            }
+                        }
+                    },
+                    { $match: { date: { $eq: new Date(yesterday)} } },
+                    { $project: { _id: 0, workingTime: 1 } }
+                ],
+                as: 'yesterdayLogs'
+            }
+        },
+        {
+            $lookup: {
+                from: 'driverlogs',
+                localField: '_id',
+                foreignField: 'driverId',
+                pipeline: [
+                      {
+                        $addFields: {
+                            date: { $dateFromString: { dateString: "$date" } },
+                            workingTime: {
+                              $cond: {
+                                if: { $eq: ["$workingTime", "00:00:00"] }, // If workingTime is "00:00:00"
+                                then: {
+                                  $let: {
+                                    vars: {
+                                      // Calculate the difference between current time and onlineTime
+                                      currentTime: new Date(),
+                                      timeDifference: { $subtract: [new Date(), "$onlineTime"] }
+                                    },
+                                    in: {
+                                      // Convert time difference to hours, minutes, seconds
+                                      $concat: [
+                                        { $toString: { $floor: { $divide: ["$$timeDifference", 3600000] } } }, // Hours
+                                        ":",
+                                        { $toString: { $floor: { $divide: [{ $mod: ["$$timeDifference", 3600000] }, 60000] } } }, // Minutes
+                                        ":",
+                                        { $toString: { $floor: { $divide: [{ $mod: ["$$timeDifference", 60000] }, 1000] } } } // Seconds
+                                      ]
+                                    }
+                                  }
+                                },
+                                else: {
+                                  $let: {
+                                      vars: {
+                                          timeParts: { $split: ["$workingTime", ":"] }
+                                      },
+                                      in: {
+                                          $add: [
+                                              { $multiply: [{ $toInt: { $arrayElemAt: ["$$timeParts", 0] } }, 3600] },
+                                              { $multiply: [{ $toInt: { $arrayElemAt: ["$$timeParts", 1] } }, 60] },
+                                              { $toInt: { $arrayElemAt: ["$$timeParts", 2] } }
+                                          ]
+                                      }
+                                  }
+                                }
+                              }
+                            }
+                        }
+                    },
+                    { $match: { date: { $gte: new Date(startOfWeek), $lte: new Date(today) } } },
+                    { $project: { _id: 0, workingTime: 1 } }
+                ],
+                as: 'weekLogs'
+            }
+        },
+        {
+            $lookup: {
+                from: 'driverlogs',
+                localField: '_id',
+                foreignField: 'driverId',
+                pipeline: [
+                      {
+                        $addFields: {
+                            date: { $dateFromString: { dateString: "$date" } },
+                            workingTime: {
+                              $cond: {
+                                if: { $eq: ["$workingTime", "00:00:00"] }, // If workingTime is "00:00:00"
+                                then: {
+                                  $let: {
+                                    vars: {
+                                      // Calculate the difference between current time and onlineTime
+                                      currentTime: new Date(),
+                                      timeDifference: { $subtract: [new Date(), "$onlineTime"] }
+                                    },
+                                    in: {
+                                      // Convert time difference to hours, minutes, seconds
+                                      $concat: [
+                                        { $toString: { $floor: { $divide: ["$$timeDifference", 3600000] } } }, // Hours
+                                        ":",
+                                        { $toString: { $floor: { $divide: [{ $mod: ["$$timeDifference", 3600000] }, 60000] } } }, // Minutes
+                                        ":",
+                                        { $toString: { $floor: { $divide: [{ $mod: ["$$timeDifference", 60000] }, 1000] } } } // Seconds
+                                      ]
+                                    }
+                                  }
+                                },
+                                else: {
+                                  $let: {
+                                      vars: {
+                                          timeParts: { $split: ["$workingTime", ":"] }
+                                      },
+                                      in: {
+                                          $add: [
+                                              { $multiply: [{ $toInt: { $arrayElemAt: ["$$timeParts", 0] } }, 3600] },
+                                              { $multiply: [{ $toInt: { $arrayElemAt: ["$$timeParts", 1] } }, 60] },
+                                              { $toInt: { $arrayElemAt: ["$$timeParts", 2] } }
+                                          ]
+                                      }
+                                  } // If not "00:00:00", leave the original workingTime
+                                }
+                              }
+                            }
+                        }
+                    },
+                    { $match: { date: { $gte: new Date(startOfMonth), $lte: new Date(today) } } },
+                    { $project: { _id: 0, workingTime: 1 } }
+                ],
+                as: 'monthLogs'
+            }
+        },
+        {
+            $addFields: {
+              todayWorking: { $sum: { $ifNull: ['$todayLogs.workingTime',0]} },
+              yesterdayWorking: { $sum: { $ifNull: ['$yesterdayLogs.workingTime',0]} },
+              weekWorking: { $sum: { $ifNull: ['$weekLogs.workingTime',0]} },
+              monthWorking: { $sum: { $ifNull: ['$monthLogs.workingTime',0]} },
+              tripCompleted: { $ifNull: [{ $arrayElemAt: ['$tripStatus.completed', 0] }, 0] },
+              tripCancelled: { $ifNull: [{ $arrayElemAt: ['$tripStatus.cancelled', 0] }, 0] }
+            }
+        },
+        {
+            $addFields:{
+              todayWorkingTime:{
+                $concat: [
+                  { $toString: {$cond: [{ $gte: [{ $floor: { $divide: ["$todayWorking",3600]}},10]},
+                    { $floor: { $divide: ["$todayWorking", 3600] } },
+                    { $concat: ["0",{ $toString: { $floor: {$divide: ["$todayWorking", 3600] } } }] } ] },
+                  },
+                  ":",
+                  { $toString: { $cond: [{ $gte: [{ $floor: { $divide: [{ $mod: ["$todayWorking", 3600] }, 60] } }, 10] },
+                    { $floor: { $divide: [{ $mod: ["$todayWorking", 3600] }, 60] } },
+                    { $concat: ["0", { $toString: { $floor: { $divide: [{ $mod: ["$todayWorking", 3600] }, 60] } } } ] }] },
+                  },
+                  ":",
+                  { $toString: { $cond: [{ $gte: [{ $mod: ["$todayWorking", 60] }, 10] },
+                    { $mod: ["$todayWorking", 60] },
+                    { $concat: ["0", { $toString: { $mod: ["$todayWorking", 60] } }] }] }
+                  }
+                ]
+              },
+              yesterdayWorkingTime:{
+                $concat: [
+                  { $toString: {$cond: [{ $gte: [{ $floor: { $divide: ["$yesterdayWorking",3600]}},10]},
+                    { $floor: { $divide: ["$yesterdayWorking", 3600] } },
+                    { $concat: ["0",{ $toString: { $floor: {$divide: ["$yesterdayWorking", 3600] } } }] } ] },
+                  },
+                  ":",
+                  { $toString: { $cond: [{ $gte: [{ $floor: { $divide: [{ $mod: ["$yesterdayWorking", 3600] }, 60] } }, 10] },
+                    { $floor: { $divide: [{ $mod: ["$yesterdayWorking", 3600] }, 60] } },
+                    { $concat: ["0", { $toString: { $floor: { $divide: [{ $mod: ["$yesterdayWorking", 3600] }, 60] } } }] }] },
+                  },
+                  ":",
+                  { $toString: { $cond: [{ $gte: [{ $mod: ["$yesterdayWorking", 60] }, 10] },
+                    { $mod: ["$yesterdayWorking", 60] },
+                    { $concat: ["0", { $toString: { $mod: ["$yesterdayWorking", 60] } }] }] }
+                  }
+                ]
+              },
+              weeklyWorkingTime:{
+                $concat: [
+                  { $toString: {$cond: [{ $gte: [{ $floor: { $divide: ["$weekWorking",3600]}},10]},
+                    { $floor: { $divide: ["$weekWorking", 3600] } },
+                    { $concat: ["0",{ $toString: { $floor: {$divide: ["$weekWorking", 3600] } } }] } ] },
+                  },
+                  ":",
+                  { $toString: { $cond: [{ $gte: [{ $floor: { $divide: [{ $mod: ["$weekWorking", 3600] }, 60] } }, 10] },
+                    { $floor: { $divide: [{ $mod: ["$weekWorking", 3600] }, 60] } },
+                    { $concat: ["0", { $toString: { $floor: { $divide: [{ $mod: ["$weekWorking", 3600] }, 60] } } }] }] },
+                  },
+                  ":",
+                  { $toString: { $cond: [{ $gte: [{ $mod: ["$weekWorking", 60] }, 10] },
+                    { $mod: ["$weekWorking", 60] },
+                    { $concat: ["0", { $toString: { $mod: ["$weekWorking", 60] } }] }] }
+                  }
+                ]
+              },
+              monthlyWorkingTime:{
+                $concat: [
+                  { $toString: {$cond: [{ $gte: [{ $floor: { $divide: ["$monthWorking",3600]}},10]},
+                    { $floor: { $divide: ["$monthWorking", 3600] } },
+                    { $concat: ["0",{ $toString: { $floor: {$divide: ["$monthWorking", 3600] } } }] } ] },
+                  },
+                  ":",
+                  { $toString: { $cond: [{ $gte: [{ $floor: { $divide: [{ $mod: ["$monthWorking", 3600] }, 60] } }, 10] },
+                    { $floor: { $divide: [{ $mod: ["$monthWorking", 3600] }, 60] } },
+                    { $concat: ["0", { $toString: { $floor: { $divide: [{ $mod: ["$monthWorking", 3600] }, 60] } } }] }] },
+                  },
+                  ":",
+                  { $toString: { $cond: [{ $gte: [{ $mod: ["$monthWorking", 60] }, 10] },
+                    { $mod: ["$monthWorking", 60] },
+                    { $concat: ["0", { $toString: { $mod: ["$monthWorking", 60] } }] }] }
+                  }
+                ]
+              },
+            }
+        },
+      ];
+
+      basePipeline.push({
+        $match:{
+          'driver.serviceLocation' : new ObjectId(zoneId)
+        }
+      });
+
+      const dataPipeline = [
+        ...basePipeline,
+        {
+          $project: {
+            driverName:{
+              $ifNull:[
+                {$concat: ['$firstName', ' ', '$lastName']},
+                'N/A',
+              ]
+            },
+            phoneNumber: { $ifNull: ['$phoneNumber', null] },
+            currentStatus: {
+              $cond: {
+                if: { $eq: ["$onlineBy", 0] },
+                then: "Offline",
+                else: "Online"
+              }
+            },
+            driverStatus: { $cond:{
+              if:{ $eq: ["$active",true]},
+              then: "Active",
+              else: "Inactive"
+            } },
+            vehicleType: { $ifNull: ['$vehicles.vehicleName', null] },
+            todayWorkingTime: 1,
+            yesterdayWorkingTime: 1,
+            weeklyWorkingTime: 1,
+            monthlyWorkingTime: 1,
+            tripCompleted: 1,
+            tripCancelled: 1,
+          }
+        }
+      ];
+
+      const driverReports = await User.aggregate(dataPipeline);
+      return driverReports;
+  }
+  catch (error) {
+      // throw new Error(`Failed to fetch driver trips: ${error.message}`);
+      console.error('Error in aggregation:', error);
+      throw error;
+  }
+};
+
+const getRoleIdsByRoleName = async (roleName) => {
+  const roles = await Role.find({ role: roleName });
+  return roles.map((role) => new ObjectId(role.id));
+};
+
+
+const getZones = async (clientId, zoneId) => {
+  const zone = await Zone.find({
+    zoneLevel: 'PRIMARY',
+    clientId: clientId,
+    _id: zoneId,
+  }).select('_id zoneName zoneLevel status');
+
   return zone;
 };
 
@@ -1999,7 +1993,7 @@ const getDriverByZone = async(req,filter,options) => {
   filter.serviceLocation = new ObjectId(req.params.zoneId);
 
   const now = new Date(); // current time
-  const currentDate = new Date(now.toISOString().split('T')[0]); 
+  const currentDate = new Date(now.toISOString().split('T')[0]);
 
   const drivers = await Driver.aggregate([
     {
@@ -2053,8 +2047,8 @@ const getDriverByZone = async(req,filter,options) => {
           {
             $match: {
               $or: [
-                { 'driverPersonalDetails.firstName': { $regex: req.query.search, $options: 'i' } },
-                { 'driverPersonalDetails.phoneNumber': { $regex: req.query.search, $options: 'i' } }
+                { 'driverPersonalDetails.firstName': { $regex: '^'+req.query.search, $options: 'i' } },
+                { 'driverPersonalDetails.phoneNumber': { $regex: '^'+req.query.search, $options: 'i' } }
               ]
             }
           }
@@ -2088,7 +2082,7 @@ const getDriverByZone = async(req,filter,options) => {
           { $count: 'count' }
         ]
       }
-    } 
+    }
   ]);
 
   const results = drivers[0] || {};
@@ -2097,15 +2091,15 @@ const getDriverByZone = async(req,filter,options) => {
 
   const totalPages = Math.ceil(totalResults / limit);
 
+
   return {
-    data,
+    results:data,
     page,
     limit,
     totalPages,
     totalResults,
   };
 };
-
 module.exports = {
   createDriver,
   queryDrivers,
@@ -2124,6 +2118,9 @@ module.exports = {
   getYesterdayEarningsReport,
   getDriverTripsByMonth,
   updateDriversStatus,
+  getDriverByZone,
   getZones,
-  getDriverByZone
+  getDriverByUserId,
+  updateDriverById
+
 };

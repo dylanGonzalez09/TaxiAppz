@@ -5,6 +5,7 @@ const createGroupDocument = {
   body: Joi.object().keys({
     name: Joi.string().required(),
     zoneId: Joi.string().required(),
+    type: Joi.string().valid('driver').required(),
     status: Joi.boolean().required(),
   }),
 };
@@ -23,22 +24,19 @@ const getGroupDocument = {
   }),
 };
 
-const getGroupDocumentWithOutPagination = {
-
-};
+const getGroupDocumentWithOutPagination = {};
 
 const updateGroupDocument = {
   params: Joi.object().keys({
     groupDocumentId: Joi.required().custom(objectId),
-
   }),
-  body: Joi.object() 
+  body: Joi.object()
     .keys({
       name: Joi.string(),
       clientId: Joi.string().custom(objectId).optional(),
       status: Joi.boolean().required(),
+      type: Joi.string().valid('driver').optional(),
       zoneId: Joi.string().custom(objectId).optional(),
-
     })
     .min(1),
 };
@@ -64,5 +62,5 @@ module.exports = {
   getGroupDocumentWithOutPagination,
   updateGroupDocument,
   deleteGroupDocument,
-  updateGroupDocumentStatus
+  updateGroupDocumentStatus,
 };

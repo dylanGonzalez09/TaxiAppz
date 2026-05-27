@@ -7,7 +7,7 @@ services:
     environment:
       - mongodb+srv://admin:1234@cluster0.vosswk8.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0
     ports:
-      - '3001:3001'
+      - '4001:4001'
     depends_on:
       - mongodb
     volumes:

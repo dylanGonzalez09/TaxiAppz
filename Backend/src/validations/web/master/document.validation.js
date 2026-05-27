@@ -16,18 +16,20 @@ const createDocument = {
 
 const createDocuments = {
   body: Joi.object().keys({
-    newDocument: Joi.array().items(
-      Joi.object({
-        documentName: Joi.string().required(),
-        required: Joi.boolean().required(),
-        identifier: Joi.boolean().required(),
-        expiryDate: Joi.boolean().required(),
-        issueDate: Joi.boolean().required(),
-        imageRequired: Joi.boolean().required(),
-        documentId: Joi.string().required(), // Ensure this is a valid ObjectId
-        status: Joi.boolean().required(),
-      })
-    ).required(),
+    newDocument: Joi.array()
+      .items(
+        Joi.object({
+          documentName: Joi.string().required(),
+          required: Joi.boolean().required(),
+          identifier: Joi.boolean().required(),
+          expiryDate: Joi.boolean().required(),
+          issueDate: Joi.boolean().required(),
+          imageRequired: Joi.boolean().required(),
+          documentId: Joi.string().required(), // Ensure this is a valid ObjectId
+          status: Joi.boolean().required(),
+        }),
+      )
+      .required(),
   }),
 };
 
@@ -93,5 +95,5 @@ module.exports = {
   getDocumentWithOutPagination,
   updateDocument,
   deleteDocument,
-  updateDocumentStatus
+  updateDocumentStatus,
 };

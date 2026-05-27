@@ -6,21 +6,18 @@ const walletSchema = mongoose.Schema(
     earnedAmount: {
       type: Number,
       default: 0,
-      set: val => Math.round(val * 100) / 100
     },
     amountSpent: {
       type: Number,
       default: 0,
-      set: val => Math.round(val * 100) / 100
     },
     balance: {
       type: Number,
       default: 0,
-      set: val => Math.round(val * 100) / 100
     },
     userId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref:'User',
+      ref: 'User',
       required: true,
     },
 
@@ -31,12 +28,15 @@ const walletSchema = mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // Add plugin that converts mongoose to json
 walletSchema.plugin(toJSON);
 walletSchema.plugin(paginate);
+
+// Index for findOne by userId (walletTransaction, payouts)
+walletSchema.index({ userId: 1 }, { background: true });
 
 /**
  * @typedef Wallet

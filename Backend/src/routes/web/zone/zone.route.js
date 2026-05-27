@@ -8,20 +8,29 @@ const router = express.Router();
 
 router.route('/create').post(auth('Zone'), validate(zoneValidation.createZone), zoneController.createZone);
 router.route('/createZone').post(zoneController.zoneCreate);
-router.route('/checkZone').post(zoneController.zoneCheck);
 router.route('/getZones').get(auth('Zone'), validate(zoneValidation.getZones), zoneController.getZones);
 router.route('/getZone').get(auth('Zone'), zoneController.getZonePagination);
+router.route('/getActiveZone').get(auth('Zone'), zoneController.getActiveZonePagination);
 router.route('/getZone/list').get(auth('Zone'), zoneController.getZoneWithOutPagination);
 router.route('/getPrimaryZone/list').get(auth('Zone'), zoneController.getPrimaryZone);
+router.route('/getSecondaryZone/list').get(auth('Zone'), zoneController.getSecondaryZone);
 router.route('/getZones/:zoneId').get(auth('Zone'), validate(zoneValidation.getZone), zoneController.getZone);
+router.route('/getZoneVehicle/:zoneId').get(auth('Zone'), validate(zoneValidation.getZone), zoneController.getZoneVehicle);
+
 router.route('/updateZones/:zoneId').patch(zoneController.updateZone);
 router.route('/deleteZones/:zoneId').delete(auth('Zone'), validate(zoneValidation.deleteZone), zoneController.deleteZone);
-router.patch('/updateZoneStatus/:zoneId', auth('Zone'), validate(zoneValidation.updateZoneStatus), zoneController.updateZoneStatus);
+router.patch(
+  '/updateZoneStatus/:zoneId',
+  auth('Zone'),
+  validate(zoneValidation.updateZoneStatus),
+  zoneController.updateZoneStatus,
+);
+router.route('/getDropDown/list/:clientId/:zoneId').get(zoneController.getDropDownList);
+router.route('/primaryZoneMenu/list').get(auth('Zone'), zoneController.getPrimaryZoneMenu);
 router.route('/getDropDown/list/:clientId').get(zoneController.getDropDownList);
-
+router.route('/getZoneListByZoneId/:zoneId').get(zoneController.zoneListByZoneId);
 
 module.exports = router;
-
 
 /**
  * @swagger

@@ -8,7 +8,6 @@ const createWallet = {
     amountSpent: Joi.number().default(0),
     balance: Joi.number().default(0),
     userId: Joi.string().custom(objectId).optional(),
-
   }),
 };
 

@@ -30,8 +30,11 @@ const tokenSchema = mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
+
+// Compound index for findOne({ token, type, user, blacklisted })
+tokenSchema.index({ token: 1, type: 1, user: 1, blacklisted: 1 }, { background: true });
 
 // add plugin that converts mongoose to json
 tokenSchema.plugin(toJSON);

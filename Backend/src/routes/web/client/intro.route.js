@@ -8,17 +8,32 @@ const { imageModelUpload } = require('../../../middlewares/upload');
 const router = express.Router();
 
 // Routes with authentication and validation
-router.post('/create', auth('Intro'), validate(introValidation.createIntro), imageModelUpload.single('image'), introController.createIntro);
+router.post(
+  '/create',
+  auth('Intro'),
+  validate(introValidation.createIntro),
+  imageModelUpload.single('image'),
+  introController.createIntro,
+);
 router.get('/getIntros', auth('Intro'), validate(introValidation.getIntros), introController.getIntros);
 router.get('/getIntros/:introId', auth('Intro'), validate(introValidation.getIntro), introController.getIntro);
 router.get('/getIntro/list', auth('Intro'), introController.getIntrosWithoutPagination);
-router.patch('/updateIntros/:introId', auth('Intro'), validate(introValidation.updateIntro),imageModelUpload.single('image'), introController.updateIntro);
+router.patch(
+  '/updateIntros/:introId',
+  auth('Intro'),
+  validate(introValidation.updateIntro),
+  imageModelUpload.single('image'),
+  introController.updateIntro,
+);
 router.delete('/deleteIntros/:introId', auth('Intro'), validate(introValidation.deleteIntro), introController.deleteIntro);
-router.patch('/updateIntroStatus/:introId', auth('Intro'), validate(introValidation.updateIntroStatus), introController.updateIntroStatus);
+router.patch(
+  '/updateIntroStatus/:introId',
+  auth('Intro'),
+  validate(introValidation.updateIntroStatus),
+  introController.updateIntroStatus,
+);
 
 module.exports = router;
-
-
 
 /**
  * @swagger

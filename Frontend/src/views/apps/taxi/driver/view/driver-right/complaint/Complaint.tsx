@@ -183,7 +183,7 @@ return <Chip label={statusLabel} color={chipColor} variant='tonal' size='small' 
           placeholder={dictionary['navigation'].SearchComplint}
         />
       </div>
-      <div className='overflow-x-auto'>
+      <div className='overflow-x-auto' id="table-container">
         <table className={tableStyles.table}>
           <thead>
             {table.getHeaderGroups().map(headerGroup => (

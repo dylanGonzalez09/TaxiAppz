@@ -4,9 +4,9 @@ import { get, post, patch, del } from './formApiService';
 import { ENDPOINTS } from './endpoint';
 
 
-export const fetchDrivers = async () => {
+export const fetchDrivers = async (overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.driver.list);
+    const response = await get(ENDPOINTS.driver.list, undefined, overrideZoneId);
 
     if (response.success) {
       return response.data
@@ -18,9 +18,9 @@ export const fetchDrivers = async () => {
   }
 };
 
-export const fetchDriverData = async (id: string) => {
+export const fetchDriverData = async (id: string, overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.driver.getByDriverDetails(id));
+    const response = await get(ENDPOINTS.driver.getByDriverDetails(id), undefined, overrideZoneId);
 
     if (response.success) {
       return response.data;
@@ -35,10 +35,9 @@ export const fetchDriverData = async (id: string) => {
 };
 
 
-export const fetchZone = async () => {
-
+export const fetchZone = async (overrideZoneId?: any) => {
   try {
-        const response = await get(ENDPOINTS.zone.list);
+        const response = await get(ENDPOINTS.zone.list, undefined, overrideZoneId);
 
         if (response.success) {
             return response.data
@@ -50,10 +49,24 @@ export const fetchZone = async () => {
     }
 };
 
-export const getDriverByPagination = async (searchTerm: string, page: number, limit: number) => {
+export const fetchSecondaryZone = async (overrideZoneId?: any) => {
+  try {
+        const response = await get(ENDPOINTS.zone.secondaryZoneList, undefined, overrideZoneId);
+
+        if (response.success) {
+            return response.data
+        } else {
+            return []
+        }
+    } catch (error) {
+        return [];
+    }
+};
+
+export const getDriverByPagination = async (searchTerm: string, page: number, limit: number, overrideZoneId?: any,status?:string) => {
   try {
 
-    const response = await get(ENDPOINTS.driver.getDriverByPagination(searchTerm, page, limit))
+    const response = await get(ENDPOINTS.driver.getDriverByPagination(searchTerm, page, limit, status), undefined, overrideZoneId)
 
     if (response.success) {
       return response.data
@@ -67,11 +80,11 @@ export const getDriverByPagination = async (searchTerm: string, page: number, li
 }
 
 
-export const createDriver = async (formData: FormData) => {
+export const createDriver = async (formData: FormData, overrideZoneId?: any) => {
   try {
     const response = await post(ENDPOINTS.driver.create, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    }, overrideZoneId);
 
     if (response.success) {
       return response.data;
@@ -88,11 +101,11 @@ return { success: false, message: errorMessage };
   }
 };
 
-export const updateDriver = async (id: string, formData: FormData) => {
+export const updateDriver = async (id: string, formData: FormData, overrideZoneId?: any) => {
   try {
     const response = await patch(ENDPOINTS.driver.update(id), formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    }, overrideZoneId);
 
     if (response.success) {
       return response.data
@@ -104,10 +117,10 @@ export const updateDriver = async (id: string, formData: FormData) => {
   }
 };
 
-export const getByDriverId = async (id: string) => {
+export const getByDriverId = async (id: string, overrideZoneId?: any) => {
   try {
 
-    const response = await get(ENDPOINTS.driver.getById(id));
+    const response = await get(ENDPOINTS.driver.getById(id), undefined, overrideZoneId);
 
     if (response.success) {
       return response.data
@@ -119,10 +132,10 @@ export const getByDriverId = async (id: string) => {
   }
 };
 
-export const getVehicleByZone = async (id: string) => {
+export const getVehicleByZone = async (id: string, overrideZoneId?: any) => {
   try {
 
-    const response = await get(ENDPOINTS.driver.getVehicleByZone(id));
+    const response = await get(ENDPOINTS.driver.getVehicleByZone(id), undefined, overrideZoneId);
 
     if (response.success) {
       return response.data
@@ -134,9 +147,9 @@ export const getVehicleByZone = async (id: string) => {
   }
 };
 
-export const deleteDriverById = async (id: string) => {
+export const deleteDriverById = async (id: string, overrideZoneId?: any) => {
   try {
-    const response = await del(ENDPOINTS.driver.deleteById(id));
+    const response = await del(ENDPOINTS.driver.deleteById(id), undefined, overrideZoneId);
 
     if (response.success) {
       return response.data
@@ -149,9 +162,9 @@ export const deleteDriverById = async (id: string) => {
 };
 
 
-export const updateDriverStatus = async (id: string, user: any) => {
+export const updateDriverStatus = async (id: string, user: any, overrideZoneId?: any) => {
   try {
-    const response = await patch(ENDPOINTS.driver.updateStatus(id), user);
+    const response = await patch(ENDPOINTS.driver.updateStatus(id), user, undefined, overrideZoneId);
 
     if (response.success) {
       return response.data;
@@ -167,9 +180,9 @@ export const updateDriverStatus = async (id: string, user: any) => {
 
 };
 
-export const getDriverWallet = async () => {
+export const getDriverWallet = async (overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.driver.getDriverWallet);
+    const response = await get(ENDPOINTS.driver.getDriverWallet, undefined, overrideZoneId);
 
     if (response.success) {
       return response.data;
@@ -182,10 +195,10 @@ export const getDriverWallet = async () => {
   }
 }; 
 
-export const getZones = async () => {
+export const getZones = async (overrideZoneId?: any) => {
 
   try {
-        const response = await get(ENDPOINTS.driver.getZones);
+        const response = await get(ENDPOINTS.driver.getZones, undefined, overrideZoneId);
 
         if (response.success) {
             return response.data
@@ -197,10 +210,10 @@ export const getZones = async () => {
     }
 };
 
-export const getDriversByZone = async (id:string,searchTerm: string, page: number, limit: number) => {
+export const getDriversByZone = async (id: string, searchTerm: string, page: number, limit: number, overrideZoneId?: any) => {
 
   try {
-        const response = await get(ENDPOINTS.driver.getDriversByZone(id,searchTerm, page, limit));
+        const response = await get(ENDPOINTS.driver.getDriversByZone(id, searchTerm, page, limit), undefined, overrideZoneId);
 
         if (response.success) {
             return response.data

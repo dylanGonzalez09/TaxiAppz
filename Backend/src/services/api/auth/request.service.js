@@ -1,125 +1,106 @@
-const { Request, Driver, User, Document, DriverInProgressView, UserInProgressView, requestListView } = require('../../../models');
+const {
+  Request,
+  Driver,
+  User,
+  Document,
+  DriverInProgressView,
+  UserInProgressView,
+  requestListView,
+  PromoCode
+} = require('../../../models');
 const ApiError = require('../../../utils/ApiError');
-const httpStatus = require('http-status');
-const ObjectId = require('mongoose').Types.ObjectId
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
+const { ObjectId } = require('mongoose').Types;
 const tokenService = require('../../token.service');
 const { errorMessages, keyMessages } = require('../../../config/errorMessages');
 
-const { getPickupZone, getDropZone, calculateDistance, calculateZonePrices, createDataResponse, getAddressFromLatLng,getLatLngFromAddress,getRoutePolyline } = require('../../../utils/commonFunction')
+const {
+  getPickupZone,
+  getDropZone,
+  getAllRoutePolyline,
+  getUserId,
+  getClientId,
+  getTravelTime,
+  calculateDistance,
+  calculateZonePrices,
+  createDataResponse,
+  getAddressFromLatLng,
+  getLatLngFromAddress,
+  getRoutePolyline,
+} = require('../../../utils/commonFunction');
 
 const mongoose = require('mongoose');
+
 /**
   from the mobile side they need to send Client Id and Code (Version code)
-  1. Check the Version Available or not if not redirect to update screen 
-  2. check the avaliable languages for client send the avaliable languages 
+  1. Check the Version Available or not if not redirect to update screen
+  2. check the avaliable languages for client send the avaliable languages
  */
-const getClientId = async (req) => {
-
-  clientId = '';
-
-  if (!req.headers.clientid) {
-
-    throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
-
-  } else {
-
-    clientId = req.headers.clientid;
-
-  }
-
-  return clientId;
-}
-
-
-const getUserId = async (req) => {
-
-  let userId = '';
-
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    res.status(httpStatus.UNAUTHORIZED).send({ message: 'Authorization header is missing or invalid' });
-    return;
-  }
-  // Remove the 'Bearer ' prefix and get the token
-  const token = authHeader.substring(7);
-
-  const user = await tokenService.verifyTokenAndGetUser(token);
-
-  userId = user.id
-
-  return userId;
-}
-
 
 const getDriverRequestInProgress = async (req) => {
-  let clientId = await getClientId(req);
-  let userId = await getUserId(req);
+  const clientId = await getClientId(req);
+  const userId = await getUserId(req);
 
   const getRequest = DriverInProgressView.aggregate([
     {
       $match: {
         clientId: new ObjectId(clientId),
-        userId: new ObjectId(userId)
-      }
-    }
+        userId: new ObjectId(userId),
+      },
+    },
   ]);
 
   return getRequest;
 };
 
 const geUserRequestInProgress = async (req) => {
-  let clientId = await getClientId(req);
-  let userId = await getUserId(req);
+  const clientId = await getClientId(req);
+  const userId = await getUserId(req);
 
   const getRequest = UserInProgressView.aggregate([
     {
       $match: {
         clientId: new ObjectId(clientId),
-        _id: new ObjectId(userId)
-      }
-    }
+        _id: new ObjectId(userId),
+      },
+    },
   ]);
 
   return getRequest;
 };
 
 const getRequestListData = async (req) => {
-
   const getRequest = requestListView.aggregate([
     {
       $match: {
         _id: new ObjectId(req.params.requestId),
-      }
-    }
+      },
+    },
   ]);
 
   return getRequest;
 };
 
-
-
-
 const getRequest = async (req) => {
-  let clientId = await getClientId(req);
-  let userId = await getUserId(req);
+  const clientId = await getClientId(req);
+  const userId = await getUserId(req);
 
-  const document = await Document.find({ clientId: clientId, status: true });
+  const document = await Document.find({ clientId, status: true });
 
   const getRequest = Driver.aggregate([
     {
       $match: {
         clientId: new ObjectId(clientId),
-        userId: new ObjectId(userId)
-      }
+        userId: new ObjectId(userId),
+      },
     },
     {
       $lookup: {
         from: 'driverdocuments',
         localField: '_id',
         foreignField: 'driverId',
-        as: 'driverDocumentDetails'
-      }
+        as: 'driverDocumentDetails',
+      },
     },
     {
       $lookup: {
@@ -131,20 +112,20 @@ const getRequest = async (req) => {
               $expr: {
                 $and: [
                   { $eq: ['$driverId', '$$driverId'] }, // Match driverId with _id from the local collection
-                  { $eq: ['$active', true] } // Ensure active is true
-                ]
-              }
-            }
-          }
+                  { $eq: ['$active', true] }, // Ensure active is true
+                ],
+              },
+            },
+          },
         ],
-        as: 'requestMetaDetails'
-      }
+        as: 'requestMetaDetails',
+      },
     },
     {
       $unwind: {
         path: '$requestMetaDetails',
         preserveNullAndEmptyArrays: true,
-      }
+      },
     },
     {
       $lookup: {
@@ -198,13 +179,13 @@ const getRequest = async (req) => {
       $unwind: {
         path: '$requestPlaceDetailsData',
         preserveNullAndEmptyArrays: true,
-      }
+      },
     },
     {
       $unwind: {
         path: '$requestMetaUsers',
         preserveNullAndEmptyArrays: true,
-      }
+      },
     },
     {
       $lookup: {
@@ -217,20 +198,20 @@ const getRequest = async (req) => {
                 $and: [
                   { $eq: ['$driverId', '$$driverId'] }, // Match driverId with _id from the local collection
                   { $eq: ['$isCompleted', false] }, // Ensure isCompleted is true
-                  { $eq: ['$isCancelled', false] } // Ensure isCancelled is true
-                ]
-              }
-            }
-          }
+                  { $eq: ['$isCancelled', false] }, // Ensure isCancelled is true
+                ],
+              },
+            },
+          },
         ],
-        as: 'requestDetails'
-      }
+        as: 'requestDetails',
+      },
     },
     {
       $unwind: {
         path: '$requestDetails',
         preserveNullAndEmptyArrays: true,
-      }
+      },
     },
     {
       $lookup: {
@@ -253,16 +234,16 @@ const getRequest = async (req) => {
         from: 'requestplaces',
         localField: 'requestId',
         foreignField: 'requestDetails._id',
-        as: 'placesDetails'
-      }
+        as: 'placesDetails',
+      },
     },
     {
       $lookup: {
         from: 'requestratings',
         localField: 'requestId',
         foreignField: 'requestDetails._id',
-        as: 'ratingDetails'
-      }
+        as: 'ratingDetails',
+      },
     },
     {
       $lookup: {
@@ -283,26 +264,26 @@ const getRequest = async (req) => {
     {
       $unwind: {
         path: '$billingDetails',
-        preserveNullAndEmptyArrays: true
-      }
+        preserveNullAndEmptyArrays: true,
+      },
     },
     {
       $unwind: {
         path: '$ratingDetails',
-        preserveNullAndEmptyArrays: true
-      }
+        preserveNullAndEmptyArrays: true,
+      },
     },
     {
       $unwind: {
         path: '$user',
         preserveNullAndEmptyArrays: true,
-      }
+      },
     },
     {
       $unwind: {
         path: '$placesDetails',
         preserveNullAndEmptyArrays: true,
-      }
+      },
     },
     {
       $lookup: {
@@ -310,7 +291,7 @@ const getRequest = async (req) => {
         localField: 'userId',
         foreignField: '_id',
         as: 'driverPersonalDetails',
-      }
+      },
     },
     {
       $lookup: {
@@ -318,7 +299,7 @@ const getRequest = async (req) => {
         localField: 'type',
         foreignField: '_id',
         as: 'vehicleDetails',
-      }
+      },
     },
     {
       $lookup: {
@@ -326,31 +307,31 @@ const getRequest = async (req) => {
         localField: 'carModel',
         foreignField: '_id',
         as: 'vehicleModelDetails',
-      }
+      },
     },
     {
       $unwind: {
         path: '$driverPersonalDetails',
         preserveNullAndEmptyArrays: true,
-      }
+      },
     },
     {
       $unwind: {
         path: '$vehicleDetails',
         preserveNullAndEmptyArrays: true,
-      }
+      },
     },
     {
       $unwind: {
         path: '$vehicleModelDetails',
         preserveNullAndEmptyArrays: true,
-      }
+      },
     },
     {
       $unwind: {
         path: '$requestUser',
         preserveNullAndEmptyArrays: true,
-      }
+      },
     },
 
     {
@@ -361,19 +342,19 @@ const getRequest = async (req) => {
           {
             $match: {
               $expr: {
-                $eq: ['$_id', '$$clientId']
-              }
-            }
-          }
+                $eq: ['$_id', '$$clientId'],
+              },
+            },
+          },
         ],
-        as: 'clientData'
-      }
+        as: 'clientData',
+      },
     },
     {
       $unwind: {
         path: '$clientData',
-        preserveNullAndEmptyArrays: true
-      }
+        preserveNullAndEmptyArrays: true,
+      },
     },
 
     {
@@ -384,19 +365,19 @@ const getRequest = async (req) => {
           {
             $match: {
               $expr: {
-                $eq: ['$_id', '$$userId']
-              }
-            }
-          }
+                $eq: ['$_id', '$$userId'],
+              },
+            },
+          },
         ],
-        as: 'clientDetails'
-      }
+        as: 'clientDetails',
+      },
     },
     {
       $unwind: {
         path: '$clientDetails',
-        preserveNullAndEmptyArrays: true
-      }
+        preserveNullAndEmptyArrays: true,
+      },
     },
     {
       $addFields: {
@@ -418,16 +399,16 @@ const getRequest = async (req) => {
                               {
                                 $and: [
                                   { $ifNull: ['$$doc.expiryDate', false] }, // expiryDate exists
-                                  { $lt: ['$$doc.expiryDate', new Date()] } // expiryDate < today
-                                ]
-                              }
-                            ]
-                          }
-                        }
-                      }
+                                  { $lt: ['$$doc.expiryDate', new Date()] }, // expiryDate < today
+                                ],
+                              },
+                            ],
+                          },
+                        },
+                      },
                     },
-                    0
-                  ]
+                    0,
+                  ],
                 },
                 {
                   $ne: [
@@ -436,38 +417,38 @@ const getRequest = async (req) => {
                       $size: {
                         $filter: {
                           input: document,
-                          as: "doc",
-                          cond: { $eq: ["$$doc.required", true] }
-                        }
-                      }
+                          as: 'doc',
+                          cond: { $eq: ['$$doc.required', true] },
+                        },
+                      },
                     },
                     // Count of required documents present in driverDocumentDetails
                     {
                       $size: {
                         $filter: {
                           input: document,
-                          as: "doc",
+                          as: 'doc',
                           cond: {
                             $and: [
-                              { $eq: ["$$doc.required", true] },
+                              { $eq: ['$$doc.required', true] },
                               {
                                 $in: [
-                                  "$$doc._id",
+                                  '$$doc._id',
                                   {
                                     $map: {
-                                      input: "$driverDocumentDetails",
-                                      as: "driverDoc",
-                                      in: "$$driverDoc.documentId"
-                                    }
-                                  }
-                                ]
-                              }
-                            ]
-                          }
-                        }
-                      }
-                    }
-                  ]
+                                      input: '$driverDocumentDetails',
+                                      as: 'driverDoc',
+                                      in: '$$driverDoc.documentId',
+                                    },
+                                  },
+                                ],
+                              },
+                            ],
+                          },
+                        },
+                      },
+                    },
+                  ],
                 }, // Document count not equal to expected count
                 {
                   $gt: [
@@ -476,18 +457,18 @@ const getRequest = async (req) => {
                         $filter: {
                           input: '$driverDocumentDetails',
                           as: 'doc',
-                          cond: { $ne: ['$$doc.documentStatus', 'APPROVED'] } // Not approved documents
-                        }
-                      }
+                          cond: { $ne: ['$$doc.documentStatus', 'APPROVED'] }, // Not approved documents
+                        },
+                      },
                     },
-                    0
-                  ]
-                } // Any document is not approved
-              ]
+                    0,
+                  ],
+                }, // Any document is not approved
+              ],
             },
             false, // Inactive
-            true // Active
-          ]
+            true, // Active
+          ],
         },
         blockReason: {
           $cond: {
@@ -498,40 +479,40 @@ const getRequest = async (req) => {
                   $size: {
                     $filter: {
                       input: document,
-                      as: "doc",
-                      cond: { $eq: ["$$doc.required", true] }
-                    }
-                  }
+                      as: 'doc',
+                      cond: { $eq: ['$$doc.required', true] },
+                    },
+                  },
                 },
                 // Count of required documents present in driverDocumentDetails
                 {
                   $size: {
                     $filter: {
                       input: document,
-                      as: "doc",
+                      as: 'doc',
                       cond: {
                         $and: [
-                          { $eq: ["$$doc.required", true] },
+                          { $eq: ['$$doc.required', true] },
                           {
                             $in: [
-                              "$$doc._id",
+                              '$$doc._id',
                               {
                                 $map: {
-                                  input: "$driverDocumentDetails",
-                                  as: "driverDoc",
-                                  in: "$$driverDoc.documentId"
-                                }
-                              }
-                            ]
-                          }
-                        ]
-                      }
-                    }
-                  }
-                }
-              ]
+                                  input: '$driverDocumentDetails',
+                                  as: 'driverDoc',
+                                  in: '$$driverDoc.documentId',
+                                },
+                              },
+                            ],
+                          },
+                        ],
+                      },
+                    },
+                  },
+                },
+              ],
             },
-            then: "DOCUMENT_NOT_UPLOADED", // Document and driver document counts do not match
+            then: 'DOCUMENT_NOT_UPLOADED', // Document and driver document counts do not match
             else: {
               $cond: {
                 if: {
@@ -541,12 +522,12 @@ const getRequest = async (req) => {
                         $filter: {
                           input: '$driverDocumentDetails',
                           as: 'doc',
-                          cond: { $eq: ['$$doc.documentStatus', 'WAITINGFORAPPROVAL'] } // Check for WAITINGFORAPPROVAL
-                        }
-                      }
+                          cond: { $eq: ['$$doc.documentStatus', 'WAITINGFORAPPROVAL'] }, // Check for WAITINGFORAPPROVAL
+                        },
+                      },
                     },
-                    0
-                  ]
+                    0,
+                  ],
                 },
                 then: 'WAITINGFORAPPROVAL', // If any document is WAITINGFORAPPROVAL
                 else: {
@@ -565,14 +546,14 @@ const getRequest = async (req) => {
                                   cond: {
                                     $and: [
                                       { $ifNull: ['$$doc.expiryDate', false] }, // expiryDate exists
-                                      { $lt: ['$$doc.expiryDate', new Date()] } // expiryDate is in the past
-                                    ]
-                                  }
-                                }
-                              }
+                                      { $lt: ['$$doc.expiryDate', new Date()] }, // expiryDate is in the past
+                                    ],
+                                  },
+                                },
+                              },
                             },
-                            0
-                          ]
+                            0,
+                          ],
                         },
                         then: 'EXPIRED',
                         else: {
@@ -584,38 +565,38 @@ const getRequest = async (req) => {
                                   $size: {
                                     $filter: {
                                       input: document,
-                                      as: "doc",
-                                      cond: { $eq: ["$$doc.required", true] }
-                                    }
-                                  }
+                                      as: 'doc',
+                                      cond: { $eq: ['$$doc.required', true] },
+                                    },
+                                  },
                                 },
                                 // Count of required documents present in driverDocumentDetails
                                 {
                                   $size: {
                                     $filter: {
                                       input: document,
-                                      as: "doc",
+                                      as: 'doc',
                                       cond: {
                                         $and: [
-                                          { $eq: ["$$doc.required", true] },
+                                          { $eq: ['$$doc.required', true] },
                                           {
                                             $in: [
-                                              "$$doc._id",
+                                              '$$doc._id',
                                               {
                                                 $map: {
-                                                  input: "$driverDocumentDetails",
-                                                  as: "driverDoc",
-                                                  in: "$$driverDoc.documentId"
-                                                }
-                                              }
-                                            ]
-                                          }
-                                        ]
-                                      }
-                                    }
-                                  }
-                                }
-                              ]
+                                                  input: '$driverDocumentDetails',
+                                                  as: 'driverDoc',
+                                                  in: '$$driverDoc.documentId',
+                                                },
+                                              },
+                                            ],
+                                          },
+                                        ],
+                                      },
+                                    },
+                                  },
+                                },
+                              ],
                             }, // Document count does not match driver document count
                             then: 'DOCUMENT_NOT_UPLOADED', // Document and driver document counts do not match
                             else: {
@@ -627,26 +608,26 @@ const getRequest = async (req) => {
                                         $filter: {
                                           input: '$driverDocumentDetails',
                                           as: 'doc',
-                                          cond: { $ne: ['$$doc.documentStatus', 'APPROVED'] } // Any document not approved
-                                        }
-                                      }
+                                          cond: { $ne: ['$$doc.documentStatus', 'APPROVED'] }, // Any document not approved
+                                        },
+                                      },
                                     },
-                                    0
-                                  ]
+                                    0,
+                                  ],
                                 }, // All documents are approved
                                 then: 'APPROVED',
-                                else: 'DENIED' // Not all documents are approved
-                              }
+                                else: 'DENIED', // Not all documents are approved
+                              },
                             },
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
         },
         onlineBy: {
           $cond: {
@@ -654,7 +635,7 @@ const getRequest = async (req) => {
             then: true,
             else: false,
           },
-        }
+        },
       },
     },
     {
@@ -703,10 +684,10 @@ const getRequest = async (req) => {
                         $cond: {
                           if: { $ifNull: ['$placesDetails', false] }, // Checks if the field exists and is not null
                           then: '$placesDetails',
-                          else: null
-                        }
-                      }
-                    }
+                          else: null,
+                        },
+                      },
+                    },
                   },
                   userDetailsData: {
                     $cond: {
@@ -716,37 +697,37 @@ const getRequest = async (req) => {
                         $cond: {
                           if: { $ne: ['$requestUser', null] },
                           then: '$requestUser',
-                          else: null
-                        }
-                      }
-                    }
+                          else: null,
+                        },
+                      },
+                    },
                   },
                   requestData: {
                     $cond: {
-                      if: { $and: [{ $isArray: "$requestDetailsData" }, { $ne: [{ $size: "$requestDetailsData" }, 0] }] },
+                      if: { $and: [{ $isArray: '$requestDetailsData' }, { $ne: [{ $size: '$requestDetailsData' }, 0] }] },
                       then: { $arrayElemAt: ['$requestDetailsData', 0] },
                       else: {
                         $cond: {
                           if: { $ne: ['$requestDetails', null] },
                           then: '$requestDetails',
-                          else: null
-                        }
-                      }
-                    }
-                  }
+                          else: null,
+                        },
+                      },
+                    },
+                  },
                 },
                 in: {
                   $cond: {
                     if: {
                       $and: [
-                        { $ne: [{ $ifNull: ["$$requestData", null] }, null] },  // Check if requestData is not null
+                        { $ne: [{ $ifNull: ['$$requestData', null] }, null] }, // Check if requestData is not null
                         {
                           $and: [
-                            { $eq: [{ "$ifNull": ["$$requestData.isCancelled", false] }, false] },
-                            { $eq: [{ "$ifNull": ["$$requestData.isCompleted", false] }, false] }
-                          ]
-                        }
-                      ]
+                            { $eq: [{ $ifNull: ['$$requestData.isCancelled', false] }, false] },
+                            { $eq: [{ $ifNull: ['$$requestData.isCompleted', false] }, false] },
+                          ],
+                        },
+                      ],
                     },
                     then: {
                       _id: { $ifNull: ['$$requestData._id', null] },
@@ -805,20 +786,14 @@ const getRequest = async (req) => {
                       vehicleDetails: {
                         vehicleName: { $ifNull: ['$$vehicleDetails.vehicleName', null] },
                         image: {
-                          $concat: [
-                            "/uploads/vehicles/",
-                            { $ifNull: ['$$vehicleDetails.image', ''] }
-                          ]
+                          $concat: ['/uploads/vehicles/', { $ifNull: ['$$vehicleDetails.image', ''] }],
                         },
                         capacity: { $ifNull: ['$$vehicleDetails.capacity', null] },
                         serviceType: { $ifNull: ['$$vehicleDetails.serviceType', null] },
                         categoryId: { $ifNull: ['$$vehicleDetails.categoryId', null] },
                         sortingorder: { $ifNull: ['$$vehicleDetails.sortingorder', null] },
                         highlightImage: {
-                          $concat: [
-                            "/uploads/vehicles/",
-                            { $ifNull: ['$$vehicleDetails.highlightImage', ''] }
-                          ]
+                          $concat: ['/uploads/vehicles/', { $ifNull: ['$$vehicleDetails.highlightImage', ''] }],
                         },
                         status: { $ifNull: ['$$vehicleDetails.status', null] },
                         clientId: { $ifNull: ['$$vehicleDetails.clientId', null] },
@@ -827,43 +802,38 @@ const getRequest = async (req) => {
                         modelname: { $ifNull: ['$$vehicleModelDetails.modelname', null] },
                         description: { $ifNull: ['$$vehicleModelDetails.description', null] },
                         image: {
-                          $concat: [
-                            "/uploads/vehicleModels/",
-                            { $ifNull: ['$$vehicleModelDetails.image', ''] }
-                          ]
+                          $concat: ['/uploads/vehicleModels/', { $ifNull: ['$$vehicleModelDetails.image', ''] }],
                         },
                         vehicleId: { $ifNull: ['$$vehicleModelDetails.vehicleId', null] },
                         status: { $ifNull: ['$$vehicleModelDetails.status', null] },
                         clientId: { $ifNull: ['$$vehicleModelDetails.clientId', null] },
                       },
                     },
-                    else: null
-                  }
-                }
-              }
+                    else: null,
+                  },
+                },
+              },
             },
-            null
-          ]
-        }
-      }
-    }
+            null,
+          ],
+        },
+      },
+    },
   ]);
 
   return getRequest;
 };
 
-
 const userGetRequest = async (req) => {
-
-  let clientId = await getClientId(req);
-  let userId = await getUserId(req);
+  const clientId = await getClientId(req);
+  const userId = await getUserId(req);
 
   const getRequest = await User.aggregate([
     {
       $match: {
         clientId: new ObjectId(clientId),
-        _id: new ObjectId(userId)
-      }
+        _id: new ObjectId(userId),
+      },
     },
     {
       $lookup: {
@@ -876,20 +846,20 @@ const userGetRequest = async (req) => {
                 $and: [
                   { $eq: ['$userId', '$$userId'] }, // Match driverId with _id from the local collection
                   { $eq: ['$isCompleted', false] }, // Ensure isCompleted is true
-                  { $eq: ['$isCancelled', false] } // Ensure isCancelled is true
-                ]
-              }
-            }
-          }
+                  { $eq: ['$isCancelled', false] }, // Ensure isCancelled is true
+                ],
+              },
+            },
+          },
         ],
-        as: 'requestDetails'
-      }
+        as: 'requestDetails',
+      },
     },
     {
       $unwind: {
         path: '$requestDetails',
         preserveNullAndEmptyArrays: true,
-      }
+      },
     },
     {
       $lookup: {
@@ -912,16 +882,16 @@ const userGetRequest = async (req) => {
         from: 'requestplaces',
         localField: 'requestId',
         foreignField: 'requestDetails._id',
-        as: 'placesDetails'
-      }
+        as: 'placesDetails',
+      },
     },
     {
       $lookup: {
         from: 'requestratings',
         localField: 'requestId',
         foreignField: 'requestDetails._id',
-        as: 'ratingDetails'
-      }
+        as: 'ratingDetails',
+      },
     },
     {
       $lookup: {
@@ -942,8 +912,8 @@ const userGetRequest = async (req) => {
     {
       $unwind: {
         path: '$driverDetails',
-        preserveNullAndEmptyArrays: true
-      }
+        preserveNullAndEmptyArrays: true,
+      },
     },
     {
       $lookup: {
@@ -951,7 +921,7 @@ const userGetRequest = async (req) => {
         localField: 'driverDetails.type',
         foreignField: '_id',
         as: 'vehicleDetails',
-      }
+      },
     },
     {
       $lookup: {
@@ -959,31 +929,31 @@ const userGetRequest = async (req) => {
         localField: 'driverDetails.carModel',
         foreignField: '_id',
         as: 'vehicleModelDetails',
-      }
+      },
     },
     {
       $unwind: {
         path: '$billingDetails',
-        preserveNullAndEmptyArrays: true
-      }
+        preserveNullAndEmptyArrays: true,
+      },
     },
     {
       $unwind: {
         path: '$ratingDetails',
-        preserveNullAndEmptyArrays: true
-      }
+        preserveNullAndEmptyArrays: true,
+      },
     },
     {
       $unwind: {
         path: '$user',
         preserveNullAndEmptyArrays: true,
-      }
+      },
     },
     {
       $unwind: {
         path: '$placesDetails',
-        preserveNullAndEmptyArrays: true
-      }
+        preserveNullAndEmptyArrays: true,
+      },
     },
     {
       $lookup: {
@@ -991,25 +961,25 @@ const userGetRequest = async (req) => {
         localField: 'driverDetails.userId',
         foreignField: '_id',
         as: 'driverPersonalDetails',
-      }
+      },
     },
     {
       $unwind: {
         path: '$driverPersonalDetails',
-        preserveNullAndEmptyArrays: true
-      }
+        preserveNullAndEmptyArrays: true,
+      },
     },
     {
       $unwind: {
         path: '$vehicleDetails',
         preserveNullAndEmptyArrays: true,
-      }
+      },
     },
     {
       $unwind: {
         path: '$vehicleModelDetails',
         preserveNullAndEmptyArrays: true,
-      }
+      },
     },
     {
       $lookup: {
@@ -1019,19 +989,19 @@ const userGetRequest = async (req) => {
           {
             $match: {
               $expr: {
-                $eq: ['$_id', '$$clientId']
-              }
-            }
-          }
+                $eq: ['$_id', '$$clientId'],
+              },
+            },
+          },
         ],
-        as: 'clientData'
-      }
+        as: 'clientData',
+      },
     },
     {
       $unwind: {
         path: '$clientData',
-        preserveNullAndEmptyArrays: true
-      }
+        preserveNullAndEmptyArrays: true,
+      },
     },
 
     {
@@ -1042,19 +1012,19 @@ const userGetRequest = async (req) => {
           {
             $match: {
               $expr: {
-                $eq: ['$_id', '$$userId']
-              }
-            }
-          }
+                $eq: ['$_id', '$$userId'],
+              },
+            },
+          },
         ],
-        as: 'clientDetails'
-      }
+        as: 'clientDetails',
+      },
     },
     {
       $unwind: {
         path: '$clientDetails',
-        preserveNullAndEmptyArrays: true
-      }
+        preserveNullAndEmptyArrays: true,
+      },
     },
     {
       $project: {
@@ -1076,18 +1046,20 @@ const userGetRequest = async (req) => {
               $or: [
                 {
                   $and: [
-                    { $ne: [{ $ifNull: ["$requestDetails", null] }, null] },
-                    { $eq: [{ $ifNull: ["$requestDetails.isCancelled", false] }, false] },
-                    { $eq: [{ $ifNull: ["$requestDetails.isCompleted", false] }, false] }]
+                    { $ne: [{ $ifNull: ['$requestDetails', null] }, null] },
+                    { $eq: [{ $ifNull: ['$requestDetails.isCancelled', false] }, false] },
+                    { $eq: [{ $ifNull: ['$requestDetails.isCompleted', false] }, false] },
+                  ],
                 },
                 {
                   $and: [
-                    { $eq: [{ $ifNull: ["$requestDetails.isLater", false] }, true] },
-                    { $ne: ["$requestDetails.driverId", null] },
-                    { $eq: [{ $ifNull: ["$requestDetails.isCancelled", false] }, false] },
-                    { $eq: [{ $ifNull: ["$requestDetails.isCompleted", false] }, false] }]
-                }
-              ]
+                    { $eq: [{ $ifNull: ['$requestDetails.isLater', false] }, true] },
+                    { $ne: ['$requestDetails.driverId', null] },
+                    { $eq: [{ $ifNull: ['$requestDetails.isCancelled', false] }, false] },
+                    { $eq: [{ $ifNull: ['$requestDetails.isCompleted', false] }, false] },
+                  ],
+                },
+              ],
             },
             then: {
               _id: { $ifNull: ['$requestDetails._id', null] },
@@ -1156,25 +1128,19 @@ const userGetRequest = async (req) => {
                 country: { $ifNull: ['$driverPersonalDetails.country', null] },
                 address: { $ifNull: ['$driverPersonalDetails.address', null] },
                 profilePic: { $ifNull: ['$driverPersonalDetails.profilePic', null] },
-                active: { $ifNull: ['$driverPersonalDetails.active', null] }
+                active: { $ifNull: ['$driverPersonalDetails.active', null] },
               },
               vehicleDetails: {
                 vehicleName: { $ifNull: ['$vehicleDetails.vehicleName', null] },
                 image: {
-                  $concat: [
-                    "/uploads/vehicles/",
-                    { $ifNull: ['$vehicleDetails.image', ''] }
-                  ]
+                  $concat: ['/uploads/vehicles/', { $ifNull: ['$vehicleDetails.image', ''] }],
                 },
                 capacity: { $ifNull: ['$vehicleDetails.capacity', null] },
                 serviceType: { $ifNull: ['$vehicleDetails.serviceType', null] },
                 categoryId: { $ifNull: ['$vehicleDetails.categoryId', null] },
                 sortingorder: { $ifNull: ['$vehicleDetails.sortingorder', null] },
                 highlightImage: {
-                  $concat: [
-                    "/uploads/vehicles/",
-                    { $ifNull: ['$vehicleDetails.highlightImage', ''] }
-                  ]
+                  $concat: ['/uploads/vehicles/', { $ifNull: ['$vehicleDetails.highlightImage', ''] }],
                 },
                 status: { $ifNull: ['$vehicleDetails.status', null] },
                 clientId: { $ifNull: ['$vehicleDetails.clientId', null] },
@@ -1183,10 +1149,7 @@ const userGetRequest = async (req) => {
                 modelname: { $ifNull: ['$vehicleModelDetails.modelname', null] },
                 description: { $ifNull: ['$vehicleModelDetails.description', null] },
                 image: {
-                  $concat: [
-                    "/uploads/vehicleModels/",
-                    { $ifNull: ['$vehicleModelDetails.image', ''] }
-                  ]
+                  $concat: ['/uploads/vehicleModels/', { $ifNull: ['$vehicleModelDetails.image', ''] }],
                 },
                 vehicleId: { $ifNull: ['$vehicleModelDetails.vehicleId', null] },
                 status: { $ifNull: ['$vehicleModelDetails.status', null] },
@@ -1194,49 +1157,48 @@ const userGetRequest = async (req) => {
               },
               billingDetails: { $ifNull: ['$billingDetails', null] },
             },
-            else: null
-          }
-        }
-      }
-    }
+            else: null,
+          },
+        },
+      },
+    },
   ]);
 
   return getRequest;
 };
 
-
 const getRequestList = async (req) => {
-  let clientId = await getClientId(req);
+  const clientId = await getClientId(req);
 
   return Request.aggregate([
     {
       $match: {
         clientId: new ObjectId(clientId),
-      }
+      },
     },
     {
       $lookup: {
         from: 'requestbills',
         localField: '_id',
         foreignField: 'requestId',
-        as: 'billingDetails'
-      }
+        as: 'billingDetails',
+      },
     },
     {
       $lookup: {
         from: 'requestplaces',
         localField: '_id',
         foreignField: 'requestId',
-        as: 'placesDetails'
-      }
+        as: 'placesDetails',
+      },
     },
     {
       $lookup: {
         from: 'requestratings',
         localField: '_id',
         foreignField: 'requestId',
-        as: 'ratingDetails'
-      }
+        as: 'ratingDetails',
+      },
     },
     {
       $lookup: {
@@ -1257,26 +1219,26 @@ const getRequestList = async (req) => {
     {
       $unwind: {
         path: '$billingDetails',
-        preserveNullAndEmptyArrays: true
-      }
+        preserveNullAndEmptyArrays: true,
+      },
     },
     {
       $unwind: {
         path: '$ratingDetails',
-        preserveNullAndEmptyArrays: true
-      }
+        preserveNullAndEmptyArrays: true,
+      },
     },
     {
       $unwind: {
         path: '$user',
         preserveNullAndEmptyArrays: true,
-      }
+      },
     },
     {
       $unwind: {
         path: '$driverDetails',
         preserveNullAndEmptyArrays: true,
-      }
+      },
     },
     {
       $lookup: {
@@ -1284,7 +1246,7 @@ const getRequestList = async (req) => {
         localField: 'driverDetails.userId',
         foreignField: '_id',
         as: 'driverPersonalDetails',
-      }
+      },
     },
     {
       $lookup: {
@@ -1292,7 +1254,7 @@ const getRequestList = async (req) => {
         localField: 'driverDetails.type',
         foreignField: '_id',
         as: 'vehicleDetails',
-      }
+      },
     },
     {
       $lookup: {
@@ -1300,25 +1262,25 @@ const getRequestList = async (req) => {
         localField: 'driverDetails.carModel',
         foreignField: '_id',
         as: 'vehicleModelDetails',
-      }
+      },
     },
     {
       $unwind: {
         path: '$driverPersonalDetails',
         preserveNullAndEmptyArrays: true,
-      }
+      },
     },
     {
       $unwind: {
         path: '$vehicleDetails',
         preserveNullAndEmptyArrays: true,
-      }
+      },
     },
     {
       $unwind: {
         path: '$vehicleModelDetails',
         preserveNullAndEmptyArrays: true,
-      }
+      },
     },
     {
       $project: {
@@ -1447,43 +1409,42 @@ const getRequestList = async (req) => {
         'vehicleModelDetails.image': { $ifNull: ['$vehicleModelDetails.image', null] },
         'vehicleModelDetails.vehicleId': { $ifNull: ['$vehicleModelDetails.vehicleId', null] },
         'vehicleModelDetails.status': { $ifNull: ['$vehicleModelDetails.status', null] },
-        'vehicleModelDetails.clientId': { $ifNull: ['$vehicleModelDetails.clientId', null] }
-      }
-    }
+        'vehicleModelDetails.clientId': { $ifNull: ['$vehicleModelDetails.clientId', null] },
+      },
+    },
   ]);
 };
-
 
 const getRequestListView = async (req) => {
   return Request.aggregate([
     {
       $match: {
         _id: new ObjectId(req.params.requestId),
-      }
+      },
     },
     {
       $lookup: {
         from: 'requestbills',
         localField: '_id',
         foreignField: 'requestId',
-        as: 'billingDetails'
-      }
+        as: 'billingDetails',
+      },
     },
     {
       $lookup: {
         from: 'requestplaces',
         localField: '_id',
         foreignField: 'requestId',
-        as: 'placesDetails'
-      }
+        as: 'placesDetails',
+      },
     },
     {
       $lookup: {
         from: 'requestratings',
         localField: '_id',
         foreignField: 'requestId',
-        as: 'ratingDetails'
-      }
+        as: 'ratingDetails',
+      },
     },
     {
       $lookup: {
@@ -1504,26 +1465,26 @@ const getRequestListView = async (req) => {
     {
       $unwind: {
         path: '$billingDetails',
-        preserveNullAndEmptyArrays: true
-      }
+        preserveNullAndEmptyArrays: true,
+      },
     },
     {
       $unwind: {
         path: '$ratingDetails',
-        preserveNullAndEmptyArrays: true
-      }
+        preserveNullAndEmptyArrays: true,
+      },
     },
     {
       $unwind: {
         path: '$user',
         preserveNullAndEmptyArrays: true,
-      }
+      },
     },
     {
       $unwind: {
         path: '$driverDetails',
         preserveNullAndEmptyArrays: true,
-      }
+      },
     },
     {
       $lookup: {
@@ -1531,7 +1492,7 @@ const getRequestListView = async (req) => {
         localField: 'driverDetails.userId',
         foreignField: '_id',
         as: 'driverPersonalDetails',
-      }
+      },
     },
     {
       $lookup: {
@@ -1539,7 +1500,7 @@ const getRequestListView = async (req) => {
         localField: 'driverDetails.type',
         foreignField: '_id',
         as: 'vehicleDetails',
-      }
+      },
     },
     {
       $lookup: {
@@ -1547,25 +1508,25 @@ const getRequestListView = async (req) => {
         localField: 'driverDetails.carModel',
         foreignField: '_id',
         as: 'vehicleModelDetails',
-      }
+      },
     },
     {
       $unwind: {
         path: '$driverPersonalDetails',
         preserveNullAndEmptyArrays: true,
-      }
+      },
     },
     {
       $unwind: {
         path: '$vehicleDetails',
         preserveNullAndEmptyArrays: true,
-      }
+      },
     },
     {
       $unwind: {
         path: '$vehicleModelDetails',
         preserveNullAndEmptyArrays: true,
-      }
+      },
     },
     {
       $project: {
@@ -1694,12 +1655,11 @@ const getRequestListView = async (req) => {
         'vehicleModelDetails.image': { $ifNull: ['$vehicleModelDetails.image', null] },
         'vehicleModelDetails.vehicleId': { $ifNull: ['$vehicleModelDetails.vehicleId', null] },
         'vehicleModelDetails.status': { $ifNull: ['$vehicleModelDetails.status', null] },
-        'vehicleModelDetails.clientId': { $ifNull: ['$vehicleModelDetails.clientId', null] }
-      }
-    }
+        'vehicleModelDetails.clientId': { $ifNull: ['$vehicleModelDetails.clientId', null] },
+      },
+    },
   ]);
 };
-
 
 const getLastTripHistory = async (userId) => {
   return Request.aggregate([
@@ -1709,17 +1669,17 @@ const getLastTripHistory = async (userId) => {
         from: 'requestplaces', // Reference to the RequestPlace collection
         localField: '_id', // Match the request ID with the RequestPlace's requestId
         foreignField: 'requestId', // The foreign field that references the Request collection
-        as: 'places' // Alias for the joined documents
-      }
+        as: 'places', // Alias for the joined documents
+      },
     },
     {
-      $project: { requestNumber: 1, places: 1 } // Add this to inspect the 'places' field
+      $project: { requestNumber: 1, places: 1 }, // Add this to inspect the 'places' field
     },
     {
       $unwind: {
         path: '$places', // Unwind the 'places' array to bring in the individual documents
-        preserveNullAndEmptyArrays: true // Ensure trips without places are included
-      }
+        preserveNullAndEmptyArrays: true, // Ensure trips without places are included
+      },
     },
     {
       $project: {
@@ -1729,48 +1689,74 @@ const getLastTripHistory = async (userId) => {
         pickAddress: { $ifNull: ['$places.pickAddress', null] },
         dropLat: { $ifNull: ['$places.dropLat', null] },
         dropLng: { $ifNull: ['$places.dropLng', null] },
-        dropAddress: { $ifNull: ['$places.dropAddress', null] }
-      }
+        dropAddress: { $ifNull: ['$places.dropAddress', null] },
+      },
     },
     { $sort: { createdAt: -1 } }, // Sort by createdAt descending
-    { $limit: 2 } // Limit to the last 2 trips
+    { $limit: 2 }, // Limit to the last 2 trips
   ]);
 };
 
-
 const checkPickUpZone = async (req) => {
   const zone = await getPickupZone(req);
-
   if (!zone || zone.nonServiceZone === 'Yes') {
     return false;
-  } else {
-    return true;
   }
 
-}
+  const userId = await getUserId(req);
+  if (!userId) return false;
 
+  let serviceAreaId = null;
+
+  switch (zone.zoneLevel) {
+    case 'PRIMARY':
+      serviceAreaId = zone._id;
+      break;
+    case 'SECONDARY':
+      serviceAreaId = zone.primaryZoneId;
+      break;
+  }
+
+  if (serviceAreaId) {
+    const user = await User.findById(userId);
+    if (user && String(user.zoneId) !== String(serviceAreaId)) {
+      await User.findByIdAndUpdate(userId, { zoneId: serviceAreaId });
+    }
+  }
+
+  return true;
+};
 
 const convertLatLngAddress = async (req) => {
   const latlng = await getAddressFromLatLng(req);
   return latlng;
-}
-
+};
 
 const convertAddressLatLng = async (req) => {
   const Address = await getLatLngFromAddress(req);
   return Address;
-}
+};
 
 const getRoutePolylines = async (req) => {
   const Address = await getRoutePolyline(req);
   return Address;
-}
+};
+
+const getAllRoutePolylines = async (req) => {
+  const Address = await getAllRoutePolyline(req);
+  return Address;
+};
+
+const getTravalTime = async (req) => {
+  const Address = await getTravelTime(req);
+  return Address;
+};
 
 const sendError = (message, data, code) => ({
-    success: false,
-    message,
-    data,
-    code,
+  success: false,
+  message,
+  data,
+  code,
 });
 
 const getRideTypes = async (userId, req) => {
@@ -1784,21 +1770,53 @@ const getRideTypes = async (userId, req) => {
     if (!user) return { status: 401, data: sendError('Unauthorized', [], 401) };
     if (!user.active) return { status: 403, data: sendError('User is blocked, please contact admin', [], 403) };
 
-
     const { pick_lat, pick_lng, drop_lat, drop_long, ride_type, stops, promo_code, ride_time, ride_date } = req.body;
 
-    const zone = await getPickupZone(req);
+    // const zone = await getPickupZone(req);
+    let zone = await getPickupZone(req);
 
-    if (!zone || zone.nonServiceZone === 'Yes') return { status: 404, data: sendError('Non-service zone', [], 404) };
+      // promo vehicle type filter in zone price details
+        let promo;
+      
+        if (promo_code) {
+          promo = await PromoCode.findById(promo_code);
+        }
+        
+        let zonePriceDetails = zone.zonePriceDetails;
+        
+        if (promo?.vehicleType?.length) {
+          zonePriceDetails = zone.zonePriceDetails.filter(detail =>
+            detail.vehicleDetails &&
+            promo.vehicleType.some(id =>
+              id.toString() === detail.vehicleDetails._id.toString()
+            )
+          );
+        }
+        
+        zone = {...zone,zonePriceDetails};
+            
+
+    if (!zone || zone.nonServiceZone === 'Yes') return { status: 403, data: sendError('Non-service zone', [], 403) };
 
     let distance = await calculateDistance(pick_lat, pick_lng, drop_lat, drop_long, stops);
 
-    if (zone.unit != "KM") {
-      distance = distance * 0.6213711922
+    if (zone.unit != 'KM') {
+      distance *= 0.6213711922;
     }
 
-    const zonePrice = await calculateZonePrices(req, zone, distance, ride_type, promo_code, user, ride_time, ride_date, drop_lat, drop_long);
-   
+    const zonePrice = await calculateZonePrices(
+      req,
+      zone,
+      distance,
+      ride_type,
+      promo_code,
+      user,
+      ride_time,
+      ride_date,
+      drop_lat,
+      drop_long,
+    );
+
     const dataResponse = createDataResponse(zone);
 
     dataResponse.zoneTypePrice = zonePrice;
@@ -1806,7 +1824,6 @@ const getRideTypes = async (userId, req) => {
     await session.commitTransaction();
 
     return dataResponse;
-    
   } catch (error) {
     await session.abortTransaction();
     throw error; // Rethrow to be caught in controller
@@ -1814,8 +1831,6 @@ const getRideTypes = async (userId, req) => {
     session.endSession();
   }
 };
-
-
 
 module.exports = {
   getRequest,
@@ -1830,21 +1845,7 @@ module.exports = {
   checkPickUpZone,
   convertLatLngAddress,
   convertAddressLatLng,
-  getRoutePolylines
+  getRoutePolylines,
+  getAllRoutePolylines,
+  getTravalTime,
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -25,10 +25,13 @@ import CircularProgress from '@mui/material/CircularProgress';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import CancelIcon from '@mui/icons-material/Cancel';
 
-import { fetchGroupDocument } from '@apis/groupDocument';
-import { useIsDemoUser } from '@/utils/demoUser' 
+import {getActiveGroupDocumentByPagination} from '@apis/groupDocument';
+import { useIsDemoUser } from '@/utils/demoUser'
 
 import { fetchDocument } from '@/app/api/apps/taxi/document';
+import AsyncDropdown from '@/components/AsyncDropdown';
+
+import {validateInputContent} from '@/utils/validation'
 
 // Define types for the document
 interface Document {
@@ -40,6 +43,7 @@ interface Document {
   imageRequired: boolean;
   documentId: string;
   status?: boolean; // Optional field
+  zoneId?: any
 }
 
 // Define types for the component props
@@ -53,12 +57,17 @@ interface CreateNewDocumentDialogProps {
   onPageChange: (event: React.ChangeEvent<unknown>, newPage: number) => void
   rowsPerPage: number;
   dictionary: any;
+  zoneId?: any; // Optional, as it might be undefined
+  selectedGroupDocumentId?: string;
 }
+
 
 const CreateNewDocumentDialog = ({ open, onClose, documentToEdit, onSave,count,
   page,
   onPageChange,
   dictionary,
+  zoneId,
+  selectedGroupDocumentId,
   rowsPerPage}: CreateNewDocumentDialogProps) => {
   const [loading, setLoading] = useState(false); // Loading state
 
@@ -69,9 +78,9 @@ const CreateNewDocumentDialog = ({ open, onClose, documentToEdit, onSave,count,
       identifier: false,
       expiryDate: false,
       issueDate: false,
-      imageRequired: false,
+      imageRequired: true,
       documentId: '',
-      status: true
+      status: true,
     }
   ]);
 
@@ -92,39 +101,35 @@ const CreateNewDocumentDialog = ({ open, onClose, documentToEdit, onSave,count,
           identifier: false,
           expiryDate: false,
           issueDate: false,
-          imageRequired: false,
-          documentId: '',
+          imageRequired: true,
+          documentId: selectedGroupDocumentId || '',
           status: true
         }]);
       }
     }
-  }, [open, documentToEdit]);
+  }, [open, documentToEdit, selectedGroupDocumentId]);
 
   useEffect(() => {
-    const fetchGroupbyOptions = async () => {
+    const loadGroupOptions = async () => {
+      if (!open) return;
+
       try {
-        const data = await fetchGroupDocument();
+        const response = await getActiveGroupDocumentByPagination('', 1, 100, zoneId);
+        const results = Array.isArray(response?.results) ? response.results : [];
 
-        setGroupbyOptions(data);
-
-        const document = await fetchDocument();
-
-        // Fetch existing groupby IDs from the database and update state
-        const existingIds = document.map((item: { documentId: any; imageRequired: boolean }) => ({
-          documentId: item.documentId,
-          imageRequired: item.imageRequired,
-        }));
-
-        setExistingGroupbyIds(existingIds);
+        setGroupbyOptions(
+          results.map((item: any) => ({
+            id: String(item?.id || item?._id || ''),
+            name: String(item?.name || '')
+          }))
+        );
       } catch (error) {
-        console.error('Failed to fetch groupby options:', error);
+        setGroupbyOptions([]);
       }
     };
 
-    if (open) {
-      fetchGroupbyOptions();
-    }
-  }, [open]);
+    loadGroupOptions();
+  }, [open, zoneId]);
 
   const addDocument = () => {
     setDocuments([...documents, {
@@ -133,8 +138,8 @@ const CreateNewDocumentDialog = ({ open, onClose, documentToEdit, onSave,count,
       identifier: false,
       expiryDate: false,
       issueDate: false,
-      imageRequired: false,
-      documentId: '',
+      imageRequired: true,
+      documentId: selectedGroupDocumentId || '',
       status: true
     }]);
   };
@@ -159,7 +164,7 @@ const CreateNewDocumentDialog = ({ open, onClose, documentToEdit, onSave,count,
         identifier: false,
         expiryDate: false,
         issueDate: false,
-        imageRequired: false,
+        imageRequired: true,
       };
     }
 
@@ -228,8 +233,8 @@ const CreateNewDocumentDialog = ({ open, onClose, documentToEdit, onSave,count,
       identifier: false,
       expiryDate: false,
       issueDate: false,
-      imageRequired: false,
-      documentId: '',
+      imageRequired: true,
+      documentId: selectedGroupDocumentId || '',
       status: true
     }]);
     setErrors({}); // Clear errors on reset
@@ -275,6 +280,7 @@ const CreateNewDocumentDialog = ({ open, onClose, documentToEdit, onSave,count,
                   onChange={(e) => handleChange(index, 'documentName', e.target.value)}
                   placeholder={dictionary['navigation'].DocumentName}
                   fullWidth
+                                   
                   style={{ borderBottom: '1px solid #ccc' }}
                 />
                 {errors[index]?.documentName && (
@@ -299,7 +305,7 @@ const CreateNewDocumentDialog = ({ open, onClose, documentToEdit, onSave,count,
                 <Checkbox
                   checked={doc.expiryDate}
                   onChange={(e) => handleChange(index, 'expiryDate', e.target.checked)}
-                
+
                   // disabled={isFieldDisabled(index, 'expiryDate')}
                 />
                 {dictionary['navigation'].Yes}
@@ -320,28 +326,25 @@ const CreateNewDocumentDialog = ({ open, onClose, documentToEdit, onSave,count,
                 {dictionary['navigation'].Yes}
               </Grid>
               <Grid item xs={3}>
-                <FormControl fullWidth>
-                  <Select
-                    value={doc.documentId}
-                    onChange={(e) => handleChange(index, 'documentId', e.target.value)}
-                    displayEmpty
-                    sx={{
-                      height: '32px',
-                      '.MuiSelect-select': {
-                        paddingTop: '6px',
-                        paddingBottom: '6px',
-                      },
+                {(() => {
+                  const selectedOption = groupbyOptions.find(option => option.id === doc.documentId) || null;
+
+                  return (
+                <AsyncDropdown
+                    label={dictionary['navigation'].GroupBy}
+                    apiFunction={getActiveGroupDocumentByPagination}
+                    extraParams={[zoneId]}
+                    value={selectedOption}
+                    getOptionLabel={(option: any) => option.name || ''}
+                    onChange={(value: any) => {
+                      handleChange(index, 'documentId', value?.id || '')
                     }}
-                  >
-                    <MenuItem value="" disabled>{dictionary['navigation'].SelectGroupBy}</MenuItem>
-                    {groupbyOptions.map(option => (
-                      <MenuItem key={option.id} value={option.id}>{option.name}</MenuItem>
-                    ))}
-                  </Select>
-                  {errors[index]?.documentId && (
-                    <FormHelperText error>{errors[index].documentId}</FormHelperText>
-                  )}
-                </FormControl>
+                    error={!!errors[index]?.documentId}
+                    helperText={errors[index]?.documentId}
+                    disabled={!!documentToEdit || !!selectedGroupDocumentId}
+                  />
+                  );
+                })()}
               </Grid>
               <Grid item xs={1}>
                 {documents.length > 1 && (

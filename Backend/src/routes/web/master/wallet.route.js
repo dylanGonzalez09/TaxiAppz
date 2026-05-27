@@ -6,18 +6,23 @@ const walletController = require('../../../controllers/web/master/wallet.control
 
 const router = express.Router();
 
-router.route('/create').post(auth('Wallet'),validate(walletValidation.createWallet), walletController.createWallet);
-router.route('/getWallets').get(auth('Wallet'),validate(walletValidation.getWallets), walletController.getWallets);
-router.route('/getWallets/:walletId').get(auth('Wallet'),validate(walletValidation.getWallet), walletController.getWallet);
-router.route('/getWallet/list').get(auth('Wallet'),walletController.getWalletWithOutPagination);
-router.route('/updateWallets/:walletId').patch(auth('Wallet'),validate(walletValidation.updateWallet), walletController.updateWallet);
-router.route('/deleteWallets/:walletId').delete(auth('Wallet'),validate(walletValidation.deleteWallet), walletController.deleteWallet);
+router.route('/create').post(auth('Wallet'), validate(walletValidation.createWallet), walletController.createWallet);
 
-router.route('/getWalletTransaction/:userId').get(auth('Wallet'),validate(walletValidation.getWalletTransaction), walletController.getWalletTransaction);
+router.route('/getWallets').get(auth('Wallet'), validate(walletValidation.getWallets), walletController.getWallets);
+router.route('/getWallets/:walletId').get(auth('Wallet'), validate(walletValidation.getWallet), walletController.getWallet);
+router.route('/getWallet/list').get(auth('Wallet'), walletController.getWalletWithOutPagination);
+router
+  .route('/updateWallets/:walletId')
+  .patch(auth('Wallet'), validate(walletValidation.updateWallet), walletController.updateWallet);
+router
+  .route('/deleteWallets/:walletId')
+  .delete(auth('Wallet'), validate(walletValidation.deleteWallet), walletController.deleteWallet);
 
+router
+  .route('/getWalletTransaction/:userId')
+  .get(auth('Wallet'), validate(walletValidation.getWalletTransaction), walletController.getWalletTransaction);
 
 module.exports = router;
-
 
 /**
  * @swagger

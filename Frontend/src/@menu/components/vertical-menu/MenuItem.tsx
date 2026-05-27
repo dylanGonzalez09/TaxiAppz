@@ -111,27 +111,27 @@ useEffect(() => {
 
   if (href) {
     if (exactMatch) {
-      // Exact match logic stays the same
       setActive(pathname === href)
     } else if (activeUrl) {
       if (Array.isArray(activeUrl)) {
-        // More precise matching - check for path segments rather than simple includes
         const pathParts = pathname.split('/')
         
         setActive(activeUrl.some(url => {
+          
+          
           const urlParts = url.split('/')
           
-          // Match the specific path segments rather than just checking if one contains the other
+          // Compare all segments directly, ignoring empty parts
           
-          return urlParts.every((part, index) => !part || part === pathParts[index + 1])
+          return urlParts.every((part, index) => !part || part === pathParts[index])
         }))
-      } else {
-        // Similar more precise matching for single string activeUrl
+      } 
+      else {
+        
         const pathParts = pathname.split('/')
         const urlParts = activeUrl.split('/')
         
-        
-        setActive(urlParts.every((part, index) => !part || part === pathParts[index + 1]))
+        setActive(urlParts.every((part, index) => !part || part === pathParts[index]))
       }
     } else {
       setActive(false)
@@ -139,6 +139,7 @@ useEffect(() => {
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [pathname])
+
   
 // Call the onActiveChange callback when the active state changes.
   useUpdateEffect(() => {

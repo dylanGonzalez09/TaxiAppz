@@ -4,11 +4,11 @@ import Grid from '@mui/material/Grid';
 // Component Imports
 import ClientListTable from './ClientTable';
 
-const ClientList = ({ clientData, dictionary }: { clientData?: any, dictionary: any }) => {
+const ClientList = ({ clientData, dictionary,overrideZoneId }: { clientData?: any, dictionary: any,overrideZoneId:any }) => {
   return (
     <Grid container spacing={6}>
       <Grid item xs={12}>
-        <ClientListTable tableData={clientData} dictionary={dictionary}  />
+        <ClientListTable tableData={clientData} dictionary={dictionary} overrideZoneId={overrideZoneId}  />
       </Grid>
     </Grid>
   );

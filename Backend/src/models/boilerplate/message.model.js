@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { toJSON, paginate } = require('../plugins');
 
 const messageSchema = mongoose.Schema(
   {
@@ -11,6 +12,11 @@ const messageSchema = mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       required: true,
       refPath: 'receiverType', // can be User or Driver
+    },
+    requestId: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: true,
+      refPath: 'Request', // can be User or Driver
     },
     senderType: {
       type: String,
@@ -35,7 +41,7 @@ const messageSchema = mongoose.Schema(
       default: false,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = mongoose.model('Messages', messageSchema);

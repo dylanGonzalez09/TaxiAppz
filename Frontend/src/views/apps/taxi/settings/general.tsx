@@ -30,9 +30,11 @@ interface FormValues {
   defaultLanguage: string;
   defaultCountry: string | null;
   serviceType: any;
+  tipPaymentTypes: any;
   serviceTax: string;
 
   adminNumber: string;
+  headOfficeNumber: string;
   referalTripsCount: string;
   referalRepeat: string;
   referalTripsAmount: string;
@@ -40,7 +42,6 @@ interface FormValues {
   driverShowingKm: string;
   nearBydriver: string;
   mongoDbUrl: string;
-  driverOtpType: string;
 }
 
 interface GeneralTableProps {
@@ -63,9 +64,9 @@ const GeneralTable: React.FC<GeneralTableProps> = ({ translationData, currentTab
   const [notificationSoundPreview, setNotificationSoundPreview] = useState<string | null>(null);
   const [tripSoundPreview, setTripSoundPreview] = useState<string | null>(null);
   const [serviceType, setServiceType] = useState<any>(['LOCAL', 'RENTAL', 'OUTSTATION']);
+  const [tipPaymentTypes, setTipPaymentTypes] = useState<any>(['CARD', 'CASH', 'WALLET']);
   const [referalRepeat, setReferalRepeat] = useState<string>('no');
   const { settings, updateSettings } = useSettings();
-  const [driverOtpType, setDriverOtpType] = useState<string>('dynamic');
 
   const { checkDemoStatus } = useIsDemoUser();
 
@@ -76,6 +77,7 @@ const GeneralTable: React.FC<GeneralTableProps> = ({ translationData, currentTab
       defaultLanguage: activeLanguage[0] || '',
       defaultCountry: activeCountry[0] || '',
       serviceType: '',
+      tipPaymentTypes: '',
       serviceTax: '',
       logo: null,
       feviIcon: null,
@@ -91,9 +93,12 @@ const GeneralTable: React.FC<GeneralTableProps> = ({ translationData, currentTab
       const secondaryColor = (settingsMap.get('secondaryColor') as string) || '#000000';
       const serviceTypeString = (settingsMap.get('serviceType') as string) || '';
       const serviceType = serviceTypeString ? serviceTypeString.split(',') : [];
+      const tipPaymentTypesString = (settingsMap.get('tipPaymentTypes') as string) || '';
+      const tipPaymentTypes = tipPaymentTypesString ? tipPaymentTypesString.split(',') : [];
       const serviceTax = (settingsMap.get('serviceTax') as string) || '';
 
       const adminNumber = (settingsMap.get('adminNumber') as string) || '';
+      const headOfficeNumber = (settingsMap.get('headOfficeNumber') as string) || '';
       const referalTripsCount = (settingsMap.get('referalTripsCount') as string) || '';
       const referalRepeat = (settingsMap.get('referalRepeat') as string) || '';
       const referalTripsAmount = (settingsMap.get('referalTripsAmount') as string) || '';
@@ -101,29 +106,28 @@ const GeneralTable: React.FC<GeneralTableProps> = ({ translationData, currentTab
       const driverShowingKm = (settingsMap.get('driverShowingKm') as string) || '';
       const nearBydriver = (settingsMap.get('nearBydriver') as string) || '';
       const mongoDbUrl = (settingsMap.get('mongoDbUrl') as string) || '';
-      const driverOtpType = (settingsMap.get('driverOtpType') as string) || '';
 
-console.log("driverOtpType",settingsMap.get('driverOtpType'));
       setValue('primaryColor', primaryColor);
       setValue('secondaryColor', secondaryColor);
       setValue('defaultLanguage', settingsMap.get('defaultLanguage') || activeLanguage[0]);
       setValue('defaultCountry', settingsMap.get('defaultCountry') || activeCountry[0]);
       setValue('serviceType', serviceType);
+      setValue('tipPaymentTypes', tipPaymentTypes);
       setValue('serviceTax', serviceTax);
 
       setValue('adminNumber', adminNumber);
+      setValue('headOfficeNumber', headOfficeNumber);
       setValue('referalTripsCount', referalTripsCount);
       setValue('referalRepeat', referalRepeat);
       setValue('referalTripsAmount', referalTripsAmount);
       setValue('driverBlockWalletBalance', driverBlockWalletBalance);
       setValue('driverShowingKm', driverShowingKm);
-      setValue('nearBydriver',nearBydriver)
+      setValue('nearBydriver', nearBydriver);
       setValue('mongoDbUrl', mongoDbUrl);
-      setValue('driverOtpType',driverOtpType);
+
 
 
       setReferalRepeat(referalRepeat);
-      setDriverOtpType(driverOtpType);
 
       if (settingsMap.get('logo')) {
         setLogoPreview(`${BASE_IMAGE_URL}/uploads/setting/${settingsMap.get('logo') as string}`);
@@ -220,7 +224,9 @@ console.log("driverOtpType",settingsMap.get('driverOtpType'));
     formData.append('defaultLanguage', data.defaultLanguage || '');
     formData.append('defaultCountry', data.defaultCountry || '');
     formData.append('serviceType', data.serviceType || '');
+    formData.append('tipPaymentTypes', data.tipPaymentTypes || '');
     formData.append('adminNumber', data.adminNumber || '');
+    formData.append('headOfficeNumber', data.headOfficeNumber || '');
     formData.append('serviceTax', data.serviceTax || '');
 
     // formData.append('promoType', data.promoType || '');
@@ -230,9 +236,6 @@ console.log("driverOtpType",settingsMap.get('driverOtpType'));
     formData.append('driverBlockWalletBalance', data.driverBlockWalletBalance || '');
     formData.append('driverShowingKm', data.driverShowingKm || '');
     formData.append('nearBydriver', data.nearBydriver || '');
-
-    // formData.append('mongoDbUrl', data.mongoDbUrl || '');
-    formData.append('driverOtpType', driverOtpType || 'dynamic');
 
 
     const settingData = translationData.length > 0
@@ -505,7 +508,10 @@ console.log("driverOtpType",settingsMap.get('driverOtpType'));
                   <CustomAutocomplete
                     multiple
                     limitTags={2}
-                    options={['LOCAL', 'RENTAL', 'OUTSTATION']}
+                    options={[
+                              dictionary['navigation'].RENDAL || 'RENDAL',
+                              dictionary['navigation'].LOCAL || 'LOCAL',
+                              dictionary['navigation'].OUTSTATION || 'OUTSTATION' ]}
                     id="autocomplete-service-types"
                     getOptionLabel={option => option}
                     value={Array.isArray(field.value) ? field.value : []}
@@ -565,6 +571,44 @@ console.log("driverOtpType",settingsMap.get('driverOtpType'));
 
 
             </Grid>
+                        <Grid item xs={12} sm={6}>
+
+              <Controller
+                name={"tipPaymentTypes"}
+                control={control}
+                rules={{ required: dictionary['navigation'].TipPaymentTypesrRequired || 'Tip Payment Types is required' }}
+                render={({ field }) => (
+                  <CustomAutocomplete
+                    multiple
+                    limitTags={2}
+                    options={[
+                              dictionary['navigation'].CASH || 'CASH',
+                              dictionary['navigation'].CARD || 'CARD',
+                              dictionary['navigation'].WALLET || 'WALLET' ]}
+                    id="autocomplete-tip-payment-types"
+                    getOptionLabel={option => option}
+                    value={Array.isArray(field.value) ? field.value : []}
+                    renderInput={params => (
+                      <CustomTextField
+                        {...params}
+                        label={dictionary['navigation'].TipPaymentTypes || 'Tip Payment Types'}
+                        placeholder={dictionary['navigation'].TipPaymentTypes || 'Tip Payment Types'}
+                        error={!!errors.tipPaymentTypes}
+                        helperText={typeof errors.tipPaymentTypes?.message === 'string' ? errors.tipPaymentTypes.message : ''}
+                      />
+                    )}
+                    renderTags={(tagValue, getTagProps) =>
+                      tagValue.map((option, index) => (
+                        <Chip label={option} {...getTagProps({ index })} key={index} size="small" />
+                      ))
+                    }
+                    onChange={(event, value) => {
+                      field.onChange(value);
+                    }}
+                  />
+                )}
+              />
+            </Grid>
 
 
             <Grid item xs={12} sm={6}>
@@ -594,6 +638,21 @@ console.log("driverOtpType",settingsMap.get('driverOtpType'));
                     fullWidth
                     error={!!errors.adminNumber}
                     helperText={errors.adminNumber ? dictionary['navigation'].AdminNumberisrequired : ''}
+                  />
+                )}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <Controller
+                name="headOfficeNumber"
+                control={control}
+                render={({ field }) => (
+                  <CustomTextField
+                    {...field}
+                    label={dictionary['navigation'].HeadOfficeNumber || 'Head Office Number'}
+                    fullWidth
+                    error={!!errors.headOfficeNumber}
+                    helperText={errors.headOfficeNumber ? (dictionary['navigation'].HeadOfficeNumberisrequired || 'Head Office Number is required') : ''}
                   />
                 )}
               />
@@ -636,7 +695,9 @@ console.log("driverOtpType",settingsMap.get('driverOtpType'));
                     fullWidth
                     error={!!errors.referalTripsCount}
                     helperText={errors.referalTripsCount ? dictionary['navigation'].ReferalTripsCountisrequired : ''}
-                    disabled={referalRepeat !== 'yes'}
+
+                    // disabled={referalRepeat !== 'yes'}
+
                   />
                 )}
               />
@@ -668,7 +729,7 @@ console.log("driverOtpType",settingsMap.get('driverOtpType'));
                 render={({ field }) => (
                   <CustomTextField
                     {...field}
-                    label={dictionary['navigation'].driverBlockWalletBalance}
+                    label={dictionary['navigation'].DriverBlockWalletBalance}
                     fullWidth
                     error={!!errors.driverBlockWalletBalance}
                     helperText={errors.driverBlockWalletBalance ? dictionary['navigation'].driverBlockWalletBalance : ''}
@@ -677,7 +738,9 @@ console.log("driverOtpType",settingsMap.get('driverOtpType'));
               />
             </Grid>
 
-            <Grid item xs={12} sm={6}>
+
+
+            {/* <Grid item xs={12} sm={6}>
               <Button
                 variant="contained"
                 color={referalRepeat === 'yes' ? 'primary' : 'secondary'}
@@ -700,7 +763,7 @@ console.log("driverOtpType",settingsMap.get('driverOtpType'));
                   label={dictionary['navigation'].No}
                 />
               </RadioGroup>
-            </Grid>
+            </Grid> */}
 
             <Grid item xs={12} sm={6}>
               <Controller name="driverShowingKm" control={control} render={({ field }) => (
@@ -719,30 +782,6 @@ console.log("driverOtpType",settingsMap.get('driverOtpType'));
                 />
               )}
               />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <Button
-                variant="contained"
-                color={driverOtpType === 'static' ? 'primary' : 'secondary'}
-                onClick={() => setDriverOtpType(driverOtpType === 'static' ? 'dynamic' : 'static')}
-              >
-                {dictionary['navigation'].driverOtpType}
-              </Button>
-              <RadioGroup
-                value={driverOtpType}
-                onChange={handleChange(setDriverOtpType)}
-              >
-                <FormControlLabel
-                  value="static"
-                  control={<Radio />}
-                  label={dictionary['navigation'].static}
-                />
-                <FormControlLabel
-                  value="dynamic"
-                  control={<Radio />}
-                  label={dictionary['navigation'].dynamic}
-                />
-              </RadioGroup>
             </Grid>
 
             {/* Submit Button */}

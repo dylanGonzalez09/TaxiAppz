@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { toJSON, paginate } = require('./../plugins');
+const { toJSON, paginate } = require('../plugins');
 
 const promoCodeSchema = mongoose.Schema(
   {
@@ -7,6 +7,7 @@ const promoCodeSchema = mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Zone',
       required: true,
+      index: true,
     },
     promoCode: {
       type: String,
@@ -32,7 +33,7 @@ const promoCodeSchema = mongoose.Schema(
     },
     amount: {
       type: Number,
-     default: 0,
+      default: 0,
     },
     percentage: {
       type: Number,
@@ -42,10 +43,12 @@ const promoCodeSchema = mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Client',
     },
-    userId: [{
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User'
-    }],
+    userId: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
     fromDate: {
       type: Date,
       default: null,
@@ -78,10 +81,15 @@ const promoCodeSchema = mongoose.Schema(
       ref: 'User',
       default: null,
     },
+    vehicleType: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Vehicle',
+    }],
+
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 promoCodeSchema.plugin(toJSON);

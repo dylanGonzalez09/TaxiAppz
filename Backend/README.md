@@ -54,7 +54,7 @@ npm run dev
 This For Swagger Document Link
 
 ```bash
-http://localhost:3001/v1/docs/
+http://localhost:4001/v1/docs/
 ```
 
 ## Environment Variables
@@ -63,7 +63,7 @@ The environment variables can be found and modified in the `.env` file. They com
 
 ```bash
 # Port number
-PORT=3001
+PORT=4001
 
 # URL of the Mongo DB
 MONGODB_URL=mongodb://127.0.0.1:27017/node-boilerplate

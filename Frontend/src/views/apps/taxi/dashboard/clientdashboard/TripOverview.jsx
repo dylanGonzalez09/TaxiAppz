@@ -3,6 +3,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 
 // MUI Imports
+
+import Link from 'next/link'
+
 import Card from '@mui/material/Card';
 import CardHeader from '@mui/material/CardHeader';
 import CardContent from '@mui/material/CardContent';
@@ -12,7 +15,10 @@ import MenuItem from '@mui/material/MenuItem';
 import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
 import Box from '@mui/material/Box';
+
 import Grid from '@mui/material/Grid';
+
+
 
 // Third-party Imports
 import { styled } from '@mui/material/styles';
@@ -46,9 +52,10 @@ const StatsCard = styled(Box)(({ theme, bgcolor }) => ({
 // Utility Function to Generate Dashboard Data
 
 
-const LogisticsVehicleOverview = ({sampleData,dictionary}) => {
+const LogisticsVehicleOverview = ({sampleData,dictionary,locale,zoneId}) => {
   const [selectedMonth, setSelectedMonth] = useState('');
   const [monthlyData, setMonthlyData] = useState(sampleData);
+    const base = locale ? `/${locale}/${zoneId}/apps/taxi/request` : '/apps/taxi/request'
   const { checkDemoStatus } = useIsDemoUser();
 
   const generateDashboardData = (currentData, isDemo) => {
@@ -64,63 +71,27 @@ const LogisticsVehicleOverview = ({sampleData,dictionary}) => {
         currency: '₹',
       };
     }
-  
+
     const formatCurrency = (value) => {
       return isDemo
         ? `$ ${(value ?? 0).toFixed(2)}`
         : `${currentData?.currency ?? '₹'} ${(value ?? 0).toFixed(2)}`;
     };
-  
+
     const dashboardData1 = [
-      { 
-        heading: dictionary['navigation'].TotalPayments, 
-        amount: formatCurrency(currentData.TotalPayments), 
-        icon: 'tabler-progress-check', 
-        progressColor: '#6366F1', 
-        bgColor: '#EEF2FF' 
-      },
-      { 
-        heading: dictionary['navigation'].CashPayments,
-        amount: formatCurrency(currentData.cashPayments), 
-        icon: 'tabler-cash', 
-        progressColor: '#10B981', 
-        bgColor: '#ECFDF5' 
-      },
-      { 
-        heading: dictionary['navigation'].CardPayments,
-        amount: formatCurrency(currentData.cardPayments), 
-        icon: 'tabler-credit-card-pay', 
-        progressColor: '#3B82F6', 
-        bgColor: '#EFF6FF' 
-      },
-      { 
-        heading: dictionary['navigation'].WalletPayments,
-        amount: formatCurrency(currentData.walletPayments), 
-        icon: 'tabler-wallet', 
-        progressColor: '#F59E0B', 
-        bgColor: '#FFFBEB' 
-      },
-    ];
-  
+      { heading: dictionary['navigation'].TotalPayments, amount: formatCurrency(currentData.TotalPayments), icon: 'tabler-progress-check', progressColor: '#6366F1', bgColor: '#EEF2FF', href: `${base}/ridenow?tab=completed` },
+      { heading: dictionary['navigation'].CashPayments, amount: formatCurrency(currentData.cashPayments), icon: 'tabler-cash', progressColor: '#10B981', bgColor: '#ECFDF5', href: `${base}/payments?tab=cash` },
+      { heading: dictionary['navigation'].CardPayments, amount: formatCurrency(currentData.cardPayments), icon: 'tabler-credit-card-pay', progressColor: '#3B82F6', bgColor: '#EFF6FF', href: `${base}/payments?tab=card` },
+      { heading: dictionary['navigation'].WalletPayments, amount: formatCurrency(currentData.walletPayments), icon: 'tabler-wallet', progressColor: '#F59E0B', bgColor: '#FFFBEB', href: `${base}/payments?tab=wallet` }
+    ]
+
     const dashboardData2 = [
-      { 
-        heading: dictionary['navigation'].CompletedRides, 
-        progressData: currentData.completed, 
-        color: '#10B981', 
-        icon: 'tabler-progress-check',
-        progressColor: '#10B981'
-      },
-      { 
-        heading: dictionary['navigation'].CancelledRides,
-        progressData: currentData.cancelled, 
-        color: '#EF4444', 
-        icon: 'tabler-circle-x',
-        progressColor: '#EF4444'
-      },
-    ];
-  
-    return { dashboardData1, dashboardData2 };
-  };
+      { heading: dictionary['navigation'].CompletedRides, progressData: currentData.completed, color: '#10B981', icon: 'tabler-progress-check', progressColor: '#10B981', href: `${base}/ridenow?tab=completed` },
+      { heading: dictionary['navigation'].CancelledRides, progressData: currentData.cancelled, color: '#EF4444', icon: 'tabler-circle-x', progressColor: '#EF4444', href: `${base}/ridenow?tab=cancelled` }
+    ]
+
+    return { dashboardData1, dashboardData2 }
+  }
 
 
   // Get current month and year
@@ -132,7 +103,7 @@ const LogisticsVehicleOverview = ({sampleData,dictionary}) => {
   const months = Array.from({ length: currentDate.getMonth() + 1 }, (_, index) => {
     const date = new Date(currentYear, index, 1);
 
-    
+
 return date.toLocaleString('default', { month: 'long' });
   });
 
@@ -155,22 +126,29 @@ return date.toLocaleString('default', { month: 'long' });
   return (
     <StyledCard>
       <CardHeader
-        title={<Typography variant="h6" sx={{ fontWeight: 600, fontSize: '1.25rem' }}>{dictionary['navigation'].MonthlyOverview}</Typography>}
+        title={
+          <Typography variant='h6' sx={{ fontWeight: 600, fontSize: '1.25rem' }}>
+            {dictionary['navigation'].MonthlyOverview}
+          </Typography>
+        }
         action={
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <FormControl size="small" sx={{ minWidth: 120 }}>
-              <InputLabel id="month-select-label">{dictionary['navigation'].Month}</InputLabel>
+            <FormControl size='small' sx={{ minWidth: 120 }}>
+              <InputLabel id='month-select-label'>{dictionary['navigation'].Month}</InputLabel>
               <Select
-                labelId="month-select-label"
-                id="month-select"
+                labelId='month-select-label'
+                id='month-select'
                 value={selectedMonth}
                 onChange={handleMonthChange}
                 label={dictionary['navigation'].Month}
-                sx={{ borderRadius: '8px', '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(0, 0, 0, 0.15)' } }}
+                sx={{
+                  borderRadius: '8px',
+                  '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(0, 0, 0, 0.15)' }
+                }}
               >
-                {months.map((month) => (
+                {months.map(month =>(
                   <MenuItem key={month} value={month}>
-                    {month}
+                    {dictionary['navigation'][month]}
                   </MenuItem>
                 ))}
               </Select>
@@ -182,71 +160,95 @@ return date.toLocaleString('default', { month: 'long' });
         <Grid container spacing={3}>
           {dashboardData1.slice(0, 2).map((item, index) => (
             <Grid item xs={12} sm={6} key={index}>
-              <StatsCard sx={{ bgcolor: `${item.progressColor}10`, borderLeft: `4px solid ${item.progressColor}` }}>
-                <CardContent sx={{ p: 0 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <Typography sx={{ fontWeight: 500, color: 'text.secondary', fontSize: '0.875rem' }}>
-                      {item.heading}
-                    </Typography>
-                    <CustomAvatar color={item.progressColor} variant="rounded" size={40} skin="light">
-                      <i className={item.icon}></i>
-                    </CustomAvatar>
-                  </Box>
-                  <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                    {item.amount}
-                  </Typography>
-                </CardContent>
-              </StatsCard>
+              {item.href ? (
+                <Link href={item.href} style={{ textDecoration: 'none', color: 'inherit' }}>
+                  <StatsCard sx={{ bgcolor: `${item.progressColor}10`, borderLeft: `4px solid ${item.progressColor}`, cursor: 'pointer' }}>
+                    <CardContent sx={{ p: 0 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography sx={{ fontWeight: 500, color: 'text.secondary', fontSize: '0.875rem' }}>{item.heading}</Typography>
+                        <CustomAvatar color={item.progressColor} variant='rounded' size={40} skin='light'><i className={item.icon}></i></CustomAvatar>
+                      </Box>
+                      <Typography variant='h4' sx={{ fontWeight: 700 }}>{item.amount}</Typography>
+                    </CardContent>
+                  </StatsCard>
+                </Link>
+              ) : (
+                <StatsCard sx={{ bgcolor: `${item.progressColor}10`, borderLeft: `4px solid ${item.progressColor}` }}>
+                  <CardContent sx={{ p: 0 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography sx={{ fontWeight: 500, color: 'text.secondary', fontSize: '0.875rem' }}>{item.heading}</Typography>
+                      <CustomAvatar color={item.progressColor} variant='rounded' size={40} skin='light'><i className={item.icon}></i></CustomAvatar>
+                    </Box>
+                    <Typography variant='h4' sx={{ fontWeight: 700 }}>{item.amount}</Typography>
+                  </CardContent>
+                </StatsCard>
+              )}
             </Grid>
           ))}
         </Grid>
 
-        <Grid container spacing={3} className="mt-2">
+        <Grid container spacing={3} className='mt-2'>
           {dashboardData1.slice(2, 4).map((item, index) => (
             <Grid item xs={12} sm={6} key={index}>
-              <StatsCard sx={{ bgcolor: `${item.progressColor}10`, borderLeft: `4px solid ${item.progressColor}` }}>
-                <CardContent sx={{ p: 0 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <Typography sx={{ fontWeight: 500, color: 'text.secondary', fontSize: '0.875rem' }}>
-                      {item.heading}
-                    </Typography>
-                    <CustomAvatar color={item.progressColor} variant="rounded" size={40} skin="light">
-                      <i className={item.icon}></i>
-                    </CustomAvatar>
-                  </Box>
-                  <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                    {item.amount}
-                  </Typography>
-                </CardContent>
-              </StatsCard>
+              {item.href ? (
+                <Link href={item.href} style={{ textDecoration: 'none', color: 'inherit' }}>
+                  <StatsCard sx={{ bgcolor: `${item.progressColor}10`, borderLeft: `4px solid ${item.progressColor}`, cursor: 'pointer' }}>
+                    <CardContent sx={{ p: 0 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography sx={{ fontWeight: 500, color: 'text.secondary', fontSize: '0.875rem' }}>{item.heading}</Typography>
+                        <CustomAvatar color={item.progressColor} variant='rounded' size={40} skin='light'><i className={item.icon}></i></CustomAvatar>
+                      </Box>
+                      <Typography variant='h4' sx={{ fontWeight: 700 }}>{item.amount}</Typography>
+                    </CardContent>
+                  </StatsCard>
+                </Link>
+              ) : (
+                <StatsCard sx={{ bgcolor: `${item.progressColor}10`, borderLeft: `4px solid ${item.progressColor}` }}>
+                  <CardContent sx={{ p: 0 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography sx={{ fontWeight: 500, color: 'text.secondary', fontSize: '0.875rem' }}>{item.heading}</Typography>
+                      <CustomAvatar color={item.progressColor} variant='rounded' size={40} skin='light'><i className={item.icon}></i></CustomAvatar>
+                    </Box>
+                    <Typography variant='h4' sx={{ fontWeight: 700 }}>{item.amount}</Typography>
+                  </CardContent>
+                </StatsCard>
+              )}
             </Grid>
           ))}
         </Grid>
 
-        <Grid container spacing={3} className="mt-2">
+        <Grid container spacing={3} className='mt-2'>
           {dashboardData2.map((item, index) => (
             <Grid item xs={12} sm={6} key={index}>
-              <StatsCard sx={{ bgcolor: `${item.color}10`, borderLeft: `4px solid ${item.color}` }}>
-                <CardContent sx={{ p: 0 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <Typography sx={{ fontWeight: 500, color: 'text.secondary', fontSize: '0.875rem' }}>
-                      {item.heading}
-                    </Typography>
-                    <CustomAvatar color={item.color} variant="rounded" size={40} skin="light">
-                      <i className={item.icon}></i>
-                    </CustomAvatar>
-                  </Box>
-                  <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                    {item.progressData}
-                  </Typography>
-                </CardContent>
-              </StatsCard>
+              {item.href ? (
+                <Link href={item.href} style={{ textDecoration: 'none', color: 'inherit' }}>
+                  <StatsCard sx={{ bgcolor: `${item.color}10`, borderLeft: `4px solid ${item.color}`, cursor: 'pointer' }}>
+                    <CardContent sx={{ p: 0 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography sx={{ fontWeight: 500, color: 'text.secondary', fontSize: '0.875rem' }}>{item.heading}</Typography>
+                        <CustomAvatar color={item.color} variant='rounded' size={40} skin='light'><i className={item.icon}></i></CustomAvatar>
+                      </Box>
+                      <Typography variant='h4' sx={{ fontWeight: 700 }}>{item.progressData}</Typography>
+                    </CardContent>
+                  </StatsCard>
+                </Link>
+              ) : (
+                <StatsCard sx={{ bgcolor: `${item.color}10`, borderLeft: `4px solid ${item.color}` }}>
+                  <CardContent sx={{ p: 0 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography sx={{ fontWeight: 500, color: 'text.secondary', fontSize: '0.875rem' }}>{item.heading}</Typography>
+                      <CustomAvatar color={item.color} variant='rounded' size={40} skin='light'><i className={item.icon}></i></CustomAvatar>
+                    </Box>
+                    <Typography variant='h4' sx={{ fontWeight: 700 }}>{item.progressData}</Typography>
+                  </CardContent>
+                </StatsCard>
+              )}
             </Grid>
           ))}
         </Grid>
       </CardContent>
     </StyledCard>
-  );
+  )
 };
 
 export default LogisticsVehicleOverview;

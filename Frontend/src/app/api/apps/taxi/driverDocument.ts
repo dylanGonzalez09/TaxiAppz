@@ -49,38 +49,47 @@ export const updateDriverDocument = async (id: string, formData: FormData) => {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
 
+
     if (response.success) {
-      return response.data
+      return response.data;
     } else {
-      return null
+      return { success: false, message: response.data.message || 'Error creating driver' };
     }
-  } catch (error) {
-    return null;
+  } 
+  catch (error: any) {
+   
+    const errorMessage = error.response ? error.response.data : 'Something went wrong';
+ 
+return { success: false, message: errorMessage }; 
   }
 };
 
 
 export const updateDriverDocumentStatus = async (id: string, driverDocument: any) => {
   try {
-
     const response = await patch(ENDPOINTS.driverDocument.updateStatus(id), driverDocument);
 
     if (response.success) {
-      return response.data;
+      return { success: true, data: response.data };
     } else {
-      return null;
+      return { success: false, message: response.data?.message || 'Error creating driver' };
     }
-  } catch (error) {
-    console.error('Error updating role:', error);
-
-    return null;
+  } 
+  catch (error: any) {
+    return { 
+      success: false, 
+      message: error?.response?.data?.message 
+        || error?.message 
+        || 'Something went wrong'
+    };
   }
 };
 
 
-export const fetchExpiryDocument = async (id:string,searchTerm: string, page: number, limit: number) => {
+
+export const fetchExpiryDocument = async (searchTerm: string, page: number, limit: number) => {
   try {
-    const response = await get(ENDPOINTS.driverDocument.list(id,searchTerm, page, limit));
+    const response = await get(ENDPOINTS.driverDocument.list(searchTerm, page, limit));
 
     if (response.success) {
       return response.data

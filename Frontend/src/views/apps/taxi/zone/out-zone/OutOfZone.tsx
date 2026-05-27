@@ -66,7 +66,7 @@ const OutZoneTable = ({ dictionary, OutZoneData }: { dictionary: any; OutZoneDat
     {
       id: 'serialNo',
       header: dictionary['navigation'].Sl,
-      cell: ({ row }) => <Typography>{row.index + 1 + pageIndex * pageSize}</Typography>,
+      cell: ({ row }) => <Typography>{(pageIndex == 0 ? 0 : pageIndex - 1) * pageSize + row.index + 1}</Typography>, /* {row.index + 1 + pageIndex * pageSize} */
     },
     columnHelper.accessor('kilometer', {
       header: dictionary['navigation'].Kilometer,
@@ -107,11 +107,13 @@ const OutZoneTable = ({ dictionary, OutZoneData }: { dictionary: any; OutZoneDat
               icon: 'tabler-pencil-minus',
               menuItemProps: { onClick: () => handleEditClick(row.original) },
             },
-           {
-              text: dictionary['navigation'].Delete,
-              icon: 'tabler-trash',
-              menuItemProps: { onClick: () => handleDeleteClick(row.original) },
-            },
+
+          //  {
+          //     text: dictionary['navigation'].Delete,
+          //     icon: 'tabler-trash',
+          //     menuItemProps: { onClick: () => handleDeleteClick(row.original) },
+          //   },
+
           ]}
         />
       ),
@@ -148,16 +150,16 @@ const OutZoneTable = ({ dictionary, OutZoneData }: { dictionary: any; OutZoneDat
     setAddOutZoneOpen(true);
   };
 
-  const handleDeleteClick = (original: OutZoneDataType) => {
-     if (checkDemoStatus()) {
-         toast.error(dictionary['navigation'].deleteError);
+  // const handleDeleteClick = (original: OutZoneDataType) => {
+  //    if (checkDemoStatus()) {
+  //        toast.error(dictionary['navigation'].deleteError);
 
-          return;
-          }
+  //         return;
+  //         }
 
-          setDeleteOutZoneId(original.id);
-    setDeleteConfirmationOpen(true);
-  };
+  //         setDeleteOutZoneId(original.id);
+  //   setDeleteConfirmationOpen(true);
+  // };
 
   const handleConfirmDelete = async (confirmed: boolean) => {
     if (confirmed && deleteOutZoneId) {
@@ -379,6 +381,7 @@ const OutZoneTable = ({ dictionary, OutZoneData }: { dictionary: any; OutZoneDat
           dictionary={dictionary}
           editData={editData}
           setData={setData}
+          setTotalResults={setTotalResults}
         />
         <ConfirmationDialog
           open={deleteConfirmationOpen}

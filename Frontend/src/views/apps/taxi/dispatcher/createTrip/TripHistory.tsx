@@ -8,20 +8,21 @@ import CheckIcon from '@mui/icons-material/Check';
 interface TripHistoryProps {
   completedTrips: number;
   cancelledTrips: number;
+  dictionary:any;
 
   // tripIds: string[];
 }
 
-const TripHistory: React.FC<TripHistoryProps> = ({ completedTrips, cancelledTrips }) => {
+const TripHistory: React.FC<TripHistoryProps> = ({ completedTrips, cancelledTrips,dictionary }) => {
   const tripData = [
-    { title: 'Completed Trips', value: completedTrips, color: 'green', icon: <CheckIcon /> },
-    { title: 'Cancelled Trips', value: cancelledTrips, color: 'info', icon: <CancelIcon /> },
+    { title:dictionary['navigation'].CompletedTrips || 'Completed Trips', value: completedTrips, color: 'green', icon: <CheckIcon /> },
+    { title:dictionary['navigation'].CancelledTrips || 'Cancelled Trips', value: cancelledTrips, color: 'info', icon: <CancelIcon /> },
   ];
 
   return (
     <div className="mb-4">
       <Typography variant="body2" style={{ color: 'rgba(47, 43, 61, 0.9)' }}>
-        Trip History
+        {dictionary['navigation'].TripHistory || 'Trip History'}
       </Typography>
 
       <Grid container spacing={2} className="mt-2 mb-2">

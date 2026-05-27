@@ -15,8 +15,11 @@ const ModuleTable = ({ translationData, currentTab, activeLanguage, settingsData
   const [introScreenStatus, setIntroScreenStatus] = useState<string>('no');
   const [ratingStatus, setRatingStatus] = useState<string>('no');
   const [secondaryZone, setSecondaryZone] = useState<string>('no');
-  const [companyRegister, setCompanyRegister] = useState<string>('no');
+  const [smsGateways, setSmsGateways] = useState<string>('no');
+  const [smsType, setSmsType] = useState<string>('Twilio');
   const [subScription, setsubScription] = useState<string>('no');
+  const [referalRepeat, setReferalRepeat] = useState<string>('no');
+  const [tipEnabled, setTipEnabled] = useState<string>('no');
 
   const { checkDemoStatus } = useIsDemoUser();
 
@@ -35,8 +38,12 @@ const ModuleTable = ({ translationData, currentTab, activeLanguage, settingsData
       setIntroScreenStatus(dataMap.introScreenStatus || 'no');
       setRatingStatus(dataMap.ratingStatus || 'no');
       setSecondaryZone(dataMap.secondaryZone || 'no');
-      setCompanyRegister(dataMap.companyRegister || 'no');
+      setSmsGateways(dataMap.smsGateways || 'no');
       setsubScription(dataMap.subScription || 'no');
+      setSmsType(dataMap.smsType);
+      setReferalRepeat(dataMap.referalRepeat || 'no');
+      setTipEnabled(dataMap.tipEnabled || 'no');
+
     }
   }, [settingsData]);
 
@@ -60,9 +67,12 @@ const ModuleTable = ({ translationData, currentTab, activeLanguage, settingsData
     formData.append('introScreenStatus', introScreenStatus);
     formData.append('ratingStatus', ratingStatus);
     formData.append('secondaryZone', secondaryZone);
-    formData.append('companyRegister', companyRegister);
     formData.append('type', 'modules');
+    formData.append('smsGateways', smsGateways);
     formData.append('subScription', subScription);
+    formData.append('smsType', smsType);
+    formData.append('referalRepeat', referalRepeat);
+    formData.append('tipEnabled', tipEnabled);
 
     const moduleData = settingsData.length > 0 ? await updateSetting(formData) : await createSetting(formData);
 
@@ -71,6 +81,9 @@ const ModuleTable = ({ translationData, currentTab, activeLanguage, settingsData
     }
   };
 
+  const handleSmsTypeChange = (event: any) => {
+    setSmsType(event.target.value);
+  };
 
   return (
     <Card>
@@ -227,17 +240,19 @@ const ModuleTable = ({ translationData, currentTab, activeLanguage, settingsData
             </RadioGroup>
           </Grid>
 
+
+
           <Grid item xs={12} sm={6} md={4}>
             <Button
               variant="contained"
-              color={companyRegister === 'yes' ? 'primary' : 'secondary'}
-              onClick={() => setCompanyRegister(companyRegister === 'yes' ? 'no' : 'yes')}
+              color={smsGateways === 'yes' ? 'primary' : 'secondary'}
+              onClick={() => setSmsGateways(smsGateways === 'yes' ? 'no' : 'yes')}
             >
-              {companyRegister === 'yes' ? dictionary['navigation'].DisableCompanyRegister : dictionary['navigation'].EnableCompanyRegister}
+              {smsGateways === 'yes' ? dictionary['navigation'].DisableSmsRegister : dictionary['navigation'].EnableSmsRegister}
             </Button>
             <RadioGroup
-              value={companyRegister}
-              onChange={handleChange(setCompanyRegister)}
+              value={smsGateways}
+              onChange={handleChange(setSmsGateways)}
             >
               <FormControlLabel
                 value="yes"
@@ -253,7 +268,23 @@ const ModuleTable = ({ translationData, currentTab, activeLanguage, settingsData
           </Grid>
 
 
-  
+          {smsGateways === 'yes' && (
+            <Grid item xs={12} sm={6} md={4}>
+              <FormControl fullWidth>
+                <InputLabel id="sms-type-label">SMS Gateway</InputLabel>
+                <Select
+                  labelId="sms-type-label"
+                  value={smsType}
+                  label="SMS Gateway"
+                  onChange={handleSmsTypeChange}
+                >
+                  <MenuItem value="Twilio">Twilio</MenuItem>
+                  <MenuItem value="VoodooSMS">VoodooSMS</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+          )}
+
 
           <Grid item xs={12} sm={6} md={4}>
             <Button
@@ -280,7 +311,55 @@ const ModuleTable = ({ translationData, currentTab, activeLanguage, settingsData
             </RadioGroup>
           </Grid>
 
+          <Grid item xs={12} sm={6} md={4}>
+              <Button
+                variant="contained"
+                color={referalRepeat === 'yes' ? 'primary' : 'secondary'}
+                onClick={() => setReferalRepeat(referalRepeat === 'yes' ? 'no' : 'yes')}
+              >
+                {referalRepeat === 'yes' ? dictionary['navigation'].DisableReferral : dictionary['navigation'].EnableReferral}
+              </Button>
+              <RadioGroup
+                value={referalRepeat}
+                onChange={handleChange(setReferalRepeat)}
+              >
+                <FormControlLabel
+                  value="yes"
+                  control={<Radio />}
+                  label={dictionary['navigation'].Yes}
+                />
+                <FormControlLabel
+                  value="no"
+                  control={<Radio />}
+                  label={dictionary['navigation'].No}
+                />
+              </RadioGroup>
+            </Grid>
 
+          <Grid item xs={12} sm={6} md={4}>
+              <Button
+                variant="contained"
+                color={tipEnabled === 'yes' ? 'primary' : 'secondary'}
+                onClick={() => setTipEnabled(tipEnabled === 'yes' ? 'no' : 'yes')}
+              >
+              {tipEnabled === 'yes' ? dictionary['navigation'].DisableTip || 'Disable Tip' : dictionary['navigation'].EnableTip || 'Enable Tip'}
+              </Button>
+              <RadioGroup
+                value={tipEnabled}
+                onChange={handleChange(setTipEnabled)}
+              >
+                <FormControlLabel
+                  value="yes"
+                  control={<Radio />}
+                  label={dictionary['navigation'].Yes}
+                />
+                <FormControlLabel
+                  value="no"
+                  control={<Radio />}
+                  label={dictionary['navigation'].No}
+                />
+              </RadioGroup>
+            </Grid>
 
           <Grid item xs={12}>
             <Button

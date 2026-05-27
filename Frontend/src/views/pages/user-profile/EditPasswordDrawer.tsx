@@ -6,6 +6,8 @@ import { Dialog, DialogTitle, DialogContent, DialogActions, Button, CircularProg
 
 import { signOut } from 'next-auth/react'
 
+import { clearPrivilegeCache } from '@/utils/privillage'
+
 import CustomTextField from '@core/components/mui/TextField';
 
 import DialogCloseButton from '@/components/dialogs/DialogCloseButton'; // Adjust path based on actual component location
@@ -38,6 +40,7 @@ const EditPasswordDialog = ({ open, handleClose,userId, dictionary}: Props) => {
    const handleUserLogout = async () => {
       try {
         localStorage.removeItem('isDemoUser') 
+       await clearPrivilegeCache();
         await signOut({ callbackUrl: process.env.NEXT_PUBLIC_APP_URL })
       } catch (error) {
         console.error(error)

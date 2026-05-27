@@ -36,9 +36,9 @@ export const createComplaints = async (complaints: any) => {
   }
 }
 
-export const getByComplaintsByPagination = async (id: string, p0: number, p1: number): Promise<any> => {
+export const getByComplaintsByPagination = async (searchTerm: string, page: number, limit: number, overrideZoneId?: any) => {
   try {
-    const response = await get(ENDPOINTS.complaints.getByComplaintsByPagination);
+    const response = await get(ENDPOINTS.complaints.getByComplaintsByPagination(searchTerm, page, limit), undefined, overrideZoneId)
 
     if (response.success) {
       return response.data
@@ -100,10 +100,10 @@ export const updateComplaintsStatus = async (id: string, faq: any) => {
   }
 };
 
-export const getComplaintsByLanguage = async (id: string,searchTerm: string, page: number, limit: number) => {
+export const getComplaintsByLanguage = async (id: string,searchTerm: string, page: number, limit: number,overrideZoneId?: any) => {
   try {
     
-    const response = await get(ENDPOINTS.complaints.getComplaintsByLanguage(id,searchTerm, page, limit))
+    const response = await get(ENDPOINTS.complaints.getComplaintsByLanguage(id,searchTerm, page, limit), undefined, overrideZoneId);
     
     if (response.success) {
       return response.data

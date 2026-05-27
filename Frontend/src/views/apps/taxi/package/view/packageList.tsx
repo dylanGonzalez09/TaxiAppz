@@ -26,7 +26,7 @@ type DriverReportsType = {
 
 const fuzzyFilter: FilterFn<DriverReportsType> = (row, columnId, filterValue) => {
   const cellValue = row.getValue(columnId);
-
+  
   return typeof cellValue === 'string' && cellValue.toLowerCase().includes(filterValue.toLowerCase());
 };
 
@@ -72,7 +72,7 @@ const ClientView = ({ staticGroup, dictionary }: { staticGroup: DriverReportsTyp
 
   const filteredData = useMemo(() => {
     if (currentStatus === 'All') return data;
-
+    
     return data.filter(driver => driver.status.toLowerCase() === currentStatus.toLowerCase());
   }, [data, currentStatus]);
 
@@ -104,7 +104,7 @@ const ClientView = ({ staticGroup, dictionary }: { staticGroup: DriverReportsTyp
       header: dictionary['navigation'].Status,
       cell: ({ row }) => {
         const isActive = row.original.status.toLowerCase() === 'active';
-
+        
         return (
           <Typography variant='body2' style={{ color: isActive ? 'green' : 'red' }}>
             {row.original.status}
@@ -223,3 +223,4 @@ const ClientView = ({ staticGroup, dictionary }: { staticGroup: DriverReportsTyp
 };
 
 export default ClientView;
+    

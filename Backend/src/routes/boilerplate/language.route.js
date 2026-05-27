@@ -6,18 +6,29 @@ const languageController = require('../../controllers/boilerplate/language.contr
 
 const router = express.Router();
 
-router.route('/create').post(auth('Language'),validate(languageValidation.createLanguage), languageController.createlanguage);
+router
+  .route('/create')
+  .post(auth('Language'), validate(languageValidation.createLanguage), languageController.createlanguage);
 router.route('/getLanguageWithPagination/:clientId').get(auth('Language'), languageController.getlanguages);
-router.route('/getLanguages/:languageId').get(auth('Language'),validate(languageValidation.getLanguage), languageController.getlanguage);
-router.route('/getLanguage/list').get(auth('Language'),languageController.getlanguageWithOutPagination);
-router.route('/getLanguage/active/list').get(auth('Language'),languageController.getlanguageActiveWithOutPagination);
-router.route('/getLanguage/intro/list').get(auth('Language'),languageController.getlanguageIntroWithOutPagination);
-router.route('/updateLanguages/:languageId').patch(auth('Language'),validate(languageValidation.updateLanguage), languageController.updatelanguage);
-router.route('/deleteLanguages/:languageId').delete(auth('Language'),validate(languageValidation.deleteLanguage), languageController.deletelanguage);
-router.route('/get/:code').get(auth('Language'),validate(languageValidation.getLanguagebyCode), languageController.getlanguageByCode);
-router.route('/updatelanguageStatus/:languageId').patch(auth('Language'),validate(languageValidation.updatelanguageStatus), languageController.updateLanguageStatus);
-
-
+router.route('/getActiveLanguageWithPagination/:clientId').get(auth('Language'), languageController.getlanguagesActive);
+router
+  .route('/getLanguages/:languageId')
+  .get(auth('Language'), validate(languageValidation.getLanguage), languageController.getlanguage);
+router.route('/getLanguage/list').get(auth('Language'), languageController.getlanguageWithOutPagination);
+router.route('/getLanguage/active/list').get(auth('Language'), languageController.getlanguageActiveWithOutPagination);
+router.route('/getLanguage/intro/list').get(auth('Language'), languageController.getlanguageIntroWithOutPagination);
+router
+  .route('/updateLanguages/:languageId')
+  .patch(auth('Language'), validate(languageValidation.updateLanguage), languageController.updatelanguage);
+router
+  .route('/deleteLanguages/:languageId')
+  .delete(auth('Language'), validate(languageValidation.deleteLanguage), languageController.deletelanguage);
+router
+  .route('/get/:code')
+  .get(auth('Language'), validate(languageValidation.getLanguagebyCode), languageController.getlanguageByCode);
+router
+  .route('/updatelanguageStatus/:languageId')
+  .patch(auth('Language'), validate(languageValidation.updatelanguageStatus), languageController.updateLanguageStatus);
 
 module.exports = router;
 
@@ -427,5 +438,3 @@ module.exports = router;
  *       "403":
  *         description: Forbidden, authenticated user does not have permission to access the language
  */
-
-

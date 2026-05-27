@@ -29,18 +29,34 @@ const updateFaq = {
   params: Joi.object().keys({
     faqId: Joi.string().custom(objectId).required(),
   }),
-  body: Joi.object().keys({
-    question: Joi.string().trim().optional(),
-    answer: Joi.string().trim().optional(),
-    category: Joi.string().trim().optional(),
-    language: Joi.string().custom(objectId).required(),
-    status: Joi.boolean().default(true),
-  }).min(1),
+  body: Joi.object()
+    .keys({
+      question: Joi.string().trim().optional(),
+      answer: Joi.string().trim().optional(),
+      category: Joi.string().trim().optional(),
+      language: Joi.string().custom(objectId).required(),
+      status: Joi.boolean().default(true),
+    })
+    .min(1),
 };
 
 const deleteFaq = {
   params: Joi.object().keys({
     faqId: Joi.string().custom(objectId).required(),
+  }),
+};
+
+const getFaqsListUser = {
+  body: Joi.object().keys({
+    type: Joi.string().valid('User').required(),
+    zoneId: Joi.string().custom(objectId).required(),
+  }),
+};
+
+const getFaqsListDriver = {
+  body: Joi.object().keys({
+    type: Joi.string().valid('Driver').required(),
+    zoneId: Joi.string().custom(objectId).required(),
   }),
 };
 
@@ -50,4 +66,6 @@ module.exports = {
   getFaq,
   updateFaq,
   deleteFaq,
+  getFaqsListUser,
+  getFaqsListDriver,
 };

@@ -1,4 +1,4 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const pick = require('../../../utils/pick');
 const ApiError = require('../../../utils/ApiError');
 const catchAsync = require('../../../utils/catchAsync');
@@ -9,7 +9,7 @@ const { imageModelUpload } = require('../../../middlewares/upload');
 const path = require('path');
 const fs = require('fs');
 
-dotenv.config(); // Load environment variables
+dotenv.config({ quiet: true }); // Load environment variables
 
 // Create a vehicle with images
 const createIntro = catchAsync(async (req, res) => {

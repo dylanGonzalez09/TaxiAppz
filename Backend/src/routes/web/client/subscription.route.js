@@ -6,13 +6,38 @@ const subscriptionController = require('../../../controllers/web/client/subscrip
 
 const router = express.Router();
 
-router.route('/create').post(auth('SubScription'), validate(subscriptionValidation.createSubScription), subscriptionController.createSubScription);
+router
+  .route('/create')
+  .post(
+    auth('SubScription'),
+    validate(subscriptionValidation.createSubScription),
+    subscriptionController.createSubScription,
+  );
 router.route('/getSubScriptionsWithPagination').get(auth('SubScription'), subscriptionController.getSubScriptions);
-router.route('/getSubScription/:subScriptionId').get(auth('SubScription'), validate(subscriptionValidation.getSubScription), subscriptionController.getSubScription);
+router
+  .route('/getSubScription/:subScriptionId')
+  .get(auth('SubScription'), validate(subscriptionValidation.getSubScription), subscriptionController.getSubScription);
 router.route('/listAll').get(auth('SubScription'), subscriptionController.getSubScriptionWithOutPagination);
-router.route('/updateSubScription/:subScriptionId').patch(auth('SubScription'), validate(subscriptionValidation.updateSubScription), subscriptionController.updateSubScription);
-router.route('/deleteSubScription/:subScriptionId').delete(auth('SubScription'), validate(subscriptionValidation.deleteSubScription), subscriptionController.deleteSubScription);
-router.patch('/updateSubScriptionStatus/:subScriptionId', auth('SubScription'), validate(subscriptionValidation.updateSubScriptionStatus), subscriptionController.updateSubScriptionStatus);
+router
+  .route('/updateSubScription/:subScriptionId')
+  .patch(
+    auth('SubScription'),
+    validate(subscriptionValidation.updateSubScription),
+    subscriptionController.updateSubScription,
+  );
+router
+  .route('/deleteSubScription/:subScriptionId')
+  .delete(
+    auth('SubScription'),
+    validate(subscriptionValidation.deleteSubScription),
+    subscriptionController.deleteSubScription,
+  );
+router.patch(
+  '/updateSubScriptionStatus/:subScriptionId',
+  auth('SubScription'),
+  validate(subscriptionValidation.updateSubScriptionStatus),
+  subscriptionController.updateSubScriptionStatus,
+);
 
 /** Get Client list && Superadmin list */
 
@@ -21,8 +46,6 @@ router.route('/get/superadmin/list').get(subscriptionController.getSuperadminlis
 router.route('/get/client/list').get(auth('SubScription'), subscriptionController.getClientlist);
 
 module.exports = router;
-
-
 
 /**
  * @swagger

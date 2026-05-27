@@ -29,14 +29,16 @@ const updateComplaint = {
   params: Joi.object().keys({
     complaintId: Joi.string().custom(objectId).required(),
   }),
-  body: Joi.object().keys({
-    title: Joi.string().trim().optional(),
-    category: Joi.string().custom(objectId).optional(),
-    type: Joi.string().trim().optional(),
-    status: Joi.number().optional(),
-    complaintType: Joi.number().optional(),
-    language: Joi.string().trim().optional(),
-  }).min(1),
+  body: Joi.object()
+    .keys({
+      title: Joi.string().trim().optional(),
+      category: Joi.string().custom(objectId).optional(),
+      type: Joi.string().trim().optional(),
+      status: Joi.number().optional(),
+      complaintType: Joi.number().optional(),
+      language: Joi.string().trim().optional(),
+    })
+    .min(1),
 };
 
 const deleteComplaint = {

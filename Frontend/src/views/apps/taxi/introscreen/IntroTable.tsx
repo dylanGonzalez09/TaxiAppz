@@ -19,7 +19,7 @@ import CustomTextField from '@core/components/mui/TextField';
 import TablePaginationComponent from '@components/TablePaginationComponent';
 import ConfirmationDialog from '../../../../components/dialogs/delete-data';
 import tableStyles from '@core/styles/table.module.css';
-import { useIsDemoUser } from '@/utils/demoUser'
+import { useIsDemoUser } from '@/utils/demoUser' 
 
 import { BASE_IMAGE_URL } from '@apis/endpoint';
 import ExportOptions from '@/utils/ExportOptions';
@@ -105,8 +105,8 @@ const IntroTable = ({ staticData, dictionary }: { staticData: any[], dictionary:
   const handleStatusToggle = async (intro: IntroType) => {
     if (checkDemoStatus()) {
       toast.error(dictionary['navigation'].editError);
-
-    return;
+      
+    return;  
       }
 
     setStatusIntro(intro);
@@ -245,7 +245,7 @@ const IntroTable = ({ staticData, dictionary }: { staticData: any[], dictionary:
   const handleEditClick = (rowData: IntroType) => {
     if (checkDemoStatus()) {
       toast.error(dictionary['navigation'].editError);
-
+      
 return;
     }
 
@@ -256,7 +256,7 @@ return;
   const handleDeleteClick = (original: IntroType) => {
     if (checkDemoStatus()) {
       toast.error(dictionary['navigation'].deleteError);
-
+      
 return;
     }
 
@@ -296,6 +296,7 @@ return;
               onChange={(e) => table.setPageSize(Number(e.target.value))}
               className='flex-auto'
             >
+              <MenuItem value={5}>5</MenuItem>
               <MenuItem value={10}>10</MenuItem>
               <MenuItem value={15}>15</MenuItem>
               <MenuItem value={25}>25</MenuItem>
@@ -307,7 +308,7 @@ return;
               dictionary={dictionary}
 
             />
-
+          
               <Button
                 variant='contained'
                 onClick={() => setAddIntroOpen(true)}
@@ -372,7 +373,7 @@ return;
         open={addIntroOpen}
         handleClose={handleCloseDialog}
         vehicleData={data}
-
+        
         dictionary={dictionary}
         setData={setData}
         editData={editData}

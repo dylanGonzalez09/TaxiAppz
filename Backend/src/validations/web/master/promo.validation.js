@@ -12,13 +12,14 @@ const createPromoCode = {
     amount: Joi.number().precision(2).optional().allow(null),
     percentage: Joi.number().precision(2).optional().allow(null),
     userId: Joi.object({
-      userIds: Joi.array().items(Joi.string().optional().allow(null))
+      userIds: Joi.array().items(Joi.string().optional().allow(null)),
     }),
     distanceKm: Joi.number().optional().allow(null),
     fromDate: Joi.date().optional().allow(null),
     toDate: Joi.date().optional().allow(null),
     status: Joi.boolean().default(true),
     totalCount: Joi.number().integer().default(0),
+    banner: Joi.string().optional().allow(null),
     promoReuseCount: Joi.number().integer().default(0),
     createdBy: Joi.string().optional().allow(null),
   }),
@@ -53,18 +54,18 @@ const updatePromoCode = {
     amount: Joi.number().precision(2).optional().allow(null),
     percentage: Joi.number().precision(2).optional().allow(null),
     userId: Joi.object({
-      userIds: Joi.array().items(Joi.string().optional().allow(null))
+      userIds: Joi.array().items(Joi.string().optional().allow(null)),
     }),
     distanceKm: Joi.number().optional().allow(null),
     fromDate: Joi.date().optional().allow(null),
     toDate: Joi.date().optional().allow(null),
     status: Joi.boolean(),
     totalCount: Joi.number().integer(),
+    banner: Joi.string().optional(),
     promoReuseCount: Joi.number().integer(),
     createdBy: Joi.string().optional().allow(null),
   }),
 };
-
 
 const updatePromoStatus = {
   params: Joi.object().keys({
@@ -87,5 +88,5 @@ module.exports = {
   getPromoCode,
   updatePromoCode,
   deletePromoCode,
-  updatePromoStatus
+  updatePromoStatus,
 };

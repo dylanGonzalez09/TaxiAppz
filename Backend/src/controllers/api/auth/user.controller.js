@@ -1,4 +1,4 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const ApiError = require('../../../utils/ApiError');
 const catchAsync = require('../../../utils/catchAsync');
 const { mobileauthService, tokenService, userService, requestService } = require('../../../services');
@@ -10,9 +10,9 @@ const { errorMessages, keyMessages } = require('../../../config/errorMessages');
 const ObjectId = require('mongoose').Types.ObjectId
 const { sendPushNotificationToken } = require('../../../utils/commonFunction');
 
-
+const {getUserId,getClientId,getDriverId} = require('../../../utils/commonFunction')
 const dotenv = require('dotenv');
-dotenv.config();
+dotenv.config({ quiet: true });
 // Load environment variables
 
 /**
@@ -20,36 +20,7 @@ dotenv.config();
   1. Check the Version Available or not if not redirect to update screen 
   2. check the avaliable languages for client send the avaliable languages 
  */
-const getClientId = async (req) => {
-  clientId = '';
-  if (!req.headers.clientid) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
-  } else {
-    clientId = req.headers.clientid;
-  }
-  return clientId;
-}
 
-
-const getUserId = async (req) => {
-
-  let userId = '';
-
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    res.status(httpStatus.UNAUTHORIZED).send({ message: 'Authorization header is missing or invalid' });
-    return;
-  }
-  // Remove the 'Bearer ' prefix and get the token
-  const token = authHeader.substring(7);
-
-  const user = await tokenService.verifyTokenAndGetUser(token);
-
-  userId = user.id
-
-  return userId;
-}
 
 
 
@@ -102,10 +73,7 @@ const userVerify = catchAsync(async (req, res) => {
   let adminDemoKey = null;
 
   if (demoKey) {
-    const demoRecord = await Demo.findOne({
-      demoKey: { $regex: new RegExp(`^${demoKey}$`, 'i') }
-    });
-  
+    const demoRecord = await Demo.findOne({ demoKey });
     if (demoRecord) {
       const currentDate = new Date();
       demoValid = demoRecord.status && demoRecord.Enddate > currentDate;
@@ -137,119 +105,257 @@ const userVerify = catchAsync(async (req, res) => {
   res.send({ user, tokens });
 });
 
+// const createUser = catchAsync(async (req, res) => {
+
+//   let clientId = await getClientId(req);
+
+//   const session = await mongoose.startSession();
+//   session.startTransaction();
+
+//   try {
+
+//     if (req.body.referralCode) {
+//       const referedByData = await User.findOne({ referralCode: req.body.referralCode });
+
+//       if (!referedByData) {
+//         throw new ApiError(httpStatus.UNAUTHORIZED, errorMessages.INVALID_REFERAL_CODE);
+//       }
+
+//     }
+
+//      if (req.body.phoneNumber) {
+//       let roleId = await findRolesByRoleName();
+
+//       const existingUser = await Users.findOne({
+//         phoneNumber: req.body.phoneNumber,
+//         roleIds: roleId, 
+//       });
+
+//       if (existingUser) {
+//         throw new ApiError(httpStatus.BAD_REQUEST, errorMessages.PHONE_NUMBER_ALREADY_TAKEN);
+//       }
+//     }
+
+//     if (req.body.email && await Users.isEmailTaken(req.body.email)) {
+//       throw new ApiError(httpStatus.BAD_REQUEST, errorMessages.EMAIL_ALREADY_TAKEN);
+//     }
+
+//     const countryDial = await Country.findById(req.body.countryCode);
+
+//     if (!countryDial) {
+//       throw new ApiError(httpStatus.UNAUTHORIZED, errorMessages.INVALID_COUNTRYCODE);
+//     }
+//     let roleId = await findRolesByRoleName();
+
+//     const userData = {
+//       firstName: req.body.name || "",
+//       lastName: req.body.lastName || "",
+//       phoneNumber: req.body.phoneNumber || "",
+//       country: req.body.countryCode || "",
+//       countryCode: req.body.countryCode,
+//       active: req.body.active !== undefined ? req.body.active : true,
+//       deviceInfoHash: req.body.deviceInfoHash || "",
+//       deviceType: req.body.deviceType || "",
+//       regDate: req.body.regDate || "", 
+//       regTime: req.body.regTime || "",
+//       clientId: clientId,
+//       roleIds: roleId,
+//       referralCode: generateReferralCode(), 
+//     };
+
+//     if (req.body.demoKey) {
+//       userData.adminDemoKey = req.body.demoKey;
+//     }
+
+//     if (req.body.email) {
+//       userData.email = req.body.email || "";
+//     }
+
+//     userUpload.single('profilePic')(req, res, async (err) => {
+
+//       const driverImage = req.file ? req.file.filename : '';
+
+//       if (driverImage) {
+//         userData.profilePic = driverImage
+//       }
+
+//       const user = await userService.createUser(userData);
+
+//       await sendPushNotificationToken(userData.deviceInfoHash,user._id.toString(), {
+//         title: "WELCOME",
+//         message: process.env.WELCOME_TEXT
+//       });
+
+//       const tokens = await tokenService.generateAuthTokens(user);
+
+//       tokens.userId = user._id;
+
+
+//       if (req.body.referralCode) {
+//         const referedByData = await User.findOne({ referralCode: req.body.referralCode });
+//         let referralBody = {
+//           referredBy: referedByData._id,
+//           referredTo: user._id
+//         }
+//         await Referral.create(referralBody)
+//       }
+
+//       await walletIntialTransaction(0, user._id, "Earned", "Wallet Create");
+
+//       await session.commitTransaction();
+//       session.endSession();
+//       const response = Response(true, { tokens }, "User created successfully");
+
+//       res.status(httpStatus.CREATED).send(response);
+//     });
+//   } catch (error) {
+//     await session.abortTransaction();
+//     session.endSession();
+//     return res.status(400).json({ message: error.message });
+//   }
+// });
+
+
+
 const createUser = catchAsync(async (req, res) => {
 
-  let clientId = await getClientId(req);
-
+  const clientId = await getClientId(req);
   const session = await mongoose.startSession();
-  session.startTransaction();
+
+  let referredByUser = null;
 
   try {
+    session.startTransaction();
 
+    /* ---------------- REFERRAL VALIDATION ---------------- */
     if (req.body.referralCode) {
-      const referedByData = await User.findOne({ referralCode: req.body.referralCode });
+      referredByUser = await User.findOne(
+        { referralCode: req.body.referralCode }
+      ).session(session);
 
-      if (!referedByData) {
-        throw new ApiError(httpStatus.UNAUTHORIZED, errorMessages.INVALID_REFERAL_CODE);
+      if (!referredByUser) {
+        throw new ApiError(
+          httpStatus.UNAUTHORIZED,
+          errorMessages.INVALID_REFERAL_CODE
+        );
       }
-
     }
 
+    /* ---------------- PHONE CHECK ---------------- */
     if (req.body.phoneNumber) {
+      const roleId = await findRolesByRoleName();
 
-      let phoneNumber = req.body.phoneNumber;
+      const existingUser = await User.findOne({
+        phoneNumber: req.body.phoneNumber,
+        roleIds: roleId
+      }).session(session);
 
-      let roleIdsdata = await findRolesByRoleName();
-
-      let Details = await User.findOne({
-        phoneNumber,
-        roleIds: { $in: [roleIdsdata] } // Checks if roleId exists in the roleIds array
-      });
-
-
-      if (Details) {
-        throw new ApiError(httpStatus.BAD_REQUEST, errorMessages.PHONE_NUMBER_ALREADY_TAKEN);
+      if (existingUser) {
+        throw new ApiError(
+          httpStatus.BAD_REQUEST,
+          errorMessages.PHONE_NUMBER_ALREADY_TAKEN
+        );
       }
-
     }
 
-    if (req.body.email && await Users.isEmailTaken(req.body.email)) {
-      throw new ApiError(httpStatus.BAD_REQUEST, errorMessages.EMAIL_ALREADY_TAKEN);
+    /* ---------------- EMAIL CHECK ---------------- */
+    if (req.body.email && await User.isEmailTaken(req.body.email)) {
+      throw new ApiError(
+        httpStatus.BAD_REQUEST,
+        errorMessages.EMAIL_ALREADY_TAKEN
+      );
     }
 
-    const countryDial = await Country.findById(req.body.countryCode);
+    /* ---------------- COUNTRY CHECK ---------------- */
+    const countryDial = await Country.findById(
+      req.body.countryCode
+    ).session(session);
 
     if (!countryDial) {
-      throw new ApiError(httpStatus.UNAUTHORIZED, errorMessages.INVALID_COUNTRYCODE);
+      throw new ApiError(
+        httpStatus.UNAUTHORIZED,
+        errorMessages.INVALID_COUNTRYCODE
+      );
     }
-    let roleId = await findRolesByRoleName();
 
+    const roleId = await findRolesByRoleName();
+
+    /* ---------------- USER DATA ---------------- */
     const userData = {
       firstName: req.body.name || "",
-      lastName: req.body.name || "",
+      lastName: req.body.lastName || "",
       phoneNumber: req.body.phoneNumber || "",
-      country: req.body.countryCode || "",
+      country: req.body.countryCode,
       countryCode: req.body.countryCode,
-      active: req.body.active !== undefined ? req.body.active : true,
+      active: req.body.active ?? true,
       deviceInfoHash: req.body.deviceInfoHash || "",
       deviceType: req.body.deviceType || "",
-      clientId: clientId,
+      regDate: req.body.regDate || "",
+      regTime: req.body.regTime || "",
+      clientId,
       roleIds: roleId,
-      referralCode: generateReferralCode(), // Automatically generated referral code
+      referralCode: generateReferralCode(),
+      email: req.body.email || "",
+      adminDemoKey: req.body.demoKey || undefined,
+      profilePic: req.file ? req.file.filename : ""
     };
 
-    if (req.body.demoKey) {
-      userData.adminDemoKey = req.body.demoKey;
+    /* ---------------- CREATE USER ---------------- */
+    const user = await User.create(
+      [userData],
+      { session }
+    );
+
+    const createdUser = user[0];
+
+    /* ---------------- REFERRAL CREATE ---------------- */
+    if (referredByUser) {
+      await Referral.create(
+        [{
+          referredBy: referredByUser._id,
+          referredTo: createdUser._id
+        }],
+        { session }
+      );
     }
 
-    if (req.body.email) {
-      userData.email = req.body.email || "";
-    }
+    /* ---------------- WALLET INIT ---------------- */
+    await walletIntialTransaction(
+      0,
+      createdUser._id,
+      "Earned",
+      "Wallet Create",
+      session
+    );
 
-    userUpload.single('profilePic')(req, res, async (err) => {
+    /* ---------------- COMMIT ---------------- */
+    await session.commitTransaction();
+    session.endSession();
 
-      const driverImage = req.file ? req.file.filename : '';
-
-      if (driverImage) {
-        userData.profilePic = driverImage
-      }
-
-      const user = await userService.createUser(userData);
-
-
-      await sendPushNotificationToken(userData.deviceInfoHash,user._id.toString(), {
+    /* ---------------- AFTER COMMIT (SIDE EFFECTS) ---------------- */
+    await sendPushNotificationToken(
+      userData.deviceInfoHash,
+      createdUser._id.toString(),
+      {
         title: "WELCOME",
         message: process.env.WELCOME_TEXT
-      });
-
-      const tokens = await tokenService.generateAuthTokens(user);
-
-      tokens.userId = user._id;
-
-
-      if (req.body.referralCode) {
-        const referedByData = await User.findOne({ referralCode: req.body.referralCode });
-        let referralBody = {
-          referredBy: referedByData._id,
-          referredTo: user._id
-        }
-        await Referral.create(referralBody)
       }
+    );
 
-      await walletIntialTransaction(0, user._id, "Earned", "Wallet Create");
+    const tokens = await tokenService.generateAuthTokens(createdUser);
+    tokens.userId = createdUser._id;
 
-      await session.commitTransaction();
-      session.endSession();
-      const response = Response(true, { tokens }, "User created successfully");
+    res.status(httpStatus.CREATED).send(
+      Response(true, { tokens }, "User created successfully")
+    );
 
-      res.status(httpStatus.CREATED).send(response);
-    });
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
-    return res.status(400).json({ message: error.message });
+    throw error;
   }
 });
+
 
 const generateReferralCode = () => {
   return `REF${Math.random().toString(36).substring(2, 4).toUpperCase()}`;
@@ -257,7 +363,7 @@ const generateReferralCode = () => {
 
 const findRolesByRoleName = async () => {
   try {
-    const roles = await Role.findOne({ role: 'User' });
+    const roles = await Role.find({ role: 'User' });
     return roles;
   } catch (error) {
     console.error('Error fetching roles:', error);
@@ -267,6 +373,7 @@ const findRolesByRoleName = async () => {
 
 // Get a single driver by ID
 const getUser = catchAsync(async (req, res) => {
+
 
   const userId = await getUserId(req);
 
@@ -278,7 +385,7 @@ const getUser = catchAsync(async (req, res) => {
 
   user = user.toObject ? user.toObject() : { ...user };
 
-  user.profilePic = `/uploads/user/${user.profilePic}`;
+  user.profilePic = `${user.profilePic}`;
 
   const countryDial = await Country.findById(new ObjectId(user.countryCode));
 
@@ -327,8 +434,7 @@ const updateUser = catchAsync(async (req, res) => {
       }
 
 
-      // userData.profilePic = `/uploads/user/${driverImage}`;
-      userData.profilePic = driverImage;
+      userData.profilePic = `/uploads/user/${driverImage}`;
     }
 
     await userService.updateUserById(existingUser.id, userData);
@@ -423,7 +529,15 @@ const walletIntialTransaction = async (amount, userId, type, purpose) => {
   }
 };
 
+const checkUserZone = catchAsync(async (req,res) => {
 
+  const userId = await getUserId(req);
+  const clientId = await getClientId(req);
+
+  const zone = await userService.checkZone(req,userId);
+  const response = Response(true, zone, "Zone Found");
+  res.status(httpStatus.OK).send(response);
+});
 
 module.exports = {
   userOtpSent,
@@ -432,5 +546,7 @@ module.exports = {
   getUser,
   updateUser,
   getAutocompletePlaces,
-  getRequestsHistory
+  getRequestsHistory,
+  checkUserZone,
+  walletIntialTransaction
 };

@@ -1,11 +1,11 @@
 const Joi = require('joi');
 const { objectId } = require('../../custom.validation');
 
-const createPrivillege= {
+const createPrivillege = {
   body: Joi.object().keys({
     permissionIds: Joi.array().items(Joi.string().hex().length(24)).required(),
     roleId: Joi.string().custom(objectId).required(),
-    groupName : Joi.string().required(),
+    groupName: Joi.string().required(),
   }),
 };
 
@@ -31,8 +31,8 @@ const updatePrivillege = {
     .keys({
       permissionIds: Joi.array().items(Joi.string().hex().length(24)).required(),
       roleId: Joi.string().custom(objectId),
-      groupName : Joi.string(),
-      clientId: Joi.string().custom(objectId).optional()
+      groupName: Joi.string(),
+      clientId: Joi.string().custom(objectId).optional(),
     })
     .min(1),
 };
@@ -57,5 +57,5 @@ module.exports = {
   getPrivillege,
   updatePrivillege,
   deletePrivillege,
-  getPrivillegesDetails
+  getPrivillegesDetails,
 };

@@ -17,8 +17,10 @@ export async function POST(req: Request) {
     })
 
     const user = response.data.user
-    const accessToken = response.data.tokens.access.token
     
+    const accessToken = response.data.tokens.access.token
+
+
     if (user) {
       return NextResponse.json({
         id: user.id,
@@ -26,10 +28,9 @@ export async function POST(req: Request) {
         email: user.email,
         image: {
           clientId: user.clientId,
-          companyId: user.companyId ? user.companyId : null,
           firstName: user.firstName,
           phoneNumber: user.phoneNumber,
-          role: user.roleIds[0].role
+          role: user.roleIds[0].role,
         },
         token: accessToken,
         

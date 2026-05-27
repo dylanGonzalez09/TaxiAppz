@@ -156,7 +156,8 @@ const RequestTable = (dictionary: any) => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [data, setData] = useState(...[requestTable])
   const [globalFilter, setGlobalFilter] = useState('')
-  const { lang: locale } = useParams();
+  const { lang: locale,zoneId } = useParams();
+  const zoneIdString = Array.isArray(zoneId) ? zoneId[0] : zoneId;
 
   // Hooks
   const columns = useMemo<ColumnDef<requestListType, any>[]>(
@@ -173,7 +174,7 @@ const RequestTable = (dictionary: any) => {
             <div className='flex flex-col'>
             <Typography
             component={Link}
-            href={getLocalizedUrl(`/apps/taxi/request/requestView/`, locale as Locale)}
+            href={getLocalizedUrl(`${zoneIdString}/apps/taxi/request/requestView/`, locale as Locale)}
             color='primary'
           >{`#${row.original.invoice}`}</Typography>
               <Typography variant='body2'>{row.original.rideType}</Typography>
@@ -198,20 +199,23 @@ const RequestTable = (dictionary: any) => {
         header: dictionary['navigation'].TotalAmount,
         cell: ({ row }) => <Typography>{parseFloat(row.original.TotalAmount.toFixed(2))}</Typography>
       }),
-        columnHelper.accessor('status', {
-          header: dictionary['navigation'].Status,
-          cell: ({ row }) => {
-            const chipColor =
-              row.original.status === 'completed'
-                ? 'success'
-                : row.original.status === 'In Progress'
-                ? 'warning'
-                : 'error';
-  
-            
-  return <Chip label={row.original.status} color={chipColor} variant="tonal" size="small" />;
-          }
-        })
+      columnHelper.accessor('status', {
+        header: dictionary['navigation'].Status,
+        cell: ({ row }) => {
+          const statusLabel = row.original.status;
+          const chipColor = statusLabel === 'Completed' ? 'success' : statusLabel === 'In Progress' ? 'warning' : 'error';
+
+          return (
+            <Chip
+              label={dictionary['navigation'][statusLabel]}
+              color={chipColor}
+              variant='tonal'
+              size='small'
+            />
+
+          );
+        }
+      })
 
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -274,7 +278,7 @@ const RequestTable = (dictionary: any) => {
           placeholder='Search Request'
         />
       </div>
-      <div className='overflow-x-auto'>
+      <div className='overflow-x-auto' id="table-container">
         <table className={tableStyles.table}>
           <thead>
             {table.getHeaderGroups().map(headerGroup => (

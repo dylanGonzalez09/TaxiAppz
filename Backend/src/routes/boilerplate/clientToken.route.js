@@ -7,10 +7,12 @@ const clientTokenController = require('../../controllers/boilerplate/clientToken
 
 const router = express.Router();
 
-router.route('/create').post(
-  auth('manageClientTokens'),
-  validate(clientTokenValidation.upsertClientToken),
-  clientTokenController.upsertClientToken
-);
+router
+  .route('/create')
+  .post(
+    auth('manageClientTokens'),
+    validate(clientTokenValidation.upsertClientToken),
+    clientTokenController.upsertClientToken,
+  );
 
 module.exports = router;

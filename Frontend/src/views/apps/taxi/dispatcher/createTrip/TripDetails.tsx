@@ -5,9 +5,9 @@ import React, { useEffect, useState } from 'react';
 
 import InputAdornment from '@mui/material/InputAdornment';
 import { toast } from 'react-toastify';
-import { MenuItem, Grid, Select, FormControl, InputLabel,Paper,Typography,Divider } from '@mui/material';
+import { MenuItem, Grid, Select, FormControl, InputLabel } from '@mui/material';
 import { Plus } from 'lucide-react';
-import { setHours, setMinutes, startOfMinute } from 'date-fns';
+import { setHours, setMinutes, startOfMinute ,addMinutes} from 'date-fns';
 import AltRouteIcon from '@mui/icons-material/AltRoute';
 import Avatar from '@mui/material/Avatar';
 
@@ -19,167 +19,172 @@ import CustomTextField from '@core/components/mui/TextField';
 
 import { ENDPOINTS } from '@/app/api/apps/taxi/endpoint';
 import AppReactDatepicker from '@/libs/styles/AppReactDatepicker';
+import { getPromoByZoneId } from '@/app/api/apps/taxi/promoCode';
+
+import {getRentalPakages} from '@apis/rental'
 
 interface TripDetailsProps {
   serviceType: string;
   zoneDetails: any;
+  zoneId: any;
   onPickPointChange: (value: { lat: number; lng: number }) => void;
   onDropPointChange: (value: { lat: number; lng: number }) => void;
   onStopPointChange: (value: { lat: number; lng: number }) => void;
   pickupDetails: { lat: number; lng: number },
   setTripDetails: (details: any) => void;
-  tripDetails:any
-  onRentalVehicleSelect?: (vehicle: any) => void;
+  tripDetails: any
+  userDetails: any
+  dictionary:any
 }
 
-const TripDetails: React.FC<TripDetailsProps> = ({ serviceType, zoneDetails, onPickPointChange, onDropPointChange, onStopPointChange, pickupDetails, setTripDetails,tripDetails,onRentalVehicleSelect }) => {
+const TripDetails: React.FC<TripDetailsProps> = ({ serviceType, zoneDetails, onPickPointChange, onDropPointChange, onStopPointChange, pickupDetails, setTripDetails, tripDetails, zoneId, userDetails ,dictionary }) => {
 
-  const [pickupPoint, setPickupPoint] = useState<string>('');
-  const [dropPoint, setDropPoint] = useState<string>('');
-  const [stopPoint, setStopPoint] = useState<string>('');
+  // Helper to safely get values from tripDetails or default to empty
+  const getInitialValue = (value: any, fallback: any = '') => (value ? value : fallback);
 
-  const [stops, setStops] = useState<string[]>([]);
+  const [pickupPoint, setPickupPoint] = useState<string>(getInitialValue(tripDetails?.pickupPoint));
+  const [dropPoint, setDropPoint] = useState<string>(getInitialValue(tripDetails?.dropPoint));
+
+  // NOTE: We still keep stopPoint for the autocomplete logic,
+  // but the Input will use stops[index] for display.
+  const [stopPoint, setStopPoint] = useState<string>(getInitialValue(tripDetails?.stops?.[0]));
+
+  const [stops, setStops] = useState<string[]>(tripDetails?.stops || []);
+  const [rentalDuration, setRentalDuration] = useState<string>(getInitialValue(tripDetails?.rentalDuration));
+  const [rentalNotes, setRentalNotes] = useState<string>(getInitialValue(tripDetails?.rentalNotes));
+
   const [pickupPredictions, setPickupPredictions] = useState<any[]>([]);
   const [stopPredictions, setStopPredictions] = useState<any[]>([]);
   const [dropPredictions, setDropPredictions] = useState<any[]>([]);
+  const [rideTime, setRideTime] = useState<string>(getInitialValue(tripDetails?.rideTime || 'rideNow'));
+  const [dateTime, setDateTime] = useState<Date | null>(tripDetails?.dateTime || null);
+  const [promoCode, setPromoCode] = useState<string>(getInitialValue(tripDetails?.promoCode));
+  const [tripType, setTripType] = useState<string>(getInitialValue(tripDetails?.tripType ||  'manual'));
+  const [minAllowedTime, setMinAllowedTime] = useState(addMinutes(new Date(), 15));
 
-  const [rideTime, setRideTime] = useState<string>('rideNow');
-  const [dateTime, setDateTime] = useState<Date | null>(null);
-  const [promoCode, setPromoCode] = useState<string>('');
-  const [tripType, setTripType] = useState<string>('manual');
-  const [pickCoordinates, setPickCoordinates] = useState<{ lat: number; lng: number }>({ lat: 0, lng: 0 });
-  const [dropCoordinates, setDropCoordinates] = useState<{ lat: number; lng: number }>({ lat: 0, lng: 0 });
-  const [stopCoordinates, setStopCoordinates] = useState<{ lat: number; lng: number }>({ lat: 0, lng: 0 });
+  const getRental = async()=>{
+    const data = await getRentalPakages(zoneId)
+    console.log(data);
+  }
+   getRental()
+
+
+
+
+
+  const [pickCoordinates, setPickCoordinates] = useState<{ lat: number; lng: number }>(
+    tripDetails?.pickCoordinates || { lat: 0, lng: 0 }
+  );
+
+  const [dropCoordinates, setDropCoordinates] = useState<{ lat: number; lng: number }>(
+    tripDetails?.dropCoordinates || { lat: 0, lng: 0 }
+  );
+
+  const [stopCoordinates, setStopCoordinates] = useState<{ lat: number; lng: number }>(
+    tripDetails?.stopCoordinates || { lat: 0, lng: 0 }
+  );
+
   const [centroid, setCentroid] = useState<{ lat: number; lng: number }>({ lat: 0, lng: 0 });
-  const [predictions, setPredictions] = useState<{ [key: number]: any[] }>({}); // Store predictions for each stop
+  const [predictions, setPredictions] = useState<{ [key: number]: any[] }>({});
   const [promos, setPromos] = useState<{ id: number; promoCode: string }[]>([]);
   const [dateTimeError, setDateTimeError] = useState<string | null>(null);
-  const [showStop, setShowStop] = useState(false);
-  const [packages, setPackages] = useState<any[]>([]);
-  const [selectedPackage,setSelectedPackage] = useState<string>('');
-  const [selectedVehicle, setSelectedVehicle] = useState('');
 
   const now = new Date();
   const minDate = startOfMinute(now);
 
+  useEffect(() => {
+    if (!tripDetails || Object.keys(tripDetails).length === 0) {
+      return;
+    }
 
-    useEffect(() => {
-      if (tripDetails) {
-        setPickupPoint(tripDetails.pickupPoint);
-        setDropPoint(tripDetails.dropPoint);
-        setStopPoint(tripDetails.stopPoint);
-        setRideTime(tripDetails.rideTime === 'rideLater' ? 'rideLater' : 'rideNow');
-        setPromoCode(tripDetails.promoCode);
-        setPickCoordinates(tripDetails.pickCoordinates);
-        setDropCoordinates(tripDetails.dropCoordinates);
-        setStopCoordinates(tripDetails.stopCoordinates);
-        setDateTime(tripDetails.dateTime)
+    setPickupPoint(tripDetails.pickupPoint || '');
+    setDropPoint(tripDetails.dropPoint || '');
 
-        if (tripDetails.stopPoint) {
-          setShowStop(true);
-        }
-      }
-    },[]);
+    // Restore stop text from the array
+    setStopPoint(tripDetails.stops?.[0] || '');
+    setRideTime(tripDetails.rideTime === 'rideLater' ? 'rideLater' : 'rideNow');
+    setPromoCode(tripDetails.promoCode || '');
+    setPickCoordinates(tripDetails.pickCoordinates || { lat: 0, lng: 0 });
+    setDropCoordinates(tripDetails.dropCoordinates || { lat: 0, lng: 0 });
+    setStopCoordinates(tripDetails.stopCoordinates || { lat: 0, lng: 0 });
+    setDateTime(tripDetails.dateTime || null);
+    setStops(tripDetails.stops || []);
+    setTripType(tripDetails.tripType || 'manual');
+    setRentalDuration(tripDetails.rentalDuration || '');
+    setRentalNotes(tripDetails.rentalNotes || '');
 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+
+      useEffect(() => {
+      const interval = setInterval(() => {
+        setMinAllowedTime(addMinutes(new Date(), 15));
+      }, 60000); // 1 minute
+
+      return () => clearInterval(interval);
+    }, []);
 
   useEffect(() => {
-    const fetchData = async () => {
-
+    const fetchData = async (zoneId: string) => {
       try {
-
-        const DataKey = getClientId();
-
-        const clientId = (await DataKey).clientId;
+        const DataKey = await getSession();
+        const clientId = DataKey?.user?.image?.clientId;
 
         if (clientId === undefined) {
-
           throw new Error("ClientId is undefined");
-
         }
 
-        const dropDownData = await fetch(ENDPOINTS.promocode.promoDropDownList(clientId));
+        const dropDownData = await getPromoByZoneId(zoneId, userDetails?.passengerNumber);
 
-        const data = await dropDownData.json();
-
-        setPromos(data.data.promo);
-
-        const packageDropDownData = await fetch(ENDPOINTS.rental.getRentalPackagesByZone(zoneDetails._id),
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'clientId': clientId
-          }
-        });
-
-        const packageData = await packageDropDownData.json();
-
-        setPackages(packageData.data);
+        setPromos(dropDownData);
       } catch (error) {
         toast.error('Failed to fetch data');
       }
     };
 
     const timer = setTimeout(() => {
-      fetchData();
+      if (zoneId && userDetails?.passengerNumber) {
+        fetchData(zoneId);
+      }
     }, 4000);
 
     return () => clearTimeout(timer);
 
-  }, []);
-
-  // Helper function to add headers to the request
-  const getClientId = async () => {
-
-    const session = await getSession();
-
-    const clientId = session?.user?.image?.clientId; // Access clientId
-    const companyId = session?.user?.image?.companyId; // Access companyId
-
-    return { clientId, companyId };
-  };
+  }, [zoneId, userDetails?.passengerNumber]);
 
   useEffect(() => {
     if (zoneDetails && zoneDetails.mapZone && Array.isArray(zoneDetails.mapZone) && zoneDetails.mapZone.length > 0) {
       const coordinates = zoneDetails.mapZone;
-
-      // Calculate centroid
       const centroid = calculateCentroid(coordinates);
 
-      // Set the centroid to the state
       setCentroid(centroid);
-
-    } else {
-      console.warn('zoneDetails or zoneDetails.mapZone is invalid');
     }
   }, [zoneDetails]);
 
 
   useEffect(() => {
     if (pickupDetails) {
-      // Check if the latitude and longitude are {lat: 0, lng: 0}
       if (pickupDetails.lat === 0 && pickupDetails.lng === 0) {
-        setPickupPoint(''); // Clear the Pickup Point text
-        setPickupPredictions([]); // Optionally, clear the predictions as well
+        setPickupPoint('');
+        setPickupPredictions([]);
       }
     }
   }, [pickupDetails]);
 
 
   const addStop = () => {
-    // if (stops.length < 1) {
-    //   setStops([...stops, '']);
-    // } else {
-    //   toast.error("You can only add a maximum of 1 stops.");
-    // }
-    if (!showStop) {
-      setShowStop(true);
+    if (stops.length < 1) {
+      setStops([...stops, '']);
+    } else {
+      toast.error("You can only add a maximum of 1 stops.");
     }
   };
 
-  const removeStop = () => {
-    // setStops(stops.filter((_, i) => i !== index));
-    setShowStop(false);
+  const removeStop = (index: number) => {
+    const newStops = stops.filter((_, i) => i !== index);
+
+    setStops(newStops);
     setStopPoint('');
     setStopPredictions([]);
     onStopPointChange({
@@ -188,7 +193,6 @@ const TripDetails: React.FC<TripDetailsProps> = ({ serviceType, zoneDetails, onP
     })
   };
 
-  // Handler for stop input change
   const handleStopChange = (index: number, value: string) => {
     const updatedStops = [...stops];
 
@@ -206,48 +210,58 @@ const TripDetails: React.FC<TripDetailsProps> = ({ serviceType, zoneDetails, onP
     return { lat: centroidLat, lng: centroidLng };
   };
 
+
+
   const handlePlaceSelect = (
     place: any,
     setter: React.Dispatch<React.SetStateAction<string>>,
     predictionsSetter: React.Dispatch<React.SetStateAction<any[]>>,
     setCoordinates: (coords: { lat: number; lng: number }) => void,
-    loc: string
+    loc: string,
+    index?: number // Added index to update specific stop
   ) => {
 
     const placesService = new google.maps.places.PlacesService(document.createElement("div"));
 
-    placesService.getDetails({ placeId: place.place_id }, (details, status) => {
+    placesService.getDetails(
+      { placeId: place.place_id },
+      (details: google.maps.places.PlaceResult | null, status: any) => {
       if (status === google.maps.places.PlacesServiceStatus.OK && details) {
-        setCoordinates({
+        const coords = {
           lat: details.geometry?.location?.lat() || 0,
           lng: details.geometry?.location?.lng() || 0
-        });
+        };
 
-        if (loc == "pickup") {
-          onPickPointChange({
-            lat: details.geometry?.location?.lat() || 0,
-            lng: details.geometry?.location?.lng() || 0
-          })
-        } else if (loc == "drop") {
-          onDropPointChange({
-            lat: details.geometry?.location?.lat() || 0,
-            lng: details.geometry?.location?.lng() || 0
-          })
-        } else if (loc == "stop") {
-          onStopPointChange({
-            lat: details.geometry?.location?.lat() || 0,
-            lng: details.geometry?.location?.lng() || 0
-          })
-        } else {
-          console.log("loc")
-        }
+        setCoordinates(coords);
 
         setter(place.description);
+
+        if (loc == "pickup") {
+          onPickPointChange(coords);
+        } else if (loc == "drop") {
+          onDropPointChange(coords);
+        } else if (loc == "stop") {
+          onStopPointChange(coords);
+
+
+          // FIX: If it's a stop, update the specific index in the stops array
+          if (index !== undefined) {
+            handleStopChange(index, place.description);
+          }
+
+          // setter(place.description);
+        }
+
+        // else {
+        //    setter(place.description);
+        // }
+
         predictionsSetter([]);
       } else {
         console.error("Failed to get place details:", status);
       }
-    });
+      }
+    );
   };
 
 
@@ -259,10 +273,9 @@ const TripDetails: React.FC<TripDetailsProps> = ({ serviceType, zoneDetails, onP
     if (input.length >= 5) {
       const autocomplete = new google.maps.places.AutocompleteService();
 
-      // Adjust request to consider the centroid location for nearby places
       autocomplete.getPlacePredictions(
         { input, location: new google.maps.LatLng(centroid.lat, centroid.lng), radius: 5000 },
-        (predictions, status) => {
+        (predictions: google.maps.places.AutocompletePrediction[] | null, status: any) => {
           if (status === google.maps.places.PlacesServiceStatus.OK && predictions) {
             predictionsSetter(predictions);
           } else {
@@ -276,73 +289,44 @@ const TripDetails: React.FC<TripDetailsProps> = ({ serviceType, zoneDetails, onP
   };
 
   useEffect(() => {
-    const updatedDetails: any = {
+    setTripDetails({
       serviceType,
       pickupPoint,
+      dropPoint,
+      stops,
       rideTime,
       dateTime,
       promoCode,
       tripType,
-      pickCoordinates
-    };
-
-    if (serviceType === 'local') {
-      updatedDetails.dropPoint = dropPoint;
-      updatedDetails.stopPoint = stopPoint;
-      updatedDetails.dropCoordinates = dropCoordinates;
-      updatedDetails.stopCoordinates = stopCoordinates;
-    }
-
-    if (serviceType === 'rental') {
-      updatedDetails.packageId = selectedPackage;
-      updatedDetails.vehicleId = selectedVehicle;
-    }
-
-    setTripDetails(updatedDetails);
-
-    // setTripDetails({
-    //   serviceType,
-    //   pickupPoint,
-    //   dropPoint,
-    //   // stops,
-    //   stopPoint,
-    //   rideTime,
-    //   dateTime,
-    //   promoCode,
-    //   tripType,
-    //   pickCoordinates,
-    //   dropCoordinates,
-    //   stopCoordinates
-    // });
-  }, [serviceType, pickupPoint, dropPoint, stopPoint, rideTime, dateTime, promoCode, tripType, setTripDetails, dropCoordinates, pickCoordinates,selectedPackage,
-  selectedVehicle]);
+      pickCoordinates,
+      dropCoordinates,
+      stopCoordinates,
+      rentalDuration,
+      rentalNotes
+    });
+  }, [serviceType, pickupPoint, dropPoint, stops, rideTime, dateTime, promoCode, tripType, setTripDetails, dropCoordinates, pickCoordinates, stopCoordinates, rentalDuration, rentalNotes]);
 
 
   const handlePromoChange = (e: React.SetStateAction<string>) => {
     setPromoCode(e);
   };
 
-  const selectedPackageDetails = packages.find(
-    (pkg) => pkg.id === selectedPackage
-  );
 
-  const selectedVehicleDetail = selectedPackageDetails?.vehiclePrices.find(
-    (vp:any) => vp.vehicleId.id === selectedVehicle
-  );
-  
-return (
+  return (
     <div className="mb-4">
       <h6 className="mb-4 font-bold text-lg flex items-center" style={{ marginTop: '-16%' }}>
         <Avatar className='bg-primary' style={{ width: 30, height: 30 }}>
           <AltRouteIcon style={{ color: 'white' }} />
         </Avatar>
-        <span className="ml-2" style={{ fontSize: '1.1rem' }}>Trip Details</span>
+        <span className="ml-2" style={{ fontSize: '1.1rem' }}>
+          {dictionary['navigation'].TripDetails || 'Trip Details'}
+        </span>
       </h6>
 
       {/* Pickup Point Input */}
       <CustomTextField
         fullWidth
-        label="Pickup Point*"
+        label={dictionary['navigation'].PickupPoint  || 'PickupPoint *'}
         value={pickupPoint}
         onChange={(e) => {
           const input = e.target.value;
@@ -371,26 +355,19 @@ return (
         </div>
       )}
       {/* Stops Input */}
-      {!showStop && serviceType === 'local' && (
-        <div className="flex justify-end mb-2">
-          <button className="flex items-center font-medium p-0" onClick={addStop} type="button">
-            Add Stop
-            <Plus className="ml-1" />
-          </button>
-        </div>
-      )}
-      {showStop && (
-        <div className="flex flex-col mb-2 relative">
+      {stops.map((stop, index) => (
+        <div key={index} className="flex flex-col mb-2 relative">
           <CustomTextField
             fullWidth
-            label="Stop"
-            value={stopPoint}
+            label={`Stop ${index + 1}`}
+
+            // FIX: Use stops[index] directly so it persists on navigation
+            value={stop || ''}
             onChange={(e) => {
               const input = e.target.value;
 
-              setStopPoint(input);
-
-              // handleStopChange(index, e.target.value);
+              setStopPoint(input); // Keep local state for autocomplete triggering
+              handleStopChange(index, e.target.value);
               initializeAutocomplete(input, setStopPoint, setStopPredictions);
             }}
             className="mb-1"
@@ -399,8 +376,8 @@ return (
                 <InputAdornment position="end">
                   <button
                     className="flex items-center justify-center p-0"
-                    onClick={removeStop}
-                    aria-label="Remove Stop"
+                    onClick={() => removeStop(index)}
+                    aria-label={`Remove Stop ${index + 1}`}
                     type="button"
                     style={{ background: 'transparent', border: 'none' }}
                   >
@@ -420,7 +397,8 @@ return (
                 <div
                   key={suggestionIndex}
                   onClick={() => {
-                    handlePlaceSelect(prediction, setStopPoint, setStopPredictions, setStopCoordinates, "stop");
+                    // Pass index so it updates the correct stop in the array
+                    handlePlaceSelect(prediction, setStopPoint, setStopPredictions, setStopCoordinates, "stop", index);
                   }}
                   className="suggestion hover:bg-gray-100 p-2 cursor-pointer"
                 >
@@ -430,10 +408,10 @@ return (
             </div>
           )}
         </div>
-      )}
+      ))}
 
       {/* Add Stop Button */}
-      {/* <div className="flex justify-end mb-2">
+      <div className="flex justify-end mb-2">
         <button
           className="flex items-center font-medium p-0"
           onClick={addStop}
@@ -441,17 +419,16 @@ return (
           type="button"
           style={{ background: 'transparent', border: 'none' }}
         >
-          Add Stop
+         {dictionary['navigation'].AddStop || 'Add Stop'}
           <Plus className="ml-1" />
         </button>
-      </div> */}
+      </div>
 
 
       {/* Drop Point Input */}
-      {serviceType === 'local' && (
       <CustomTextField
         fullWidth
-        label="Drop Point*"
+        label={dictionary['navigation'].DropPoint  || 'DropPoint *'}
         value={dropPoint}
         onChange={(e) => {
           const input = e.target.value;
@@ -461,7 +438,7 @@ return (
         }}
         className="mb-2"
       />
-      )}
+      {/* Display Autocomplete for Drop Point */}
       {dropPredictions.length > 0 && (
         <div className="autocomplete-suggestions">
           {dropPredictions.map((prediction, index) => (
@@ -480,65 +457,28 @@ return (
           ))}
         </div>
       )}
-    
 
 
       {/* Rental Details */}
       {serviceType === 'rental' && (
-        <>
-        <div>
-        <CustomTextField
-          select
-          fullWidth
-          label="Rental Package"
-          value={selectedPackage}
-          onChange={(e) => {
-            setSelectedVehicle('')
-            setSelectedPackage(e.target.value)
-            }
-          }
-          className="mb-2"
-        >
-          {packages.length === 0 ? (<MenuItem disabled>No Package Found</MenuItem>) :
-            (
-              packages.map((rental: any) => (
-                <MenuItem key={rental.id} value={rental.id}>
-                  {rental.hour + "hr/" + rental.km + " " + rental.zoneId.unit}
-                </MenuItem>
-              ))
-            )}
-        </CustomTextField>
-        </div>
         <div>
           <CustomTextField
-            select
             fullWidth
-            label="Vehicles"
-            value={selectedVehicle}
-            onChange={(e) => {
-              setSelectedVehicle(e.target.value)
-
-              const selectedVehicleObject = selectedPackageDetails?.vehiclePrices.find(
-                (vp: any) => vp.vehicleId.id === e.target.value
-              );
-
-              if (onRentalVehicleSelect && selectedVehicleObject) {
-                onRentalVehicleSelect(selectedVehicleObject.vehicleId); // just vehicleId object
-              }
-            }}
-            disabled={!selectedPackage}
-          >
-            {!selectedPackageDetails && selectedPackageDetails?.vehiclePrices?.length === 0 ? (<MenuItem disabled>No Vehicle Found</MenuItem>) :
-              (
-                selectedPackageDetails?.vehiclePrices?.map((vp: any) => (
-                  <MenuItem key={vp.vehicleId.id} value={vp.vehicleId.id}>
-                    {vp.vehicleId.vehicleName}
-                  </MenuItem>
-                ))
-              )}
-          </CustomTextField>
+            label="Rental Duration*"
+            placeholder="Enter duration"
+            value={rentalDuration}
+            onChange={(e) => setRentalDuration(e.target.value)}
+            className="mb-2"
+          />
+          <CustomTextField
+            fullWidth
+            label="Additional Notes"
+            placeholder="Any special requests?"
+            value={rentalNotes}
+            onChange={(e) => setRentalNotes(e.target.value)}
+            className="mb-2"
+          />
         </div>
-        </>
       )}
 
       {/* Trip Type and Ride Time Selection */}
@@ -547,28 +487,27 @@ return (
           <CustomTextField
             select
             fullWidth
-            label="Trip Type"
+            label={dictionary['navigation'].TripType  || 'TripType'}
             value={tripType}
             onChange={(e) => setTripType(e.target.value)}
-
-            // disabled={rideTime === 'rideLater'}
+            disabled={rideTime === 'rideLater'}
           >
-            <MenuItem value="manual">Manual</MenuItem>
-            <MenuItem value="automatic">Automatic</MenuItem>
+            <MenuItem value="manual"> {dictionary['navigation'].Manual || 'Manual'}</MenuItem>
+            <MenuItem value="automatic"> {dictionary['navigation'].Automatic || 'Automatic'}</MenuItem>
           </CustomTextField>
         </Grid>
         <Grid item xs={6}>
           <CustomTextField
             select
             fullWidth
-            label="Ride Time"
+            label={dictionary['navigation'].RideTime  || 'Ride Time'}
             value={rideTime}
             onChange={(e) => {
               setRideTime(e.target.value)
             }}
           >
-            <MenuItem value="rideNow">Ride Now</MenuItem>
-            <MenuItem value="rideLater">Schedule</MenuItem>
+            <MenuItem value="rideNow"> {dictionary['navigation'].RideNow || 'RideNow'}</MenuItem>
+            <MenuItem value="rideLater"> {dictionary['navigation'].Schedule || 'Schedule'}</MenuItem>
           </CustomTextField>
         </Grid>
       </Grid>
@@ -578,126 +517,67 @@ return (
 
       {/* Date Picker and Promo Code */}
       <Grid container spacing={2} className="mt-2">
-        {serviceType === 'local' && (
-        
+
         <Grid item xs={6}>
           <CustomTextField
             select
             fullWidth
-            label="Promo"
-            value={promoCode} // Bind the value to rideTime state
+            label={dictionary['navigation'].Promo  || 'Promo'}
+            SelectProps={{ displayEmpty: true }}
+            value={promoCode}
             onChange={(e) => {
               handlePromoChange(e.target.value)
-            }}
-          >
-            {promos.length === 0 ? (<MenuItem disabled>No Promo Available</MenuItem>) :
-            (
-              promos.map((option) => (
+            }}>
+             <MenuItem value="">{dictionary['navigation'].SelectPromo || 'Select Promo'}</MenuItem>
+            {promos && promos.map((option:any) =>{
+              return (
               <MenuItem key={option.id} value={option.id}>
-                {option.promoCode}
+                {option.promoCode + ` (${option.promoType === 'fixed' ? ` ${option.amount} ` : ` ${option.percentage}% `})`}
               </MenuItem>
-             ))
-            )}
+            )})}
           </CustomTextField>
         </Grid>
-        )}
-        {/* <Grid item xs={6}>
-          <CustomTextField
-            fullWidth
-            label="Promo Code"
-            value={promoCode}
-            onChange={(e) => setPromoCode(e.target.value)}
-          />
-        </Grid> */}
-        {rideTime === 'rideLater' && (
-          <Grid item xs={6}>
-            <AppReactDatepicker
-              showTimeSelect
-              id='date-time-picker'
-              selected={dateTime}
-              dateFormat='MM/dd/yyyy h:mm aa'
-              onChange={(date: Date | null) => {
-                if(date)
-                {
-                  const now = new Date();
-                  const diffInMinutes = (date.getTime() - now.getTime()) / (1000 * 60);
 
-                  if(diffInMinutes <= 30)
-                  {
-                    setDateTimeError('Please select a time at least above 30 minutes from now.');
-                    setDateTime(null);
-                  }
-                  else {
-                    setDateTime(date);
-                    setDateTimeError(null);
-                  }
+        {rideTime === 'rideLater' && (
+              <Grid item xs={6}>
+                 <AppReactDatepicker
+                   showTimeSelect
+                   timeIntervals={1}
+                   selected={dateTime}
+                   dateFormat="MM/dd/yyyy h:mm aa"
+                   minDate={new Date()}
+                   filterTime={(time) => time.getTime() >= minAllowedTime.getTime()}
+                   onChange={(date: Date | null) => {
+                    if (!date) {
+                      setDateTime(null);
+                      setDateTimeError(null);
+
+                      return;
+                    }
+
+                    const minTime = addMinutes(new Date(), 15);
+
+                    if (date.getTime() < minTime.getTime()) {
+                      setDateTimeError('Please select at least 15 minutes from now');
+                      setDateTime(null);
+                    } else {
+                      setDateTime(date);
+                      setDateTimeError(null);
+                    }
+                  }}
+                customInput={
+                  <CustomTextField
+                    label="Date Time"
+                    fullWidth
+                    error={!!dateTimeError}
+                    helperText={dateTimeError}
+                  />
                 }
-                else {
-                  setDateTime(null);
-                  setDateTimeError('Please select a valid time.');
-                }
-              }}
-              customInput={<CustomTextField label='Date Time' fullWidth error={!!dateTimeError} helperText={dateTimeError} />}
-              minDate={minDate}
-              excludeTimes={[
-                setHours(setMinutes(new Date(), 0), 17),
-                setHours(setMinutes(new Date(), 30), 18),
-                setHours(setMinutes(new Date(), 30), 19),
-                setHours(setMinutes(new Date(), 30), 20)
-              ]}
-            />
-          </Grid>
+              />
+            </Grid>
         )}
 
       </Grid>
-        {selectedVehicle && selectedPackageDetails && (
-          <Grid item xs={12}>
-            <Paper
-              elevation={3}
-              sx={{
-                padding: 2,
-                borderRadius: 2,
-                backgroundColor: '#f9f9f9',
-                mt: 4,
-                border: '1px solid #09a865'
-              }}
-            >
-              <Typography variant="h6" gutterBottom>
-                Pricing Details
-              </Typography>
-              <Divider sx={{ mb: 2 }} />
-
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={4}>
-                  <Typography variant="body2" color="primary" className='mb-2'>
-                    Price
-                  </Typography>
-                  <Typography variant="subtitle2" fontWeight={600}>
-                    {selectedPackageDetails.zoneId.currency} {selectedPackageDetails.vehiclePrices.find((vp: any) => vp.vehicleId.id === selectedVehicle)?.price ?? '-'}
-                  </Typography>
-                </Grid>
-
-                <Grid item xs={12} sm={4}>
-                  <Typography variant="body2" color="primary" className='mb-2'>
-                    Grace Time
-                  </Typography>
-                  <Typography variant="subtitle2" fontWeight={600}>
-                    {selectedPackageDetails.vehiclePrices.find((vp: any) => vp.vehicleId.id === selectedVehicle)?.graceTime ?? '-'} mins
-                  </Typography>
-                </Grid>
-
-                <Grid item xs={12} sm={4}>
-                  <Typography variant="body2" color="primary" className='mb-2'>
-                    Extra {selectedPackageDetails.zoneId.unit} Price
-                  </Typography>
-                  <Typography variant="subtitle2" fontWeight={600}>
-                    {selectedPackageDetails.zoneId.currency} {selectedPackageDetails.vehiclePrices.find((vp: any) => vp.vehicleId.id === selectedVehicle)?.extraKmPrice ?? '-'} / {selectedPackageDetails.zoneId.unit}
-                  </Typography>
-                </Grid>
-              </Grid>
-            </Paper>
-          </Grid>
-        )}
 
     </div>
   );

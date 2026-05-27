@@ -1,19 +1,10 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const ApiError = require('../../utils/ApiError');
-const { Dispatcher, Zone, Role, Language,Request } = require('../../models');
-const ObjectId = require('mongoose').Types.ObjectId;
+const { Dispatcher, Zone, Role, Language, Request } = require('../../models');
+const { ObjectId } = require('mongoose').Types;
 const { HttpStatusCode } = require('axios');
 
-const getClientId = async (req) => {
-  clientId = '';
-  if (!req.headers.clientid) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
-  } else {
-    clientId = req.headers.clientid;
-  }
-  return clientId;
-}
-
+const { getClientId } = require('../../utils/commonFunction');
 /**
  * Create a dispatcher
  * @param {Object} dispatcherBody
@@ -51,7 +42,6 @@ const getDispatcherById = async (dispatcherId) => {
   return Dispatcher.findById(dispatcherId);
 };
 
-
 /**
  * Get Dispatcher by id
  * @param {ObjectId} dispatcherId
@@ -70,15 +60,6 @@ const getDispatcherUserById = async (dispatcherId) => {
     },
     { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
     {
-      $lookup: {
-        from: 'companies',
-        localField: 'companyId',
-        foreignField: '_id',
-        as: 'company',
-      },
-    },
-    { $unwind: { path: '$company', preserveNullAndEmptyArrays: true } },
-    {
       $project: {
         id: '$_id',
         userId: '$user._id',
@@ -91,7 +72,7 @@ const getDispatcherUserById = async (dispatcherId) => {
         serviceType: 1,
         location: 1,
         status: 1,
-        _id: 0
+        _id: 0,
       },
     },
   ];
@@ -125,13 +106,15 @@ const deleteDispatcherById = async (dispatcherId) => {
     throw new ApiError(httpStatus.NOT_FOUND, 'Dispatcher not found');
   }
 
-  const request = await Request.countDocuments({dispatcherId: new ObjectId(dispatcher._id)});
-  if(request > 0)
-  {
-    return { status: httpStatus.FORBIDDEN, msg: "The dispatcher has trip history...so you cannot delete this dispatcher..." };
+  const request = await Request.countDocuments({ dispatcherId: new ObjectId(dispatcher._id) });
+  if (request > 0) {
+    return {
+      status: httpStatus.FORBIDDEN,
+      msg: 'The dispatcher has trip history...so you cannot delete this dispatcher...',
+    };
   }
   await dispatcher.deleteOne();
-  return { status: HttpStatusCode.Ok, msg: "Dispatcher deleted successfully" };
+  return { status: HttpStatusCode.Ok, msg: 'Dispatcher deleted successfully' };
 };
 
 /**
@@ -152,15 +135,6 @@ const aggregateDispatchers = async (clientId) => {
     },
     { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
     {
-      $lookup: {
-        from: 'companies',
-        localField: 'companyId',
-        foreignField: '_id',
-        as: 'company',
-      },
-    },
-    { $unwind: { path: '$company', preserveNullAndEmptyArrays: true } },
-    {
       $project: {
         id: '$_id',
         userId: '$user._id',
@@ -173,19 +147,13 @@ const aggregateDispatchers = async (clientId) => {
         serviceType: 1,
         location: 1,
         status: 1,
-        _id: 0
+        _id: 0,
       },
     },
   ];
   return Dispatcher.aggregate(aggregation);
 };
 
-
-
-/**
- * Get companys
- * @returns {Promise<Company>}
- */
 const getDispatcherPagination = async (req, filter, options) => {
   try {
     const clientId = await getClientId(req);
@@ -210,15 +178,6 @@ const getDispatcherPagination = async (req, filter, options) => {
       },
       { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
       {
-        $lookup: {
-          from: 'companies',
-          localField: 'companyId',
-          foreignField: '_id',
-          as: 'company',
-        },
-      },
-      { $unwind: { path: '$company', preserveNullAndEmptyArrays: true } },
-      {
         $project: {
           id: '$_id',
           userId: '$user._id',
@@ -233,7 +192,7 @@ const getDispatcherPagination = async (req, filter, options) => {
           status: 1,
           zoneId: 1,
           createdAt: 1,
-          _id: 0
+          _id: 0,
         },
       },
       {
@@ -245,16 +204,16 @@ const getDispatcherPagination = async (req, filter, options) => {
       {
         $limit: limit, // Limit number of results per page
       },
-    ])
+    ]);
     const totalPages = Math.ceil(totalResults / limit);
 
     return {
-      results: results,
+      results,
       page,
       limit,
       totalPages,
       totalResults,
-    }
+    };
   } catch (error) {
     console.error('Error in aggregation:', error);
     throw error;
@@ -262,23 +221,21 @@ const getDispatcherPagination = async (req, filter, options) => {
 };
 /**
  * Get roles
-  * @param {ObjectId} clientId
+ * @param {ObjectId} clientId
  * @returns {Promise<Role>}
  */
 const getDropDowns = async (clientId) => {
+  const roleData = await Role.find({ clientId });
 
-  const roleData = await Role.find({ clientId: clientId });
+  const languageData = await Language.find({ status: true, clientId });
 
-  const languageData = await Language.find({ status: true, clientId: clientId });
-
-  const zoneData = await Zone.find({ clientId: clientId });
+  const zoneData = await Zone.find({ clientId });
 
   const data = {
     role: roleData,
     language: languageData,
-    zones: zoneData
-  }
-
+    zones: zoneData,
+  };
 
   return data;
 };
@@ -293,18 +250,5 @@ module.exports = {
   aggregateDispatchers,
   getDispatcherUserById,
   getDispatcherPagination,
-  getDropDowns
+  getDropDowns,
 };
-
-
-
-
-
-
-
-
-
-
-
-
-

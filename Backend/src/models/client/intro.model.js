@@ -1,36 +1,36 @@
 const mongoose = require('mongoose');
-const { toJSON, paginate } = require('./../plugins');
+const { toJSON, paginate } = require('../plugins');
 
 const introSchema = mongoose.Schema(
-    {
-        title: {
-            type: String,
-            required: false
-        },
-        description: {
-            type: String,
-            required: false
-        },
-        type: {
-            type: String,
-            required: false
-        },
-        image: {
-            type: String,
-            required: true
-        },
-        status: {
-            type: Boolean,
-            required: false
-        },
-        clientId: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: 'Client',
-        },
+  {
+    title: {
+      type: String,
+      required: false,
     },
-    {
-        timestamps: true,
-    }
+    description: {
+      type: String,
+      required: false,
+    },
+    type: {
+      type: String,
+      required: false,
+    },
+    image: {
+      type: String,
+      required: true,
+    },
+    status: {
+      type: Boolean,
+      required: false,
+    },
+    clientId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Client',
+    },
+  },
+  {
+    timestamps: true,
+  },
 );
 
 // add plugin that converts mongoose to json

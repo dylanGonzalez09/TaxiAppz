@@ -5,14 +5,14 @@ import Grid from '@mui/material/Grid';
 // Component Imports
 import DriverListTable from './DriverListTable';
 
-const DriverList = ({ driverData, dictionary, showAddButton,showActionButton,subscriptionDetails }: { driverData?: any[]; dictionary: any, showAddButton?: boolean,showActionButton?: boolean,subscriptionDetails?: string}) => {
+const DriverList = ({ driverData, dictionary, showAddButton,showActionButton,subscriptionDetails,zoneId }: { driverData?: any[]; dictionary: any, showAddButton?: boolean,showActionButton?: boolean,subscriptionDetails?: string,zoneId:any}) => {
   return (
     <Grid container spacing={6}>
       {/* <Grid item xs={12}>
         <DriverCard driverData={driverData} />
       </Grid> */}
       <Grid item xs={12}>
-        <DriverListTable driverData={driverData} dictionary={dictionary}  showAddButton={showAddButton} showActionButton={showActionButton}  subscriptionDetails={subscriptionDetails}/>
+        <DriverListTable zoneId={zoneId} driverData={driverData} dictionary={dictionary}  showAddButton={showAddButton} showActionButton={showActionButton}  subscriptionDetails={subscriptionDetails}/>
       </Grid>
     </Grid>
   );

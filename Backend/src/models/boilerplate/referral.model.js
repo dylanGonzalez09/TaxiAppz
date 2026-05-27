@@ -9,16 +9,15 @@ const ReferralSchema = mongoose.Schema(
       required: true,
     },
     referredTo: {
-     type: mongoose.Schema.Types.ObjectId,
+      type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
+      unique: true,
       required: true,
-    }
+    },
   },
   {
-    timestamps:
-    
-    true,
-  }
+    timestamps: true,
+  },
 );
 
 ReferralSchema.plugin(toJSON);

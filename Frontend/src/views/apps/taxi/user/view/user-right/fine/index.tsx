@@ -158,7 +158,7 @@ const FineTable =(props:FineTabProps) => {
     columns,
     filterFns: { fuzzy: fuzzyFilter },
     state: { rowSelection, globalFilter },
-    initialState: { pagination: { pageSize: 25 } },
+    initialState: { pagination: { pageSize: 5 } },
     enableRowSelection: true,
     globalFilterFn: fuzzyFilter,
     onRowSelectionChange: setRowSelection,
@@ -187,7 +187,7 @@ const FineTable =(props:FineTabProps) => {
               startIcon={<i className='tabler-plus' />}
             >
               {dictionary['navigation'].AddNew}
- 
+
             </Button>
              )}
           </div>
@@ -213,7 +213,7 @@ const FineTable =(props:FineTabProps) => {
           placeholder={dictionary['navigation'].SearchFine}
         />
       </div>
-      <div className='overflow-x-auto'>
+      <div className='overflow-x-auto' id="table-container">
         <table className={tableStyles.table}>
           <thead>
             {table.getHeaderGroups().map(headerGroup => (

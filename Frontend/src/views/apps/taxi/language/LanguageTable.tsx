@@ -174,7 +174,14 @@ const LanguageTable = ({ languageData, dictionary }: { languageData: any, dictio
           );
         });
 
+        if (updatedLanguage.status) {
+          toast.success(
+            dictionary['navigation'].LanguageActivatedTranslatingInBackground ||
+              'Language activated. Translating from English in the background. Check Translation in a few moments.'
+          );
+        } else {
           toast.success(dictionary['navigation'].statusUpdatedSuccessfully);
+        }
 
 
         setStatusConfirmationOpen(false);
@@ -250,6 +257,7 @@ const LanguageTable = ({ languageData, dictionary }: { languageData: any, dictio
                 {
                   text: dictionary['navigation'].Delete,
                   icon: 'tabler-trash',
+                  hidden: true,
                   menuItemProps: {
                     onClick: () => handleDeleteClick(row.original),
                   },
@@ -341,9 +349,8 @@ const LanguageTable = ({ languageData, dictionary }: { languageData: any, dictio
     const session = await getSession();
 
     const clientId = session?.user?.image?.clientId; // Access clientId
-    const companyId = session?.user?.image?.companyId; // Access companyId
 
-    return { clientId, companyId };
+    return { clientId };
   };
 
 

@@ -1,11 +1,11 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { useState, useEffect } from 'react';
+import type { FocusEvent } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 
 import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
 import Divider from '@mui/material/Divider';
 import Button from '@mui/material/Button';
-import MenuItem from '@mui/material/MenuItem';
 import { useForm, Controller } from 'react-hook-form';
 import { toast } from 'react-toastify';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -18,6 +18,7 @@ import {
 
 
 import CustomTextField from '@core/components/mui/TextField';
+import CustomAutocomplete from '@core/components/mui/Autocomplete';
 import { updateSubScription } from '@/app/api/apps/taxi/subscription';
 
 type subScriptionType = {
@@ -45,33 +46,51 @@ type FormValues = {
   unit: string;
   description: string;
   amount: string;
+  onOfDrivers?: number;
 };
+
+type UnitOption = { id: 'DAY' | 'WEEK' | 'MONTH' | 'YEAR'; label: string };
 
 const EditSubScriptionDrawer = (props: Props) => {
   const { open, handleClose, subScriptionData, setData, initialData, dictionary } = props;
-  const [category, setCategory] = useState('');
   const [loading, setLoading] = useState(false); // Loading state
 
   const {
     control,
     reset,
     handleSubmit,
-    formState: { errors }
+    trigger,
   } = useForm<FormValues>({
-    mode: "all",
+    mode: 'all',
+    reValidateMode: 'onChange',
+    shouldFocusError: true,
     defaultValues: initialData || {
+      id: '',
       name: '',
       description: '',
       amount: '',
       validityPeriod: '',
-      unit:''
+      unit: ''
     }
   });
 
+  const unitOptions: UnitOption[] = useMemo(
+    () => [
+      { id: 'DAY', label: dictionary['navigation'].Day },
+      { id: 'WEEK', label: dictionary['navigation'].Week },
+      { id: 'MONTH', label: dictionary['navigation'].Month },
+      { id: 'YEAR', label: dictionary['navigation'].Year }
+    ],
+    [dictionary]
+  );
+
   useEffect(() => {
     if (initialData) {
-      reset(initialData);
-      setCategory(initialData.unit);
+      reset({
+        ...initialData,
+        amount: initialData.amount || '',
+        unit: initialData.unit || ''
+      });
     }
   }, [initialData, reset]);
 
@@ -82,28 +101,28 @@ const EditSubScriptionDrawer = (props: Props) => {
     try {
 
       if (initialData) {
-        const updatedSubScriptionInfo = removeId(data);
-
-
         const newUpdateData: any = {
           name: data.name,
-          amount: data.amount,
-          description: data.description,
-          validityPeriod:data.validityPeriod,
-          unit: category
+          description: data.description
         };
 
         const updateSubScriptionData = await updateSubScription(data.id, newUpdateData);
 
+        const updated = updateSubScriptionData as {
+          id?: string;
+          name?: string;
+          amount?: number;
+          description?: string;
+          validityPeriod?: string;
+          unit?: string;
+        };
+
         const updatedData: subScriptionType[] = subScriptionData.map((item) =>
-          item.id === updateSubScriptionData.id
+          item.id === data.id
             ? {
               ...item,
-              name: updateSubScriptionData.name,
-              amount: updateSubScriptionData.amount,
-              description: updateSubScriptionData.description,
-              validityPeriod:updateSubScriptionData.validityPeriod,
-              unit: category
+              name: updated.name ?? data.name,
+              description: updated.description ?? data.description
             }
             : item
         );
@@ -126,14 +145,6 @@ const EditSubScriptionDrawer = (props: Props) => {
 
 
 
-  const removeId = (obj: any) => {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { id, ...rest } = obj;
-
-
-    return rest;
-  };
-
   const handleReset = () => {
     handleClose();
   };
@@ -155,20 +166,29 @@ const EditSubScriptionDrawer = (props: Props) => {
       </div>
       <Divider />
       <div className='p-6'>
-        <form onSubmit={handleSubmit(handleFormSubmit)} className='flex flex-col gap-5'>
+        <form
+          noValidate
+          autoComplete='off'
+          onSubmit={handleSubmit(handleFormSubmit)}
+          className='flex flex-col gap-5'
+        >
 
           <Controller
             name='name'
             control={control}
             rules={{ required: dictionary['navigation'].Nameisrequired, validate: value => validateTextOnly(value, dictionary) }}
-            render={({ field }) => (
+            render={({ field, fieldState }) => (
               <CustomTextField
                 {...field}
                 fullWidth
-                label={dictionary['navigation'].name}
+                label={`${dictionary['navigation'].name} *`}
                 placeholder={dictionary['navigation'].entername}
-                error={!!errors.name}
-                helperText={errors.name ? errors.name.message : ''}
+                error={!!fieldState.error}
+                helperText={fieldState.error?.message ?? ''}
+                onBlur={() => {
+                  field.onBlur();
+                  void trigger('name');
+                }}
               />
             )}
           />
@@ -176,45 +196,81 @@ const EditSubScriptionDrawer = (props: Props) => {
              <Controller
             name='validityPeriod'
             control={control}
-            rules={{ required: dictionary['navigation'].validityPeriod, validate: value => validateNumber(value, dictionary) }}
-            render={({ field }) => (
+            rules={{
+              required: dictionary['navigation'].validityPeriodisrequired,
+              validate: value => validateNumber(value, dictionary)
+            }}
+            render={({ field, fieldState }) => (
               <CustomTextField
                 {...field}
                 fullWidth
-                label={dictionary['navigation'].validityPeriod}
+                label={`${dictionary['navigation'].validityPeriod} *`}
                 placeholder={dictionary['navigation'].validityPeriod}
-                error={!!errors.validityPeriod}
-                helperText={errors.validityPeriod ? errors.validityPeriod.message : ''}
+                disabled
+                error={!!fieldState.error}
+                helperText={fieldState.error?.message ?? ''}
+                onBlur={() => {
+                  field.onBlur();
+                  void trigger('validityPeriod');
+                }}
               />
             )}
           />
 
-          <CustomTextField
-            select
-            fullWidth
-            label={dictionary['navigation'].unit}
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            required // Add this line to make the field required
-          >
-            <MenuItem value="DAY"> {dictionary['navigation'].Day}</MenuItem>
-            <MenuItem value="WEEK"> {dictionary['navigation'].Week}</MenuItem>
-            <MenuItem value="MONTH"> {dictionary['navigation'].Month}</MenuItem>
-            <MenuItem value="YEAR"> {dictionary['navigation'].Year}</MenuItem>
-          </CustomTextField>
+          <Controller
+            name='unit'
+            control={control}
+            rules={{ required: dictionary['navigation'].Unitisrequired }}
+            render={({ field, fieldState }) => (
+              <CustomAutocomplete<UnitOption, false, false, false>
+                id='subscription-edit-unit'
+                options={unitOptions}
+                getOptionLabel={(option) => option.label}
+                isOptionEqualToValue={(a, b) => a.id === b.id}
+                value={unitOptions.find((o) => o.id === field.value) ?? null}
+                disabled
+                onChange={(_, newValue) => {
+                  field.onChange(newValue?.id ?? '');
+                  void trigger('unit');
+                }}
+                onBlur={field.onBlur}
+                renderInput={(params) => (
+                  <CustomTextField
+                    {...params}
+                    label={`${dictionary['navigation'].unit} *`}
+                    placeholder={
+                      dictionary['navigation'].typeToSearchUnit || 'Type to search unit'
+                    }
+                    error={!!fieldState.error}
+                    helperText={fieldState.error?.message ?? ''}
+                    onBlur={(e) => {
+                      params.inputProps.onBlur?.(e as FocusEvent<HTMLInputElement>);
+                      field.onBlur();
+                      void trigger('unit');
+                    }}
+                  />
+                )}
+              />
+            )}
+          />
 
           <Controller
             name='amount'
             control={control}
             rules={{ required: dictionary['navigation'].Enteramount, validate: value => validateNumber(value, dictionary) }}
-            render={({ field }) => (
+            render={({ field, fieldState }) => (
               <CustomTextField
                 {...field}
                 fullWidth
-                label={dictionary['navigation'].amount}
+                label={`${dictionary['navigation'].amount} *`}
                 placeholder={dictionary['navigation'].Enteramount}
-                error={!!errors.amount}
-                helperText={errors.amount ? errors.amount.message : ''}
+                disabled
+                error={!!fieldState.error}
+                helperText={fieldState.error?.message ?? ''}
+                onBlur={() => {
+                  field.onBlur();
+                  void trigger('amount');
+                }}
               />
             )}
           />
@@ -222,16 +278,20 @@ const EditSubScriptionDrawer = (props: Props) => {
             name='description'
             control={control}
             rules={{ required: dictionary['navigation'].Descriptionisrequired}}
-            render={({ field }) => (
+            render={({ field, fieldState }) => (
               <CustomTextField
                 {...field}
                 fullWidth
                 multiline
                 minRows={3}
-                label={dictionary['navigation'].description}
+                label={`${dictionary['navigation'].description} *`}
                 placeholder={dictionary['navigation'].enterdescription}
-                error={!!errors.description}
-                helperText={errors.description ? errors.description.message : ''}
+                error={!!fieldState.error}
+                helperText={fieldState.error?.message ?? ''}
+                onBlur={() => {
+                  field.onBlur();
+                  void trigger('description');
+                }}
               />
             )}
           />

@@ -1,10 +1,11 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const mongoose = require('mongoose');
 const { Users, Request, Language, Country, Zone, Driver,Role } = require('../../models');
 const ApiError = require('../../utils/ApiError');
-const { autocompletePlaces } = require('../../utils/commonFunction');
+const { autocompletePlaces , getUserId , getClientId } = require('../../utils/commonFunction');
 const { tokenService } = require('../../services');
 const ObjectId = require('mongoose').Types.ObjectId
+
 /**
  * Create a user
  * @param {Object} userBody
@@ -38,7 +39,7 @@ const queryUsers = async (filter, options) => {
  */
 const getUserById = async (id) => {
   return Users.findById(id);
-  
+
 
 };
 
@@ -58,7 +59,7 @@ const getUserByEmail = async (req) => {
   return user;
 };
 /**
- * Get companys
+
  * @param {string} email - The clientId to filter users by
  * @returns {Promise<Users>}
  */
@@ -398,22 +399,20 @@ const getRequesHistoryList = async (req) => {
  * @returns {Promise<Role>}
  */
 const getDropDowns = async (clientId) => {
-
-  const countryData = await Country.find({ status: true, clientId: clientId });
-  const languageData = await Language.find({ status: true, clientId: clientId });
-
-  const data = {
-    country: countryData,
-    language: languageData,
-  }
-
-
-  return data;
+  const [countryData, languageData] = await Promise.all([
+    Country.find({ status: true, clientId }).lean(),
+    Language.find({ status: true, clientId }).lean(),
+  ]);
+  return { country: countryData, language: languageData };
 };
-const getDashboardByCount = async (clientId) => {
+const getDashboardByCount = async (clientId,zoneId) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(clientId)) {
       throw new Error("Invalid clientId format");
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(zoneId)) {
+      throw new Error("Invalid zoneId format");
     }
 
     // Lookup roles to get the correct role IDs for "user" and "driver"
@@ -440,28 +439,74 @@ const getDashboardByCount = async (clientId) => {
     // Count active users
     const activeUsers = (await Users.countDocuments({
       roleIds: roleMap["User"] ?? null,
-      // active: true,
+      active: true,
       clientId,
+      zoneId: { $in: new ObjectId(zoneId)}
     })) || 0;
 
     // Count active drivers
-    const activeDrivers = (await Users.countDocuments({
+    /* const activeDrivers = (await Users.countDocuments({
       roleIds: roleMap["Driver"] ?? null,
-      // active: true,
+      active: true,
       clientId,
-    })) || 0;
+    })) || 0; */
+    const driverResult = await Users.aggregate([
+      {
+        $match: {
+          roleIds: roleMap["Driver"],
+          active: true,
+          clientId: new ObjectId(clientId),
+        }
+      },
+      {
+        $lookup: {
+          from: 'drivers',
+          localField: '_id',
+          foreignField: 'userId',
+          as: 'driverDetails'
+        }
+      },
+      {
+        $unwind: '$driverDetails'
+      },
+      {
+        $match: {
+          'driverDetails.serviceLocation': new ObjectId(zoneId)
+        }
+      },
+      {
+        $group: {
+          _id: "$_id"
+        }
+      },
+      {
+        $count: "count"
+      }
+    ]);
+
+
+    const activeDrivers = driverResult[0]?.count || 0;
 
     // Count active admins
     const activeAdmins = (await Users.countDocuments({
       roleIds: adminRoleId ?? null,
-      // active: true,
+      active: true,
       clientId,
+      zoneId: new ObjectId(zoneId)
     })) || 0;
 
     // Count active zones
-    const activeZones = (await Zone.countDocuments({ 
-      // status: true, 
+    const activePrimary = (await Zone.countDocuments({
+      status: true,
+      _id: new ObjectId(zoneId),
       clientId })) || 0;
+
+    const activeSecendory = (await Zone.countDocuments({
+      status: true,
+      primaryZoneId: new ObjectId(zoneId),
+      clientId })) || 0;
+
+    const activeZones = activePrimary + activeSecendory;
 
     return {
       user: activeUsers ?? 0,
@@ -475,65 +520,76 @@ const getDashboardByCount = async (clientId) => {
   }
 };
 const getAdmins = async (filter) => {
-  return await Users.find(filter); 
+  return await Users.find(filter);
 };
 
 const getUserDetails = async (id) => {
   const user = await Users.findById(id);
-  
+
   if (!user) {
     throw new Error('User not found');
   }
 
   return {
     username: user.firstName,
-    roleIds: user.roleIds, 
+    roleIds: user.roleIds,
     user_type: user.user_type // Return roleIds as before
   };
 };
+
 const getByUserDetails = async (userId) => {
-  // Validate if userId is a valid MongoDB ObjectId
   if (!mongoose.Types.ObjectId.isValid(userId)) {
-    throw new ApiError(httpStatus.BAD_REQUEST, "Invalid user ID format");
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid user ID format');
   }
 
-  // const user = await Users.findById(userId);
   const user = await Users.aggregate([
     {
-      $match:{
-        _id: new ObjectId(userId)
-      }
+      $match: {
+        _id: new ObjectId(userId),
+      },
     },
     {
-      $lookup:{
+      $lookup: {
+        from: 'requests',
+        localField: '_id',
+        foreignField: 'userId',
+        as: 'tripData',
+      },
+    },
+    {
+      $addFields: {
+        tripsCount: {
+          $size: {
+            $filter: {
+              input: '$tripData',
+              as: 'trip',
+              cond: {
+                $eq: ['$$trip.isCompleted', true],
+              },
+            },
+          },
+        },
+      },
+    },
+    {
+      $lookup: {
         from: 'requestratings',
         localField: '_id',
         foreignField: 'userId',
         as: 'ratingDetails',
-
-      }
+      },
     },
     {
-      $unwind: {
-        path: '$ratingDetails',        
-        preserveNullAndEmptyArrays: true
-      }
-    },
-    {
-      $group: {
-        _id: '$ratingDetails.userId',           
-        averageRating: { 
-          $avg: '$ratingDetails.rating' 
+      $addFields: {
+        averageRating: {
+          $ifNull: [
+            {
+              $avg: '$ratingDetails.rating',
+            },
+            0,
+          ],
         },
-        firstName: { $first: '$firstName' },
-        lastName: { $first: '$lastName' },
-        avatar: { $first: '$profilePic' },
-        email: { $first: '$email' },
-        phoneNumber: { $first: '$phoneNumber' },
-        tripsCount: { $first: '$tripsCount' },
-        active: { $first: '$active' },
-        rating: { $first: '$rating'},
-      }
+      },
     },
     {
       $project: {
@@ -541,35 +597,140 @@ const getByUserDetails = async (userId) => {
         userId: '$_id',
         firstName: 1,
         lastName: 1,
-        avatar: 1,
+        avatar: '$profilePic',
         email: 1,
         phoneNumber: 1,
-        tripsCount: 1,
         active: 1,
+        tripsCount: 1,
         rating: {
-          $ifNull:[{$floor:'$averageRating'},'$rating']
+          $round: ['$averageRating', 1],
         },
-      }
-    }
+      },
+    },
   ]);
 
-  // Check if user exists
-  if (!user) {
-    throw new ApiError(httpStatus.NOT_FOUND, "User not found");
+  if (!user.length) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
   }
 
   return user[0];
 };
 
-const getLogisticalCounts = async (clientId) => {
+const getByDriverDetails = async (userId) => {
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid user ID format');
+  }
+
+  const user = await Users.aggregate([
+    {
+      $match: {
+        _id: new ObjectId(userId),
+      },
+    },
+
+    {
+      $lookup: {
+        from: 'drivers',
+        localField: '_id',
+        foreignField: 'userId',
+        as: 'driverDetails',
+      },
+    },
+
+    {
+      $addFields: {
+        driverDetails: {
+          $arrayElemAt: ['$driverDetails', 0],
+        },
+      },
+    },
+
+    {
+      $lookup: {
+        from: 'requests',
+        localField: 'driverDetails._id',
+        foreignField: 'driverId',
+        as: 'tripData',
+      },
+    },
+
+    {
+      $addFields: {
+        tripsCount: {
+          $size: {
+            $filter: {
+              input: '$tripData',
+              as: 'trip',
+              cond: {
+                $eq: ['$$trip.isCompleted', true],
+              },
+            },
+          },
+        },
+      },
+    },
+
+    {
+      $lookup: {
+        from: 'requestratings',
+        localField: '_id',
+        foreignField: 'userId',
+        as: 'ratingDetails',
+      },
+    },
+
+    {
+      $addFields: {
+        averageRating: {
+          $ifNull: [
+            {
+              $avg: '$ratingDetails.rating',
+            },
+            0,
+          ],
+        },
+      },
+    },
+
+    {
+      $project: {
+        _id: 0,
+        userId: '$_id',
+        driverId: '$driverDetails._id',
+        firstName: 1,
+        lastName: 1,
+        avatar: '$profilePic',
+        email: 1,
+        phoneNumber: 1,
+        active: 1,
+        tripsCount: 1,
+        rating: {
+          $round: ['$averageRating', 1],
+        },
+      },
+    },
+  ]);
+
+  if (!user.length) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
+  }
+
+  return user[0];
+};
+
+const getLogisticalCounts = async (clientId,zoneId) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(clientId)) {
       throw new Error("Invalid clientId format");
     }
 
+    if (!mongoose.Types.ObjectId.isValid(zoneId)) {
+      throw new Error("Invalid zoneId format");
+    }
+
     // Lookup roles to get the correct role IDs for "user" and "driver"
     const roles = await Role.find({ role: { $in: ["User", "Driver"] } }, "_id role").lean();
-    
+
     if (!roles || roles.length === 0) {
       throw new Error("Roles not found");
     }
@@ -590,35 +751,116 @@ const getLogisticalCounts = async (clientId) => {
       roleIds: roleMap["User"] ?? null,
       active: true,
       clientId,
+      zoneId: { $in: new ObjectId(zoneId)}
     })) || 0;
 
     const blockedUsers = (await Users.countDocuments({
       roleIds: roleMap["User"] ?? null,
       active: false,
       clientId,
+      zoneId: { $in: new ObjectId(zoneId)}
     })) || 0;
+
 
     // Count active & blocked drivers using lookup
-    const activeDrivers = (await Users.countDocuments({
-      roleIds: roleMap["Driver"] ?? null,
-      active: true,
-      clientId,
-    })) || 0;
+    // const activeDrivers = (await Users.countDocuments({
+    //   roleIds: roleMap["Driver"] ?? null,
+    //   active: true,
+    //   clientId,
+    //   zoneId: { $in: new ObjectId(zoneId)}
+    // })) || 0;
 
-    const blockedDrivers = (await Users.countDocuments({
-      roleIds: roleMap["Driver"] ?? null,
-      active: false,
-      clientId,
-    })) || 0;
+    // const blockedDrivers = (await Users.countDocuments({
+    //   roleIds: roleMap["Driver"] ?? null,
+    //   active: false,
+    //   clientId,
+    //   zoneId: { $in: new ObjectId(zoneId)}
+    // })) || 0;
+
+    const activeDriverResult = await Users.aggregate([
+      {
+        $match: {
+          roleIds: roleMap["Driver"],
+          active: true,
+          clientId: new ObjectId(clientId),
+        }
+      },
+      {
+        $lookup: {
+          from: 'drivers', // collection name in MongoDB (not the model name)
+          localField: '_id',
+          foreignField: 'userId',
+          as: 'driverDetails'
+        }
+      },
+      {
+        $unwind: '$driverDetails'
+      },
+      {
+        $match: {
+          'driverDetails.serviceLocation': new ObjectId(zoneId)
+        }
+      },
+       {
+          $group: { _id: "$_id" }
+        },
+      {
+        $count: 'count'
+      }
+    ]);
+
+    const activeDrivers = activeDriverResult[0]?.count || 0;
+
+    const inactiveDriverResult = await Users.aggregate([
+      {
+        $match: {
+          roleIds: roleMap["Driver"],
+          active: false,
+          clientId: new ObjectId(clientId),
+        }
+      },
+      {
+        $lookup: {
+          from: 'drivers', // collection name in MongoDB (not the model name)
+          localField: '_id',
+          foreignField: 'userId',
+          as: 'driverDetails'
+        }
+      },
+      {
+        $unwind: '$driverDetails'
+      },
+      {
+        $match: {
+          'driverDetails.serviceLocation': new ObjectId(zoneId)
+        }
+      },
+       {
+          $group: { _id: "$_id" }
+        },
+      {
+        $count: 'count'
+      }
+    ]);
+
+    const blockedDrivers = inactiveDriverResult[0]?.count || 0;
+
+
+
 
     // Count active & blocked zones
-    const activeZones = (await Zone.countDocuments({ status: true, clientId })) || 0;
-    const blockedZones = (await Zone.countDocuments({ status: false, clientId })) || 0;
+    const activeZones = (await Zone.countDocuments({ _id: new ObjectId(zoneId),status: true, clientId })) || 0;
+    const blockedZones = (await Zone.countDocuments({ _id: new ObjectId(zoneId),status: false, clientId })) || 0;
+    const activeZones1 = (await Zone.countDocuments({ primaryZoneId: new ObjectId(zoneId),status: true, clientId })) || 0;
+    const blockedZones1 = (await Zone.countDocuments({ primaryZoneId: new ObjectId(zoneId),status: false, clientId })) || 0;
+
+    const totalActiveZones = activeZones + activeZones1;
+    const totalBlockedZones = blockedZones + blockedZones1;
 
     return {
       user: { Active: activeUsers, Block: blockedUsers },
       driver: { Active: activeDrivers, Block: blockedDrivers },
-      zone: { Active: activeZones, Block: blockedZones },
+      zone: { Active: totalActiveZones, Block: totalBlockedZones },
     };
   } catch (error) {
     console.error("Error fetching logistical counts:", error.message);
@@ -644,5 +886,6 @@ module.exports = {
   getUserDetails,
   getByUserDetails,
   getLogisticalCounts,
+  getByDriverDetails
 
 };

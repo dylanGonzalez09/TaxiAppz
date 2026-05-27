@@ -1,6 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
+
+import dynamic from 'next/dynamic'
 
 import Card from '@mui/material/Card'
 import CardHeader from '@mui/material/CardHeader'
@@ -8,15 +10,60 @@ import CardContent from '@mui/material/CardContent'
 import Typography from '@mui/material/Typography'
 import Tab from '@mui/material/Tab'
 import Tabs from '@mui/material/Tabs'
-
 import Chip from '@mui/material/Chip'
-
-
 import classnames from 'classnames'
 
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-
 import CustomAvatar from '@core/components/mui/Avatar'
+
+// Lazy-load recharts to reduce initial bundle (chart only when dashboard visible)
+const BarChartDynamic = dynamic(
+  () =>
+    import('recharts').then((mod) => {
+      const { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } = mod
+
+      function Chart({ data, selectedDay, onBarClick }) {
+        return (
+          <ResponsiveContainer width="100%" height={174}>
+            <BarChart data={data} margin={{ top: 20, right: 0, left: 0, bottom: 0 }} onClick={onBarClick}>
+              <XAxis
+                dataKey="day"
+                axisLine={false}
+                tickLine={false}
+                tick={(props) => {
+                  const { x, y, payload } = props
+                  const day = payload.value
+                  const dayData = data.find((d) => d.day === day)
+                  const fill = dayData?.isFutureDay ? 'var(--mui-palette-text-secondary)' : 'var(--mui-palette-text-disabled)'
+
+
+return (
+                    <text x={x} y={y + 10} textAnchor="middle" fill={fill} fontSize={13}>{day}</text>
+                  )
+                }}
+              />
+              <YAxis hide />
+              <Tooltip content={<></>} />
+              <Bar
+                dataKey="earnings"
+                fill={(entry) => {
+                  if (entry.isFutureDay) return 'transparent'
+                  if (entry.day === selectedDay) return '#000000'
+
+return 'var(--mui-palette-primary-lightOpacity)'
+                }}
+                radius={4}
+                barSize={42}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        )
+      }
+
+
+return Chart
+    }),
+  { ssr: false, loading: () => <div style={{ height: 174, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>...</div> }
+)
 
 // Data for both weeks
 const weekData = {
@@ -94,36 +141,36 @@ const EarningReports = () => {
   const [currentDay, setCurrentDay] = useState('')
 
   // Set current day on mount
-  
+
   useEffect(() => {
-    
+
     const days = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
-    
+
     setCurrentDay(days[new Date().getDay()])
   }, [])
 
   const currentData = weekData[selectedWeek]
 
-  // Format data for chart
-  const chartData = Object.entries(currentData.dailyEarnings).map(([day, earnings]) => {
+  // Format data for chart (memoized to avoid new ref every render)
+  const chartData = useMemo(() => Object.entries(currentData.dailyEarnings).map(([day, earnings]) => {
     const dayIndex = daysOrder.indexOf(day)
     const currentDayIndex = daysOrder.indexOf(currentDay)
     const isFutureDay = selectedWeek === 'thisWeek' && dayIndex > currentDayIndex
-    
+
     return {
       day,
       earnings: isFutureDay ? 0 : earnings.total,
       isFutureDay
     }
-  })
+  }), [currentData.dailyEarnings, currentDay, selectedWeek])
 
   // Get earnings for display
-  const displayEarnings = selectedDay 
+  const displayEarnings = selectedDay
     ? `$${currentData.dailyEarnings[selectedDay].total}`
     : currentData.totalEarnings
 
   // Get breakdown data
-  const breakdownData = selectedDay 
+  const breakdownData = selectedDay
     ? [
         {
           title: 'Cash',
@@ -149,10 +196,10 @@ const EarningReports = () => {
   const handleBarClick = (data) => {
     if (data && data.activePayload && data.activePayload.length > 0) {
       const clickedDay = data.activePayload[0].payload.day
-      
+
       // Don't select future days
       if (data.activePayload[0].payload.isFutureDay) return
-      
+
       setSelectedDay(clickedDay)
     }
   }
@@ -191,7 +238,7 @@ const EarningReports = () => {
               <Typography variant='h2'>{displayEarnings}</Typography>
             </div>
           </div>
-          
+
           <Tabs
             value={selectedWeek}
             onChange={handleWeekChange}
@@ -204,61 +251,7 @@ const EarningReports = () => {
           </Tabs>
         </div>
 
-        <ResponsiveContainer width='100%' height={174}>
-          <BarChart
-            data={chartData}
-            margin={{ top: 20, right: 0, left: 0, bottom: 0 }}
-            onClick={handleBarClick}
-          >
-            <XAxis
-              dataKey='day'
-              axisLine={false}
-              tickLine={false}
-              tick={(props) => {
-                const { x, y, payload } = props
-                const day = payload.value
-                
-                const dayData = chartData.find(d => d.day === day)
-                
-                const fill = dayData && dayData.isFutureDay 
-                  ? 'var(--mui-palette-text-secondary)' 
-                  : 'var(--mui-palette-text-disabled)'
-                
-                return (
-                  <text 
-                    x={x} 
-                    y={y + 10} 
-                    textAnchor="middle" 
-                    fill={fill} 
-                    fontSize={13}
-                  >
-                    {day}
-                  </text>
-                )
-              }}
-            />
-            <YAxis hide />
-            <Tooltip content={<></>} />
-            <Bar
-              dataKey='earnings'
-              fill={(entry) => {
-                
-                if (entry.isFutureDay) {
-                  return 'transparent'
-                }
-                
-                if (entry.day === selectedDay) {
-                
-                  return '#000000' 
-                }
-                
-                return 'var(--mui-palette-primary-lightOpacity)'
-              }}
-              radius={4}
-              barSize={42}
-            />
-          </BarChart>
-        </ResponsiveContainer>
+        <BarChartDynamic data={chartData} selectedDay={selectedDay} onBarClick={handleBarClick} />
 
         <div className='flex flex-col sm:flex-row gap-5 p-2 border rounded' style={{ height: '120px' }}>
           {breakdownData.map((item, index) => (

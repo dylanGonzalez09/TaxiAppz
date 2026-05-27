@@ -1,8 +1,10 @@
-const httpStatus = require('http-status');
+const httpStatus = require('http-status').default || require('http-status').status || require('http-status');
 const ApiError = require('../../../utils/ApiError');
 const { Faq } = require('../../../models');
-const { tokenService } = require('../../../services');
-const ObjectId = require('mongoose').Types.ObjectId
+const { tokenService } = require('../..');
+const { ObjectId } = require('mongoose').Types;
+
+const { getUserId, getClientId, getDriverId } = require('../../../utils/commonFunction');
 
 /**
   from the mobile side they need to send Client Id and Code (Version code)
@@ -10,42 +12,14 @@ const ObjectId = require('mongoose').Types.ObjectId
   2. check the avaliable languages for client send the avaliable languages 
  */
 
-const getClientId = async (req) => {
-    clientId = '';
-    if (!req.headers.clientid) {
-        throw new ApiError(httpStatus.NOT_FOUND, 'ClientID not found');
-    } else {
-        clientId = req.headers.clientid;
-    }
-    return clientId;
-}
-
-
-
-const getUserId = async (req) => {
-    let userId = '';
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        res.status(httpStatus.UNAUTHORIZED).send({ message: 'Authorization header is missing or invalid' });
-        return;
-    }
-    // Remove the 'Bearer ' prefix and get the token
-    const token = authHeader.substring(7);
-    const user = await tokenService.verifyTokenAndGetUser(token);
-    userId = user.id
-    return userId;
-}
-
-
-
 /**
  * Create a wallet
  * @param {Object} req
  * @returns {Promise<Sos>}
  */
 const createFaq = async (req) => {
-    req.body.clientId = await getClientId(req);
-    return Faq.create(req.body);
+  req.body.clientId = await getClientId(req);
+  return Faq.create(req.body);
 };
 
 /**
@@ -59,28 +33,30 @@ const createFaq = async (req) => {
  * @returns {Promise<QueryResult>}
  */
 const queryFaqs = async (filter, options, req) => {
-    // Get the clientId from request
-    const clientId = await getClientId(req);
+  // Get the clientId from request
+  const clientId = await getClientId(req);
 
-    // Add clientId to the filter
-    if (clientId) {
-        filter.clientId = clientId;
-    }
+  // Add clientId to the filter
+  if (clientId) {
+    filter.clientId = clientId;
+  }
 
-    const faq = await Faq.paginate(filter, options);
-    return faq;
+  const faq = await Faq.paginate(filter, options);
+  return faq;
 };
-
 
 /**
  * Get wallets
  * @returns {Promise<Sos>}
  */
 const getFaqs = async (req) => {
-    let clientId = await getClientId(req);
-    return Faq.find({ clientId: new ObjectId(clientId) });
-};
+  const category = req.body.type;
+  const { zoneId } = req.body;
 
+  const clientId = await getClientId(req);
+
+  return Faq.find({ clientId: new ObjectId(clientId), category, zoneId: new ObjectId(zoneId) });
+};
 
 /**
  * Get wallet by id
@@ -88,9 +64,8 @@ const getFaqs = async (req) => {
  * @returns {Promise<Sos>}
  */
 const getFaqById = async (id) => {
-    return Faq.findById(id);
+  return Faq.findById(id);
 };
-
 
 /**
  * Update Sos by id
@@ -99,14 +74,14 @@ const getFaqById = async (id) => {
  * @returns {Promise<Sos>}
  */
 const updateFaqById = async (sosId, updateBody) => {
-    const Faq = await getFaqById(sosId);
-    if (!Faq) {
-        throw new ApiError(httpStatus.NOT_FOUND, 'sos not found');
-    }
+  const Faq = await getFaqById(sosId);
+  if (!Faq) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'sos not found');
+  }
 
-    Object.assign(Faq, updateBody);
-    await Faq.save();
-    return Faq;
+  Object.assign(Faq, updateBody);
+  await Faq.save();
+  return Faq;
 };
 
 /**
@@ -115,19 +90,49 @@ const updateFaqById = async (sosId, updateBody) => {
  * @returns {Object}
  */
 const deleteFaqById = async (sosId) => {
-    const Faq = await getFaqById(sosId);
-    if (!Faq) {
-        throw new ApiError(httpStatus.NOT_FOUND, 'Sos not found');
-    }
-    await Faq.deleteOne();
-    return { status: "success", msg: "data Deleted Successfully" };
+  const Faq = await getFaqById(sosId);
+  if (!Faq) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Sos not found');
+  }
+  await Faq.deleteOne();
+  return { status: 'success', msg: 'data Deleted Successfully' };
+};
+
+const getFaqsForUser = async (req) => {
+  const clientId = await getClientId(req);
+  const zoneId = req.body?.zoneId;
+  if (!zoneId) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'zoneId is required in body');
+  }
+  return Faq.find({
+    clientId: new ObjectId(clientId),
+    zoneId: new ObjectId(zoneId),
+    status: true,
+    $or: [{ userType: { $in: ['User', 'Both'] } }, { userType: { $exists: false } }],
+  }).sort({ createdAt: -1 });
+};
+
+const getFaqsForDriver = async (req) => {
+  const clientId = await getClientId(req);
+  const zoneId = req.body?.zoneId;
+  if (!zoneId) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'zoneId is required in body');
+  }
+  return Faq.find({
+    clientId: new ObjectId(clientId),
+    zoneId: new ObjectId(zoneId),
+    status: true,
+    $or: [{ userType: { $in: ['Driver', 'Both'] } }, { userType: { $exists: false } }],
+  }).sort({ createdAt: -1 });
 };
 
 module.exports = {
-    createFaq,
-    queryFaqs,
-    getFaqById,
-    getFaqs,
-    updateFaqById,
-    deleteFaqById,
+  createFaq,
+  queryFaqs,
+  getFaqById,
+  getFaqs,
+  updateFaqById,
+  deleteFaqById,
+  getFaqsForUser,
+  getFaqsForDriver,
 };

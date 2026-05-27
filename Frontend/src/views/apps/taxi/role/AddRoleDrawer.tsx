@@ -17,7 +17,7 @@ import { useIsDemoUser } from '@/utils/demoUser'
 import CustomTextField from '@core/components/mui/TextField';
 import { createRole } from '@apis/role';
 
-import { validateTextOnly } from '@/utils/validation';
+import { validateRoleName } from '@/utils/validation';
 
 type roleType = {
   role: string;
@@ -53,9 +53,11 @@ const AddRoleDrawer = (props: Props) => {
     control,
     reset,
     handleSubmit,
+    trigger,
     formState: { errors }
   } = useForm<FormValues>({
-    mode: 'all',
+    mode: 'onChange',
+    reValidateMode: 'onChange',
     defaultValues: {
       role: '',
     }
@@ -144,10 +146,14 @@ const AddRoleDrawer = (props: Props) => {
           <Controller
             name='role'
             control={control}
-            rules={{ required: dictionary['navigation'].rolerequired, validate: value => validateTextOnly(value, dictionary) }}
+            rules={{ required: dictionary['navigation'].rolerequired, validate: value => validateRoleName(value, dictionary) }}
             render={({ field }) => (
               <CustomTextField
                 {...field}
+                onChange={async e => {
+                  field.onChange(e);
+                  await trigger('role');
+                }}
                 fullWidth
                 label={dictionary['navigation'].role}
                 placeholder={dictionary['navigation'].enterrole}
@@ -156,7 +162,7 @@ const AddRoleDrawer = (props: Props) => {
               />
             )}
           />
-          <div className='flex items-center gap-4 mt-4'>
+          <div className='flex justify-end gap-5 mt-4'>
 
             <Button
               variant="contained"
@@ -167,7 +173,7 @@ const AddRoleDrawer = (props: Props) => {
             >
               {loading ? dictionary['navigation'].Submitting : dictionary['navigation'].Submit}
             </Button>
-            <Button variant='outlined' color='error' onClick={handleReset}>
+            <Button variant='outlined' color='error'  onClick={handleReset}>
               {dictionary['navigation'].discard}
             </Button>
           </div>

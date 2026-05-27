@@ -8,10 +8,16 @@ const router = express.Router();
 
 router.route('/create').post(auth('Rating'), validate(ratingValidation.createRating), ratingController.createRating);
 router.route('/getRating').get(auth('Rating'), validate(ratingValidation.getRating), ratingController.getRating);
-router.route('/getRatings/:ratingId').get(auth('Rating'), validate(ratingValidation.getRatings), ratingController.getRatings);
+router
+  .route('/getRatings/:ratingId')
+  .get(auth('Rating'), validate(ratingValidation.getRatings), ratingController.getRatings);
 router.route('/getRating/list').get(auth('Rating'), ratingController.getRatingWithOutPagination);
-router.route('/updateRating/:ratingId').patch(auth('Rating'), validate(ratingValidation.updateRating), ratingController.updateRating);
-router.route('/deleteRating/:ratingId').delete(auth('Rating'), validate(ratingValidation.deleteRating), ratingController.deleteRating);
+router
+  .route('/updateRating/:ratingId')
+  .patch(auth('Rating'), validate(ratingValidation.updateRating), ratingController.updateRating);
+router
+  .route('/deleteRating/:ratingId')
+  .delete(auth('Rating'), validate(ratingValidation.deleteRating), ratingController.deleteRating);
 router.route('/getUserRatings/:userId').get(auth('Rating'), ratingController.getUserRatings);
 
 module.exports = router;
@@ -238,4 +244,3 @@ module.exports = router;
  *       404:
  *         description: SOS request not found
  */
-
